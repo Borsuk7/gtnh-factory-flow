@@ -195,6 +195,13 @@ in `src/store/CLAUDE.md` (Live plans, Task boards).
     back, then a notice (`showLiveNotice`) says "Added X to 'task'" with Open.
     A plan tab's Add plan as a task uses the same menus, naming a new task after the plan and including every entry
     from its machine list with rounded-up quantities and links back to the cards. The checklist is a snapshot.
+    Whole-plan additions also record `task.sourcePlans`. Only these tasks show a Plan link and source name on their
+    card and in their box, with a compact Plan link in Chain view. It opens the source plan; pressing it never opens
+    or drags the task. Machine links alone never imply a full plan. A source plan's tab menu offers Update a task
+    when linked whole-plan tasks exist. It refreshes that plan's machine rows in one undoable live edit: unchanged
+    or smaller quantities for the same machine and tier keep their checkmarks; increases or machine/tier changes
+    are unchecked. New machines are added and removed machines are taken off. Other plans, notes, task titles and
+    status are kept. Updates wait for current solve numbers.
   - A link opens the plan and centres the card (`lib/tasks/open-link.ts`) or says "That plan is gone". A card wears the
     dot of its most pressing task (blocked, then doing, to do, done; `lib/tasks/task-link-index.ts`, from the task
     boards on this device, counting machine things and older task links).

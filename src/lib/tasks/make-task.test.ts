@@ -73,7 +73,12 @@ describe("adding a whole plan as a task", () => {
     const id = await addCardsToTask(cards, "board", undefined, "Copper line");
     const project = useFactoryStore.getState().project;
     expect(project.tasks).toHaveLength(1);
-    expect(project.tasks?.[0]).toMatchObject({ id, title: "Copper line", status: "todo" });
+    expect(project.tasks?.[0]).toMatchObject({
+      id,
+      title: "Copper line",
+      status: "todo",
+      sourcePlans: [{ plan: "plan", name: "Copper line" }],
+    });
     expect(
       project.taskItems
         ?.map((item) => ({ text: item.text, node: item.link?.node, done: item.done }))
@@ -84,5 +89,20 @@ describe("adding a whole plan as a task", () => {
     ]);
     expect(project.taskItems?.every((item) => item.link?.plan === "plan")).toBe(true);
     expect(useDesignStore.getState().activeDesignId).toBe("plan");
+  });
+
+  it("keeps machine-only tasks unmarked", async () => {
+    useFactoryStore.setState({ project: plan() });
+    const stamp = "2026-10-18T00:00:00Z";
+    useDesignStore.setState({
+      activeDesignId: "plan",
+      designs: [
+        { id: "plan", name: "Copper line", createdAt: stamp, updatedAt: stamp },
+        { id: "board", name: "Build list", taskBoard: true, createdAt: stamp, updatedAt: stamp },
+      ],
+    });
+    useLiveSession.setState({ status: "off" });
+    await addCardsToTask(planCardsForTask(), "board");
+    expect(useFactoryStore.getState().project.tasks?.[0]).not.toHaveProperty("sourcePlans");
   });
 });

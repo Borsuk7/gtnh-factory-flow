@@ -7,6 +7,8 @@ import {
   planCardsForTask,
   taskBoardChoices,
   taskChoices,
+  updateTaskFromPlan,
+  type PlanTaskTarget,
   type TaskBoardChoice,
   type TaskCard,
   type TaskChoice,
@@ -32,6 +34,13 @@ interface AddToTaskState {
 }
 
 const useAddToTask = create<AddToTaskState>(() => ({}));
+const useUpdateTask = create<{ open?: { anchor: ChromeAnchor; targets: PlanTaskTarget[] } }>(
+  () => ({}),
+);
+
+export function openUpdateTask(anchor: ChromeAnchor, targets: PlanTaskTarget[]): void {
+  useUpdateTask.setState({ open: { anchor, targets } });
+}
 
 export async function openAddToTask(
   cards: TaskCard[],
@@ -72,6 +81,23 @@ function close() {
 
 export function AddToTaskMenu() {
   const open = useAddToTask((state) => state.open);
+  const update = useUpdateTask((state) => state.open);
+  if (update)
+    return (
+      <ChromeMenu
+        anchor={update.anchor}
+        label="Update a task"
+        title="Update a task"
+        minWidth={180}
+        onClose={() => useUpdateTask.setState({ open: undefined })}
+        entries={update.targets.map((task) => ({
+          label: task.title,
+          detail: task.boardName,
+          dot: TASK_STATUS_COLOR[task.status],
+          onSelect: () => void updateTaskFromPlan(task.boardId, task.id),
+        }))}
+      />
+    );
   if (!open || (!open.board && !open.boards) || (open.board && !open.tasks)) return null;
   const { cards, newTaskTitle } = open;
   if (open.board && open.tasks) {
@@ -88,7 +114,7 @@ export function AddToTaskMenu() {
         dot: TASK_STATUS_COLOR[task.status],
         detail: task.all === 0 ? "" : `${task.done}/${task.all}`,
         ruleAbove: at === 0,
-        onSelect: () => void addCardsToTask(cards, board.id, task.id),
+        onSelect: () => void addCardsToTask(cards, board.id, task.id, newTaskTitle),
       })),
     ];
     return (

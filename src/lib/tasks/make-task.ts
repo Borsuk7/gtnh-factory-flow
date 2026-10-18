@@ -9,6 +9,7 @@ import { myAccountId, showLiveNotice, useLiveSession } from "@/store/live-sessio
 import { activateDesign } from "./open-link";
 import {
   addTask,
+  addTaskSourcePlan,
   addThing,
   boardCardLabel,
   cardLine,
@@ -18,7 +19,8 @@ import {
   titleForCards,
 } from "./task-board";
 import { selectTask } from "./task-board-ui";
-import { planLinkId } from "./task-links";
+import { planLinkId, planLinkIds } from "./task-links";
+import { syncTaskPlan } from "./task-plan";
 
 /**
  * "Add to a task" (the game's TaskActions): cards of the open plan go into a task of one of the task boards on this
@@ -50,6 +52,39 @@ export interface TaskChoice {
   status: PlanTaskStatus;
   done: number;
   all: number;
+}
+
+export interface PlanTaskTarget extends TaskChoice {
+  boardId: string;
+  boardName: string;
+}
+
+/** Explicit whole-plan tasks only, read when the player opens the plan's menu. */
+export async function relatedPlanTasks(designId: string): Promise<PlanTaskTarget[]> {
+  const store = useDesignStore.getState();
+  const design = store.designs.find((entry) => entry.id === designId);
+  if (!design) return [];
+  const aliases = new Set(planLinkIds(design, myAccountId()));
+  const targets = await Promise.all(
+    store.designs
+      .filter((entry) => entry.taskBoard)
+      .map(async (board) => {
+        const project =
+          board.id === store.activeDesignId
+            ? useFactoryStore.getState().project
+            : (await readDesign(board.id).catch(() => undefined))?.project;
+        if (!project) return [];
+        const ids = new Set(
+          project.tasks
+            ?.filter((task) => task.sourcePlans?.some((source) => aliases.has(source.plan)))
+            .map((task) => task.id),
+        );
+        return taskChoicesOf(project)
+          .filter((task) => ids.has(task.id))
+          .map((task) => ({ ...task, boardId: board.id, boardName: board.name }));
+      }),
+  );
+  return targets.flat();
 }
 
 /** The task boards on this device, the open design left out (it is the plan the cards are on). */
@@ -173,14 +208,48 @@ export async function addCardsToTask(
   cards: readonly TaskCard[],
   boardDesignId: string | undefined,
   taskId?: string,
-  newTaskTitle?: string,
+  wholePlanName?: string,
 ): Promise<string | undefined> {
-  if (cards.length === 0) {
+  return writeTaskMachines(cards, boardDesignId, taskId, wholePlanName);
+}
+
+/** Refreshes a linked task from the open plan, including a plan whose last machine was removed. */
+export async function updateTaskFromPlan(
+  boardDesignId: string,
+  taskId: string,
+): Promise<string | undefined> {
+  const store = useDesignStore.getState();
+  const from = store.designs.find((design) => design.id === store.activeDesignId);
+  if (!from) return undefined;
+  for (
+    let waited = 0;
+    waited < 5000 && useFactoryStore.getState().lastResult.stale;
+    waited += 100
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (useDesignStore.getState().activeDesignId !== from.id) return undefined;
+  if (useFactoryStore.getState().lastResult.stale) {
+    showLiveNotice("This plan is still calculating. Update the task when it finishes.");
+    return undefined;
+  }
+  return writeTaskMachines(planCardsForTask(), boardDesignId, taskId, from.name, true);
+}
+
+async function writeTaskMachines(
+  cards: readonly TaskCard[],
+  boardDesignId: string | undefined,
+  taskId?: string,
+  wholePlanName?: string,
+  update = false,
+): Promise<string | undefined> {
+  if (cards.length === 0 && !update) {
     return undefined;
   }
   const designStore = useDesignStore.getState();
   const from = designStore.designs.find((design) => design.id === designStore.activeDesignId);
   const plan = from ? planLinkId(from, myAccountId()) : "";
+  const aliases = from ? planLinkIds(from, myAccountId()) : [];
   if (boardDesignId) {
     const board = designStore.designs.find((design) => design.id === boardDesignId);
     if (!board) {
@@ -203,15 +272,28 @@ export async function addCardsToTask(
   useFactoryStore.getState().editTasks((project) => {
     let next = project;
     let id = taskId && taskById(project, taskId) ? taskId : undefined;
+    if (project.primaryView !== "tasks") return project;
+    if (update) {
+      if (
+        !id ||
+        !wholePlanName ||
+        !taskById(project, id)?.sourcePlans?.some((source) => aliases.includes(source.plan))
+      )
+        return project;
+      title = taskById(project, id)!.title;
+      made = id;
+      return syncTaskPlan(project, id, { plan, name: wholePlanName }, aliases, cards);
+    }
     if (!id) {
       const added = addTask(next, {
-        title: newTaskTitle ?? titleForCards(cards.map((card) => card.name)),
+        title: wholePlanName ?? titleForCards(cards.map((card) => card.name)),
         author,
       });
       next = added.project;
       id = added.id;
     }
     title = taskById(next, id)?.title ?? "";
+    if (wholePlanName && plan) next = addTaskSourcePlan(next, id, { plan, name: wholePlanName });
     for (const card of cards) {
       const link: PlanTaskLink = { plan, node: card.nodeId };
       next = addThing(next, id, { kind: "machine", text: cardLine(card), link });
@@ -219,25 +301,31 @@ export async function addCardsToTask(
     made = id;
     return next;
   });
-  if (!made || !boardId) {
-    return undefined;
-  }
-  const task = made;
   // Back to the plan the cards are on, once the board's edit is safe.
   if (from) {
-    await settled(boardId, 8000);
+    if (boardId) await settled(boardId, 8000);
     const back = useDesignStore.getState().designs.find((design) => design.id === from.id);
     if (back) await activateDesign(back);
   }
+  if (!made || !boardId) {
+    showLiveNotice(
+      update ? "That task is no longer linked to this plan." : "The task could not be added.",
+    );
+    return undefined;
+  }
+  const task = made;
   const what = cards.length === 1 ? cards[0]!.name : `${cards.length} machines`;
-  showLiveNotice(`Added ${what} to '${title}'`, {
-    label: "Open",
-    run: () => {
-      useLiveSession.setState({ notice: undefined });
-      const board = useDesignStore.getState().designs.find((design) => design.id === boardId);
-      if (!board) return;
-      void activateDesign(board).then(() => openWhenShown(boardId, task));
+  showLiveNotice(
+    update ? `Updated '${title}' from '${wholePlanName}'` : `Added ${what} to '${title}'`,
+    {
+      label: "Open",
+      run: () => {
+        useLiveSession.setState({ notice: undefined });
+        const board = useDesignStore.getState().designs.find((design) => design.id === boardId);
+        if (!board) return;
+        void activateDesign(board).then(() => openWhenShown(boardId, task));
+      },
     },
-  });
+  );
   return task;
 }
