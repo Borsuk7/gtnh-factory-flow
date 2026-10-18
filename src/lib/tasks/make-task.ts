@@ -38,6 +38,36 @@ export interface TaskCard {
   count: number;
 }
 
+/** A solved whole-plan snapshot, tied to the design the player asked to add or update. */
+export interface TaskPlanSnapshot {
+  designId: string;
+  name: string;
+  cards: TaskCard[];
+}
+
+/** Add and Update must both wait for current machine quantities before taking their snapshot. */
+export async function captureTaskPlan(): Promise<TaskPlanSnapshot | undefined> {
+  const designId = useDesignStore.getState().activeDesignId;
+  if (!designId) return undefined;
+  for (
+    let waited = 0;
+    waited < 5000 && useFactoryStore.getState().lastResult.stale;
+    waited += 100
+  ) {
+    if (useDesignStore.getState().activeDesignId !== designId) return undefined;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  const designs = useDesignStore.getState();
+  if (designs.activeDesignId !== designId) return undefined;
+  const from = designs.designs.find((design) => design.id === designId);
+  if (!from || useFactoryStore.getState().project.primaryView === "tasks") return undefined;
+  if (useFactoryStore.getState().lastResult.stale) {
+    showLiveNotice("This plan is still calculating. Try again when it finishes.");
+    return undefined;
+  }
+  return { designId, name: from.name, cards: planCardsForTask() };
+}
+
 /** A task board on this device, for the first menu: its design and how many tasks it holds. */
 export interface TaskBoardChoice {
   id: string;
@@ -208,9 +238,9 @@ export async function addCardsToTask(
   cards: readonly TaskCard[],
   boardDesignId: string | undefined,
   taskId?: string,
-  wholePlanName?: string,
+  options: { source?: TaskPlanSnapshot } = {},
 ): Promise<string | undefined> {
-  return writeTaskMachines(cards, boardDesignId, taskId, wholePlanName);
+  return writeTaskMachines(cards, boardDesignId, taskId, { kind: "add", ...options });
 }
 
 /** Refreshes a linked task from the open plan, including a plan whose last machine was removed. */
@@ -218,36 +248,29 @@ export async function updateTaskFromPlan(
   boardDesignId: string,
   taskId: string,
 ): Promise<string | undefined> {
-  const store = useDesignStore.getState();
-  const from = store.designs.find((design) => design.id === store.activeDesignId);
-  if (!from) return undefined;
-  for (
-    let waited = 0;
-    waited < 5000 && useFactoryStore.getState().lastResult.stale;
-    waited += 100
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  if (useDesignStore.getState().activeDesignId !== from.id) return undefined;
-  if (useFactoryStore.getState().lastResult.stale) {
-    showLiveNotice("This plan is still calculating. Update the task when it finishes.");
-    return undefined;
-  }
-  return writeTaskMachines(planCardsForTask(), boardDesignId, taskId, from.name, true);
+  const source = await captureTaskPlan();
+  if (!source) return undefined;
+  return writeTaskMachines(source.cards, boardDesignId, taskId, { kind: "update", source });
 }
+
+type TaskMachineOperation =
+  | { kind: "add"; source?: TaskPlanSnapshot }
+  | { kind: "update"; source: TaskPlanSnapshot };
 
 async function writeTaskMachines(
   cards: readonly TaskCard[],
   boardDesignId: string | undefined,
-  taskId?: string,
-  wholePlanName?: string,
-  update = false,
+  taskId: string | undefined,
+  operation: TaskMachineOperation,
 ): Promise<string | undefined> {
+  const update = operation.kind === "update";
+  const wholePlanName = operation.source?.name;
   if (cards.length === 0 && !update) {
     return undefined;
   }
   const designStore = useDesignStore.getState();
   const from = designStore.designs.find((design) => design.id === designStore.activeDesignId);
+  if (operation.source && operation.source.designId !== from?.id) return undefined;
   const plan = from ? planLinkId(from, myAccountId()) : "";
   const aliases = from ? planLinkIds(from, myAccountId()) : [];
   if (boardDesignId) {

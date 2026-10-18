@@ -4,7 +4,8 @@ import type { FactoryProject, Recipe } from "@/lib/model/types";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
 import { useLiveSession } from "@/store/live-session";
-import { relatedPlanTasks, updateTaskFromPlan } from "./make-task";
+import { addCardsToTask, captureTaskPlan, relatedPlanTasks, updateTaskFromPlan } from "./make-task";
+import { calculateThroughput } from "@/lib/solver/throughput";
 
 const projects: Record<string, FactoryProject> = {};
 vi.mock("./open-link", () => ({
@@ -97,9 +98,59 @@ beforeEach(() => {
   useLiveSession.setState({ status: "off" });
 });
 afterEach(() => {
+  vi.useRealTimers();
   useDesignStore.setState(designs, true);
   useFactoryStore.setState(factory, true);
   useLiveSession.setState(live, true);
+});
+describe("capturing a whole plan for Add and Update", () => {
+  it("waits for fresh solved quantities before capturing the source", async () => {
+    vi.useFakeTimers();
+    const project = { ...projects.source!, solveMode: true, planMode: true };
+    const fresh = calculateThroughput(project);
+    fresh.nodes.node!.theoreticalMachinesRequired = 5;
+    useFactoryStore.setState({ project, lastResult: { ...fresh, nodes: {}, stale: true } });
+    let captured = false;
+    const pending = captureTaskPlan().then((source) => {
+      captured = true;
+      return source;
+    });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(captured).toBe(false);
+    useFactoryStore.setState({ lastResult: { ...fresh, stale: false } });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await pending).toMatchObject({
+      designId: "source",
+      name: "Renamed copper",
+      cards: [{ nodeId: "node", count: 5 }],
+    });
+  });
+  it("aborts if the player switches plans during calculation", async () => {
+    vi.useFakeTimers();
+    useFactoryStore.setState({ lastResult: { ...factory.lastResult, stale: true } });
+    const pending = captureTaskPlan();
+    useDesignStore.setState({ activeDesignId: "board" });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await pending).toBeUndefined();
+    expect(useLiveSession.getState().notice).toBeUndefined();
+  });
+  it("refuses stale quantities after the timeout and explains why", async () => {
+    vi.useFakeTimers();
+    useFactoryStore.setState({ lastResult: { ...factory.lastResult, stale: true } });
+    const pending = captureTaskPlan();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toBeUndefined();
+    expect(useLiveSession.getState().notice?.text).toBe(
+      "This plan is still calculating. Try again when it finishes.",
+    );
+  });
+  it("never adds a captured plan under a different source design", async () => {
+    const source = await captureTaskPlan();
+    expect(source).toBeDefined();
+    useDesignStore.setState({ activeDesignId: "board" });
+    expect(await addCardsToTask(source!.cards, "board", undefined, { source })).toBeUndefined();
+    expect(projects.board!.tasks).toHaveLength(2);
+  });
 });
 describe("updating a linked task from the plan", () => {
   it("finds full-plan tasks on closed boards without offering ordinary machine tasks", async () => {

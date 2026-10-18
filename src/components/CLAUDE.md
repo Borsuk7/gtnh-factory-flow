@@ -201,7 +201,9 @@ in `src/store/CLAUDE.md` (Live plans, Task boards).
     when linked whole-plan tasks exist. It refreshes that plan's machine rows in one undoable live edit: unchanged
     or smaller quantities for the same machine and tier keep their checkmarks; increases or machine/tier changes
     are unchecked. New machines are added and removed machines are taken off. Other plans, notes, task titles and
-    status are kept. Updates wait for current solve numbers.
+    status are kept. Add and Update share a solved-plan snapshot: both wait for current solve numbers and cancel if
+    the source design changes. Refresh replaces that source's legacy task links with checklist rows, including
+    local/account aliases, so progress counts each machine once.
     The live-enabled tour keeps the machine-task example, then shows Add plan as a task, its Plan link and Update
     a task, including the checkmark rule. Tour replay keeps boards present at the step's checkpoint and removes
     only later tour-created boards; plan tabs are found by the sandbox's id rather than a player's matching name.

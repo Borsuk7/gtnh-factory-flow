@@ -54,29 +54,28 @@ export function syncTaskPlan(
     recorded = true;
     return [entry.plan === source.plan && entry.name === source.name ? entry : source];
   });
-  const links = task.links?.filter((link) => !aliases.has(link.plan) || machines.has(link.node));
+  // Checklist rows replace this source's legacy links, including aliases that would otherwise count twice.
+  const links = task.links?.filter((link) => !aliases.has(link.plan));
   const sameTask = same(task.sourcePlans, sourcePlans) && (!links || same(task.links, links));
   const sameItems = same(project.taskItems, taskItems);
-  let next: FactoryProject = {
-    ...project,
-    ...(sameItems ? {} : { taskItems }),
-    tasks: sameTask
-      ? project.tasks
-      : project.tasks?.map((entry) =>
-          entry.id !== taskId
-            ? entry
-            : {
-                ...entry,
-                sourcePlans,
-                ...(entry.links
-                  ? {
-                      links,
-                    }
-                  : {}),
-              },
-        ),
-  };
-  if (sameTask && sameItems) next = project;
+  let next = project;
+  if (!sameTask || !sameItems) {
+    next = {
+      ...project,
+      ...(sameItems ? {} : { taskItems }),
+      tasks: sameTask
+        ? project.tasks
+        : project.tasks?.map((entry) =>
+            entry.id !== taskId
+              ? entry
+              : {
+                  ...entry,
+                  sourcePlans,
+                  ...(entry.links ? { links } : {}),
+                },
+          ),
+    };
+  }
   for (const card of cards) {
     if (!seen.has(card.nodeId)) {
       next = addThing(next, taskId, {

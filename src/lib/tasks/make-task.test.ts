@@ -70,7 +70,9 @@ describe("adding a whole plan as a task", () => {
       ],
     });
     useLiveSession.setState({ status: "off" });
-    const id = await addCardsToTask(cards, "board", undefined, "Copper line");
+    const id = await addCardsToTask(cards, "board", undefined, {
+      source: { designId: "plan", name: "Copper line", cards },
+    });
     const project = useFactoryStore.getState().project;
     expect(project.tasks).toHaveLength(1);
     expect(project.tasks?.[0]).toMatchObject({

@@ -57,7 +57,7 @@ describe("refreshing a task from its plan", () => {
     const after = syncTaskPlan(before, "t", source, ["p"], [{ nodeId: "same", name, tier, count }]);
     expect(after.taskItems?.[0]).toMatchObject({
       id: "0",
-        text: cardLine({ count, name, tier }),
+      text: cardLine({ count, name, tier }),
       done: expected,
     });
   });
@@ -120,6 +120,28 @@ describe("refreshing a task from its plan", () => {
       link: { plan: "account:p", node: "same" },
     });
     expect(after.tasks?.[0].sourcePlans?.[0].plan).toBe("account:p");
+  });
+  it("replaces legacy links from every source alias without phantom progress", () => {
+    const before = project();
+    before.tasks = [
+      {
+        ...task,
+        links: [
+          { plan: "p", node: "same" },
+          { plan: "account:p", node: "same" },
+          { plan: "other", node: "x" },
+        ],
+      },
+    ];
+    before.taskItems = [item("0", "same", "2× Bender (LV)")];
+    const source = { plan: "account:p", name: "Copper" };
+    const after = syncTaskPlan(before, "t", source, ["p", "account:p"], [cards[0]]);
+    expect(after.tasks?.[0].links).toEqual([{ plan: "other", node: "x" }]);
+    expect(after.taskItems).toHaveLength(1);
+    expect(taskProgress(after, "t")).toEqual({ done: 1, all: 2 });
+    expect(syncTaskPlan(after, "t", source, ["p", "account:p"], [cards[0]])).toBe(after);
+    const onlySource = { ...after, tasks: after.tasks?.map((task) => ({ ...task, links: [] })) };
+    expect(taskProgress(onlySource, "t")).toEqual({ done: 1, all: 1 });
   });
   it("never turns a missing or unrelated task into a full-plan task", () => {
     const before = project();

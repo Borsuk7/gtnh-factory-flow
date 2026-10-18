@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { ChromeMenu, type ChromeAnchor, type MenuEntry } from "@/components/chrome/ChromeMenu";
 import {
   addCardsToTask,
-  planCardsForTask,
+  captureTaskPlan,
   taskBoardChoices,
   taskChoices,
   updateTaskFromPlan,
@@ -12,9 +12,9 @@ import {
   type TaskBoardChoice,
   type TaskCard,
   type TaskChoice,
+  type TaskPlanSnapshot,
 } from "@/lib/tasks/make-task";
 import { TASK_STATUS_COLOR } from "@/lib/tasks/task-links";
-import { useDesignStore } from "@/store/design-store";
 import { showLiveNotice } from "@/store/live-session";
 
 /**
@@ -29,7 +29,7 @@ interface AddToTaskState {
     boards?: TaskBoardChoice[];
     board?: TaskBoardChoice;
     tasks?: TaskChoice[];
-    newTaskTitle?: string;
+    source?: TaskPlanSnapshot;
   };
 }
 
@@ -45,10 +45,10 @@ export function openUpdateTask(anchor: ChromeAnchor, targets: PlanTaskTarget[]):
 export async function openAddToTask(
   cards: TaskCard[],
   anchor: ChromeAnchor,
-  newTaskTitle?: string,
+  source?: TaskPlanSnapshot,
 ): Promise<void> {
   if (cards.length === 0) return;
-  useAddToTask.setState({ open: { cards, anchor, newTaskTitle } });
+  useAddToTask.setState({ open: { cards, anchor, source } });
   const boards = await taskBoardChoices();
   const now = useAddToTask.getState().open;
   if (now?.cards === cards) useAddToTask.setState({ open: { ...now, boards } });
@@ -56,14 +56,13 @@ export async function openAddToTask(
 
 /** The plan becomes one task, with one checklist line per machine card. */
 export async function openAddPlanToTask(anchor: ChromeAnchor): Promise<void> {
-  const cards = planCardsForTask();
-  if (cards.length === 0) {
+  const source = await captureTaskPlan();
+  if (!source) return;
+  if (source.cards.length === 0) {
     showLiveNotice("This plan has no machines to add.");
     return;
   }
-  const store = useDesignStore.getState();
-  const name = store.designs.find((design) => design.id === store.activeDesignId)?.name;
-  await openAddToTask(cards, anchor, name);
+  await openAddToTask(source.cards, anchor, source);
 }
 
 async function pickBoard(board: TaskBoardChoice): Promise<void> {
@@ -99,7 +98,7 @@ export function AddToTaskMenu() {
       />
     );
   if (!open || (!open.board && !open.boards) || (open.board && !open.tasks)) return null;
-  const { cards, newTaskTitle } = open;
+  const { cards, source } = open;
   if (open.board && open.tasks) {
     const board = open.board;
     const entries: MenuEntry[] = [
@@ -107,14 +106,14 @@ export function AddToTaskMenu() {
         label: "New task",
         detail: "in To do",
         plus: true,
-        onSelect: () => void addCardsToTask(cards, board.id, undefined, newTaskTitle),
+        onSelect: () => void addCardsToTask(cards, board.id, undefined, { source }),
       },
       ...open.tasks.map((task, at) => ({
         label: task.title,
         dot: TASK_STATUS_COLOR[task.status],
         detail: task.all === 0 ? "" : `${task.done}/${task.all}`,
         ruleAbove: at === 0,
-        onSelect: () => void addCardsToTask(cards, board.id, task.id, newTaskTitle),
+        onSelect: () => void addCardsToTask(cards, board.id, task.id, { source }),
       })),
     ];
     return (
@@ -136,14 +135,14 @@ export function AddToTaskMenu() {
       // The menu stays open for the second step: the row's own close is undone by the next menu opening.
       onSelect: () => {
         const anchor = open.anchor;
-        useAddToTask.setState({ open: { cards, anchor, boards, newTaskTitle } });
+        useAddToTask.setState({ open: { cards, anchor, boards, source } });
         void pickBoard(board);
       },
     })),
     {
       label: "New task board",
       ruleAbove: boards.length > 0,
-      onSelect: () => void addCardsToTask(cards, undefined, undefined, newTaskTitle),
+      onSelect: () => void addCardsToTask(cards, undefined, undefined, { source }),
     },
   ];
   return (
