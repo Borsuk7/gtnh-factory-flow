@@ -193,6 +193,8 @@ in `src/store/CLAUDE.md` (Live plans, Task boards).
   - `AddToTask`: the two menus of Add to a task (`openAddToTask`), opened from a right click on cards, a card's actions
     key and a right click on an overview machine line. `make-task.ts` makes the edit on the board and brings the plan
     back, then a notice (`showLiveNotice`) says "Added X to 'task'" with Open.
+    A plan tab's Add plan as a task uses the same menus, naming a new task after the plan and including every entry
+    from its machine list with rounded-up quantities and links back to the cards. The checklist is a snapshot.
   - A link opens the plan and centres the card (`lib/tasks/open-link.ts`) or says "That plan is gone". A card wears the
     dot of its most pressing task (blocked, then doing, to do, done; `lib/tasks/task-link-index.ts`, from the task
     boards on this device, counting machine things and older task links).

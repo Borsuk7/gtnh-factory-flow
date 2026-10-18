@@ -7,6 +7,9 @@ import { readLibraryTabState, openLibrary } from "@/lib/library/library-tab";
 import { onSfx } from "@/lib/sound/sfx";
 import { useDesignStore } from "@/store/design-store";
 import { ModTabs } from "./ModTabs";
+import { openAddPlanToTask } from "@/components/tasks/AddToTask";
+
+vi.mock("@/components/tasks/AddToTask", () => ({ openAddPlanToTask: vi.fn() }));
 
 vi.mock("@/lib/compact-view", () => ({ isCompactViewport: () => false }));
 
@@ -44,12 +47,31 @@ beforeEach(() => {
     ...actions,
   });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
 
 const props = { onPaste: vi.fn(), onShare: vi.fn() };
 const rows = () => [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((element) => element.textContent);
 
 describe("the plan tabs", () => {
+  it("adds the whole active plan from its tab menu when task boards are available", () => {
+    vi.stubEnv("NEXT_PUBLIC_LIVE_URL", "ws://localhost:3001");
+    render(<ModTabs {...props} />);
+    fireEvent.contextMenu(screen.getByText("ref-chain"));
+    fireEvent.click(screen.getByText("Add plan as a task"));
+    expect(openAddPlanToTask).toHaveBeenCalled();
+  });
+
+  it("never offers to turn a task board into a machine task", () => {
+    vi.stubEnv("NEXT_PUBLIC_LIVE_URL", "ws://localhost:3001");
+    useDesignStore.setState({ designs: [design("b", "Build list", { taskBoard: true })] });
+    render(<ModTabs {...props} />);
+    fireEvent.contextMenu(screen.getByText("Build list"));
+    expect(screen.queryByText("Add plan as a task")).toBeNull();
+  });
+
   it("shows one tab per open plan, the active one marked, and leaves the parked plan on the shelf", () => {
     render(<ModTabs {...props} />);
     const tabs = [...document.querySelectorAll(".mt-tab")];

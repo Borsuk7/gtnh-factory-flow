@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { ChromeMenu, type ChromeAnchor, type MenuEntry } from "@/components/chrome/ChromeMenu";
 import {
   addCardsToTask,
+  planCardsForTask,
   taskBoardChoices,
   taskChoices,
   type TaskBoardChoice,
@@ -11,6 +12,8 @@ import {
   type TaskChoice,
 } from "@/lib/tasks/make-task";
 import { TASK_STATUS_COLOR } from "@/lib/tasks/task-links";
+import { useDesignStore } from "@/store/design-store";
+import { showLiveNotice } from "@/store/live-session";
 
 /**
  * Add to a task's two menus (the game's TaskActions.addMenu): "Which task board" (each with how many tasks, then New
@@ -24,17 +27,34 @@ interface AddToTaskState {
     boards?: TaskBoardChoice[];
     board?: TaskBoardChoice;
     tasks?: TaskChoice[];
+    newTaskTitle?: string;
   };
 }
 
 const useAddToTask = create<AddToTaskState>(() => ({}));
 
-export async function openAddToTask(cards: TaskCard[], anchor: ChromeAnchor): Promise<void> {
+export async function openAddToTask(
+  cards: TaskCard[],
+  anchor: ChromeAnchor,
+  newTaskTitle?: string,
+): Promise<void> {
   if (cards.length === 0) return;
-  useAddToTask.setState({ open: { cards, anchor } });
+  useAddToTask.setState({ open: { cards, anchor, newTaskTitle } });
   const boards = await taskBoardChoices();
   const now = useAddToTask.getState().open;
   if (now?.cards === cards) useAddToTask.setState({ open: { ...now, boards } });
+}
+
+/** The plan becomes one task, with one checklist line per machine card. */
+export async function openAddPlanToTask(anchor: ChromeAnchor): Promise<void> {
+  const cards = planCardsForTask();
+  if (cards.length === 0) {
+    showLiveNotice("This plan has no machines to add.");
+    return;
+  }
+  const store = useDesignStore.getState();
+  const name = store.designs.find((design) => design.id === store.activeDesignId)?.name;
+  await openAddToTask(cards, anchor, name);
 }
 
 async function pickBoard(board: TaskBoardChoice): Promise<void> {
@@ -53,7 +73,7 @@ function close() {
 export function AddToTaskMenu() {
   const open = useAddToTask((state) => state.open);
   if (!open || (!open.board && !open.boards) || (open.board && !open.tasks)) return null;
-  const { cards } = open;
+  const { cards, newTaskTitle } = open;
   if (open.board && open.tasks) {
     const board = open.board;
     const entries: MenuEntry[] = [
@@ -61,7 +81,7 @@ export function AddToTaskMenu() {
         label: "New task",
         detail: "in To do",
         plus: true,
-        onSelect: () => void addCardsToTask(cards, board.id),
+        onSelect: () => void addCardsToTask(cards, board.id, undefined, newTaskTitle),
       },
       ...open.tasks.map((task, at) => ({
         label: task.title,
@@ -90,14 +110,14 @@ export function AddToTaskMenu() {
       // The menu stays open for the second step: the row's own close is undone by the next menu opening.
       onSelect: () => {
         const anchor = open.anchor;
-        useAddToTask.setState({ open: { cards, anchor, boards } });
+        useAddToTask.setState({ open: { cards, anchor, boards, newTaskTitle } });
         void pickBoard(board);
       },
     })),
     {
       label: "New task board",
       ruleAbove: boards.length > 0,
-      onSelect: () => void addCardsToTask(cards, undefined),
+      onSelect: () => void addCardsToTask(cards, undefined, undefined, newTaskTitle),
     },
   ];
   return (

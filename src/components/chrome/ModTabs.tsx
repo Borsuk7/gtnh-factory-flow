@@ -33,6 +33,7 @@ import { copyPlanCode } from "./share-actions";
 import type { ShareMode } from "@/components/community/SharePlanDialog";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { ChecklistIcon } from "./pixel-icons";
+import { openAddPlanToTask } from "@/components/tasks/AddToTask";
 
 /** What the tab strip asks of the bar: the dialogs it does not own. */
 export interface ModTabsActions {
@@ -364,6 +365,18 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
     const rows: MenuEntry[] = [
       { label: "Rename", onSelect: () => setRenaming(m.id) },
       { label: "Copy plan code", detail: "to paste or share", onSelect: () => void copyCode(m.id) },
+      ...(isLiveConfigured() && !designs.find((design) => design.id === m.id)?.taskBoard
+        ? [{
+            label: "Add plan as a task",
+            detail: "all machines",
+            onSelect: () => {
+              void (async () => {
+                if (m.id !== activeDesignId) await activate(m.id);
+                await openAddPlanToTask(m.anchor);
+              })();
+            },
+          }]
+        : []),
       ...libraryRows(
         Boolean(m.id === activeDesignId ? linkedPostId : designs.find((design) => design.id === m.id)?.communityPlanId),
         (mode) => {

@@ -90,6 +90,17 @@ export function selectedTaskCards(): TaskCard[] {
   return first ? cardsForTask(first) : [];
 }
 
+/** Every buildable machine in the open plan, including cards inside boards. */
+export function planCardsForTask(): TaskCard[] {
+  const { project, lastResult } = useFactoryStore.getState();
+  return buildMachineList(project, lastResult).map((entry) => ({
+    nodeId: entry.nodeId,
+    name: entry.label,
+    ...(entry.tier ? { tier: entry.tier } : {}),
+    count: Math.ceil(entry.count - 1e-9),
+  }));
+}
+
 /**
  * The cards a right click on `nodeId` means: the whole selection when the card is part of it, else the card alone.
  * Only machine cards (drawers, notes and groups are not built).
@@ -162,6 +173,7 @@ export async function addCardsToTask(
   cards: readonly TaskCard[],
   boardDesignId: string | undefined,
   taskId?: string,
+  newTaskTitle?: string,
 ): Promise<string | undefined> {
   if (cards.length === 0) {
     return undefined;
@@ -192,7 +204,10 @@ export async function addCardsToTask(
     let next = project;
     let id = taskId && taskById(project, taskId) ? taskId : undefined;
     if (!id) {
-      const added = addTask(next, { title: titleForCards(cards.map((card) => card.name)), author });
+      const added = addTask(next, {
+        title: newTaskTitle ?? titleForCards(cards.map((card) => card.name)),
+        author,
+      });
       next = added.project;
       id = added.id;
     }
