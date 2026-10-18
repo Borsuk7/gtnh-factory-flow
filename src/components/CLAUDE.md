@@ -202,6 +202,9 @@ in `src/store/CLAUDE.md` (Live plans, Task boards).
     or smaller quantities for the same machine and tier keep their checkmarks; increases or machine/tier changes
     are unchecked. New machines are added and removed machines are taken off. Other plans, notes, task titles and
     status are kept. Updates wait for current solve numbers.
+    The live-enabled tour keeps the machine-task example, then shows Add plan as a task, its Plan link and Update
+    a task, including the checkmark rule. Tour replay keeps boards present at the step's checkpoint and removes
+    only later tour-created boards; plan tabs are found by the sandbox's id rather than a player's matching name.
   - A link opens the plan and centres the card (`lib/tasks/open-link.ts`) or says "That plan is gone". A card wears the
     dot of its most pressing task (blocked, then doing, to do, done; `lib/tasks/task-link-index.ts`, from the task
     boards on this device, counting machine things and older task links).
