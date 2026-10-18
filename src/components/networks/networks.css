@@ -1,0 +1,266 @@
+/* The resource ledger uses the planner's frame and signals; its shared boundary stays beside each resource. */
+.netview {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--mc-bar);
+  color: var(--mc-ink);
+  padding: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.netview h1 {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+.netview p {
+  margin: 8px 0;
+  color: var(--mc-muted);
+}
+.netview button,
+.netview input,
+.netview select {
+  font: inherit;
+  line-height: 1.5;
+}
+.netview button,
+.netview select,
+.netview input:not([type="checkbox"]) {
+  border: 1px solid var(--mc-ring);
+  background: var(--mc-key);
+  color: var(--mc-ink);
+  padding: 5px 9px;
+  min-height: 32px;
+}
+.netview button {
+  cursor: pointer;
+}
+.netview button:hover {
+  background: var(--mc-key-hover);
+}
+.netview button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.netview :focus-visible {
+  outline: 2px solid var(--mc-cyan);
+  outline-offset: 2px;
+}
+.netview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 2px solid var(--mc-frame);
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.netview-kicker {
+  display: block;
+  color: var(--mc-muted);
+  font-size: 11px;
+}
+.netview input.netview-title {
+  font-size: 20px;
+  border-color: transparent;
+  background: transparent;
+  padding-left: 0;
+  max-width: 100%;
+}
+.netview-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.netview-actions > span,
+.netview-hint {
+  color: var(--mc-muted);
+  font-size: 11px;
+}
+.netview-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  gap: 20px;
+}
+.netview-members {
+  border-right: 1px solid var(--mc-frame);
+  padding-right: 16px;
+  min-width: 0;
+}
+.netview-section-title {
+  margin: 12px 0 8px;
+  color: var(--mc-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.netview-tree {
+  list-style: none;
+  padding-left: 12px;
+  margin: 0;
+}
+.netview-members > .netview-tree {
+  padding-left: 0;
+}
+.netview .netview-link {
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  min-height: 28px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.netview .netview-link[aria-current] {
+  color: var(--mc-cyan);
+}
+.netview-member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0;
+}
+.netview-member > .netview-link,
+.netview-member > span {
+  flex: 1;
+  min-width: 0;
+}
+.netview input[type="checkbox"] {
+  accent-color: var(--mc-cyan);
+  width: 15px;
+  height: 15px;
+}
+.netview-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 20px;
+}
+.netview-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0;
+}
+.netview .netview-warning {
+  padding: 10px;
+  border-left: 3px solid var(--mc-gold);
+  color: var(--mc-gold);
+  background: var(--mc-key);
+}
+.netview-warning p {
+  color: inherit;
+  font-size: 11px;
+}
+.netview-power {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 8px 0 16px;
+}
+.netview-power strong {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.netview-power span {
+  color: var(--mc-muted);
+}
+.netview-power strong {
+  color: var(--mc-ink);
+}
+.netview-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 14px;
+}
+.netview table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.netview th,
+.netview td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--mc-bar-line);
+  white-space: nowrap;
+  text-align: right;
+  font-weight: normal;
+}
+.netview th:first-child {
+  text-align: left;
+  min-width: 170px;
+  white-space: normal;
+}
+.netview thead {
+  color: var(--mc-muted);
+}
+.netview thead th {
+  border-bottom: 2px solid var(--mc-frame);
+}
+.netview .netview-free {
+  color: var(--mc-cyan);
+}
+.netview .netview-short,
+.netview .netview-danger {
+  color: var(--mc-red);
+}
+.netview-note {
+  display: block;
+  font-size: 10px;
+}
+.netview-contribution {
+  background: var(--mc-key);
+  color: var(--mc-muted);
+  font-size: 11px;
+}
+.netview-contribution th:first-child {
+  padding-left: 24px;
+}
+.netview-picker {
+  border: 1px solid var(--mc-ring);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.netview-choices {
+  max-height: 240px;
+  overflow: auto;
+}
+.netview-network-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+.netview-network-list button {
+  text-align: left;
+  padding: 16px;
+}
+.netview-network-list span {
+  display: block;
+  color: var(--mc-muted);
+  margin-top: 6px;
+}
+.netview-library {
+  height: 100%;
+}
+html[data-compact] .netview {
+  padding: 12px;
+}
+html[data-compact] .netview-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+html[data-compact] .netview-members {
+  border-right: 0;
+  border-bottom: 1px solid var(--mc-frame);
+  padding: 0 0 12px;
+}
+html[data-compact] .netview-layout {
+  display: flex;
+  flex-direction: column;
+}
+html[data-compact] .netview-ledger {
+  order: 1;
+}
+html[data-compact] .netview-members {
+  order: 2;
+}

@@ -11,6 +11,7 @@ import { leaveWelcomeTab } from "@/lib/welcome/welcome-tab";
 import { playBoardSound } from "@/lib/board-sounds";
 import { playSfx } from "@/lib/sound/sfx";
 import { useDesignStore } from "@/store/design-store";
+import { useNetworkStore } from "@/store/network-store";
 import { useFactoryStore } from "@/store/factory-store";
 import { useSolvingBooks } from "@/components/flow/use-solving-books";
 import { tipAttrs } from "@/components/flow/clean/interaction";
@@ -72,6 +73,9 @@ type TabMenu =
 
 /** The plan tabs of the top bar (the mod's PlanTabs): one per open plan, then "+". */
 export function ModTabs({ onPaste, onShare }: ModTabsActions) {
+  const networkId = useNetworkStore((state) => state.activeId);
+  const networkTabs = useNetworkStore((state) => state.openIds);
+  const networks = useNetworkStore((state) => state.catalogue?.networks);
   const allDesigns = useDesignStore((state) => state.designs);
   const publicViews = useDesignStore((state) => state.publicViews);
   const publicView = useDesignStore((state) => state.publicView);
@@ -100,8 +104,8 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
   const allDesignsRef = useRef(allDesigns);
   const canClose = designs.length + publicViews.length > 1;
   // One tab is in the Tab order (roving): the open plan's, else the first. The arrows move among the rest.
-  const tabIds = [...publicViews.map((view) => `public:${view.id}`), ...designs.map((design) => design.id)];
-  const wanted = publicView ? `public:${publicView.id}` : activeDesignId;
+  const tabIds = [...networkTabs.map((id) => `network:${id}`), ...publicViews.map((view) => `public:${view.id}`), ...designs.map((design) => design.id)];
+  const wanted = networkId ? `network:${networkId}` : publicView ? `public:${publicView.id}` : activeDesignId;
   const tabStop = wanted && tabIds.includes(wanted) ? wanted : tabIds[0];
   useLayoutEffect(() => {
     designIdsRef.current = designIds;
@@ -309,6 +313,7 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
   };
 
   const activate = async (id: string) => {
+    useNetworkStore.getState().leave();
     // A tab switched turns a page; its cards are not landing, they were there.
     if (id !== activeDesignId) playSfx("ui.page");
     leaveWelcomeTab();
@@ -350,6 +355,8 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
             ]
           : []),
         { label: "Open a plan...", detail: "My plans", onSelect: () => openLibrary({ kind: "all" }) },
+        { label: "New network", onSelect: () => void useNetworkStore.getState().create("New network") },
+        { label: "Open a network...", onSelect: () => openLibrary({ kind: "networks" }) },
         { label: "Open plan file...", detail: ".json", onSelect: () => document.querySelector<HTMLInputElement>("[data-plan-file-input]")?.click() },
         { label: "Paste plan", detail: "a plan link, code or file", onSelect: onPaste },
         { label: "Browse Community", detail: "public plans", onSelect: () => openLibrary({ kind: "public" }) },
@@ -432,8 +439,15 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
             strip.scrollLeft += event.deltaY + event.deltaX > 0 ? 40 : -40;
           }}
         >
+          {networkTabs.map((id) => {
+            const network = networks?.find((entry) => entry.id === id);
+            if (!network) return null;
+            return <div key={`network:${id}`} className="mt-tab" role="tab" aria-selected={networkId === id} data-active={networkId === id ? "" : undefined} data-network-tab={id} tabIndex={networkId === id ? 0 : -1} onKeyDown={activateOnKey} onClick={() => useNetworkStore.getState().open(id)}>
+              <span className="mt-name">▤ {network.name}</span><span className="mt-close" role="button" aria-label={`Close ${network.name}`} onClick={(event) => { event.stopPropagation(); useNetworkStore.getState().close(id); }}><CloseGlyph /></span>
+            </div>;
+          })}
           {publicViews.map((view) => {
-            const active = publicView?.id === view.id;
+            const active = !networkId && publicView?.id === view.id;
             return (
               <div
                 key={`public:${view.id}`}
@@ -451,6 +465,7 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
                   }
                 }}
                 onClick={() => {
+                  useNetworkStore.getState().leave();
                   leaveWelcomeTab();
                   leaveLibrary();
                   void useDesignStore.getState().switchToPublicView(view.id);
@@ -484,7 +499,7 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
             );
           })}
           {designs.map((design) => {
-            const active = design.id === activeDesignId && !publicView;
+            const active = !networkId && design.id === activeDesignId && !publicView;
             const isRenaming = renaming === design.id;
             return (
               <div

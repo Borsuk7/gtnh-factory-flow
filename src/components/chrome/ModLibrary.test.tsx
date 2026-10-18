@@ -71,7 +71,7 @@ describe("the library", () => {
   it("has the mod's header: MY PLANS with its count, COMMUNITY, a Find a plan box and a close key, and no sign-in key (that is the top bar's account key)", () => {
     render(<ModLibrary />);
     const tabs = [...document.querySelectorAll(".ml-tab")].map((tab) => tab.textContent);
-    expect(tabs).toEqual(["MY PLANS3", "COMMUNITY..."]);
+    expect(tabs).toEqual(["MY PLANS3", "NETWORKS", "COMMUNITY..."]);
     expect(document.querySelector(".ml-tab[data-on]")?.textContent).toContain("MY PLANS");
     expect(screen.getByPlaceholderText("Find a plan")).toBeTruthy();
     expect(document.querySelector(".ml-signin")).toBeNull();

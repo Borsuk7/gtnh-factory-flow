@@ -1,0 +1,522 @@
+"use client";
+
+import "./networks.css";
+import { useMemo, useState } from "react";
+import { useNetworkStore } from "@/store/network-store";
+import { useDesignStore } from "@/store/design-store";
+import { useCloudLibraryStore } from "@/lib/library/cloud-library";
+import { useRateDisplayUnits } from "@/store/factory-store";
+import { formatCompact } from "@/lib/model/resources";
+import {
+  powerDisplayFromEuT,
+  powerDisplaySuffix,
+  rateMultiplierForKind,
+  rateSuffixForKind,
+} from "@/lib/model/rate-unit";
+import {
+  aggregateNetworks,
+  unmetDemand,
+  memberKey,
+  type NetworkMember,
+  type PlanNetwork,
+  type Sharing,
+} from "@/lib/networks/model";
+import { localDesignId, useNetworkCalculations } from "@/lib/networks/calculation";
+import { syncNetworks } from "@/lib/networks/sync";
+
+export function NetworksLibrary() {
+  const catalogue = useNetworkStore((state) => state.catalogue);
+  const create = useNetworkStore((state) => state.create);
+  const open = useNetworkStore((state) => state.open);
+  const ready = useNetworkStore((state) => state.ready);
+  const [name, setName] = useState("");
+  return (
+    <div className="netview mx netview-library">
+      <h1>Networks</h1>
+      <p>Group your plans to see supply, demand and free resources.</p>
+      <NetworkStatus />
+      <form
+        className="netview-actions"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void create(name || "New network");
+          setName("");
+        }}
+      >
+        <input
+          aria-label="New network name"
+          placeholder="Network name"
+          value={name}
+          maxLength={80}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <button disabled={!ready}>Create network</button>
+      </form>
+      <div className="netview-network-list">
+        {catalogue?.networks
+          .filter((network) => !network.parentId)
+          .map((network) => (
+            <button key={network.id} onClick={() => open(network.id)}>
+              <strong>{network.name}</strong>
+              <span>
+                {network.members.length} plans ·{" "}
+                {catalogue.networks.filter((entry) => entry.parentId === network.id).length}{" "}
+                subnetworks
+              </span>
+            </button>
+          ))}
+      </div>
+      {ready && !catalogue?.networks.length ? (
+        <p>No networks yet. Create one, then add your saved plans.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function NetworkStatus() {
+  const state = useNetworkStore();
+  return (
+    <>
+      {state.error ? (
+        <p role="alert" className="netview-warning">
+          {state.error}
+        </p>
+      ) : null}
+      {state.conflict ? (
+        <div className="netview-actions">
+          <span>Both versions are kept until you choose.</span>
+          <button onClick={() => void state.resolveConflict(true)}>Keep my changes</button>
+          <button onClick={() => void state.resolveConflict(false)}>Use saved networks</button>
+        </div>
+      ) : state.error ? (
+        <button
+          onClick={() => {
+            if (state.catalogue) void state.load(state.catalogue.account).then(syncNetworks);
+          }}
+        >
+          Reload networks
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+export function NetworkPage() {
+  const catalogue = useNetworkStore((state) => state.catalogue);
+  const activeId = useNetworkStore((state) => state.activeId);
+  const edit = useNetworkStore((state) => state.edit);
+  const open = useNetworkStore((state) => state.open);
+  const create = useNetworkStore((state) => state.create);
+  const remove = useNetworkStore((state) => state.remove);
+  const designs = useDesignStore((state) => state.designs);
+  const shared = useCloudLibraryStore((state) => state.shared);
+  const [retry, setRetry] = useState(0);
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [adding, setAdding] = useState(false);
+  const [planQuery, setPlanQuery] = useState("");
+  const [armed, setArmed] = useState(false);
+  // Display dials repaint this view without invalidating its calculations.
+  useRateDisplayUnits();
+  const flows = useNetworkCalculations(retry);
+  const networks = catalogue?.networks ?? [];
+  const balances = useMemo(
+    () => aggregateNetworks(catalogue?.networks ?? [], flows),
+    [catalogue?.networks, flows],
+  );
+  const network = networks.find((entry) => entry.id === activeId);
+  const balance = activeId ? balances.get(activeId) : undefined;
+  if (!network || !balance) return <NetworksLibrary />;
+  const patch = (values: Partial<PlanNetwork>) =>
+    void edit((entries) =>
+      entries.map((entry) => (entry.id === network.id ? { ...entry, ...values } : entry)),
+    );
+  const openMember = async (member: NetworkMember) => {
+    useNetworkStore.getState().leave();
+    if (member.ownerId) {
+      const remote = shared?.find(
+        (entry) => entry.id === member.designId && entry.ownerId === member.ownerId,
+      );
+      if (remote)
+        await useDesignStore
+          .getState()
+          .openSharedDesign(
+            { ownerId: member.ownerId, designId: member.designId, ownerName: remote.ownerName },
+            remote.name,
+          );
+    } else await useDesignStore.getState().switchToDesign(member.designId);
+  };
+  const choices: NetworkMember[] = [
+    ...designs
+      .filter((entry) => !entry.taskBoard && !entry.cloud)
+      .map((entry) => ({ designId: entry.id, name: entry.name, included: true })),
+    ...(shared ?? []).map((entry) => ({
+      designId: entry.id,
+      ownerId: entry.ownerId,
+      name: `${entry.name} (${entry.ownerName})`.slice(0, 80),
+      included: true,
+    })),
+  ];
+  const excludedAncestor = (() => {
+    let entry: PlanNetwork | undefined = network;
+    while (entry) {
+      if (!entry.included) return true;
+      entry = networks.find((next) => next.id === entry?.parentId);
+    }
+    return false;
+  })();
+  return (
+    <div className="netview mx" data-network-page="">
+      <header className="netview-header">
+        <div>
+          <span className="netview-kicker">{network.parentId ? "Subnetwork" : "Network"}</span>
+          <input
+            key={network.id}
+            className="netview-title"
+            aria-label="Network name"
+            defaultValue={network.name}
+            maxLength={80}
+            onBlur={(event) => {
+              const name = event.target.value.trim();
+              if (name && name !== network.name) patch({ name });
+              else event.target.value = network.name;
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+          />
+        </div>
+        <div className="netview-actions">
+          <button
+            onClick={() => {
+              setRetry((value) => value + 1);
+              void syncNetworks();
+            }}
+          >
+            Refresh figures
+          </button>
+          <button onClick={() => setAdding(!adding)}>Add plans</button>
+          <button onClick={() => void create("New subnetwork", network.id)}>New subnetwork</button>
+        </div>
+      </header>
+      <NetworkStatus />
+      <div className="netview-layout">
+        <aside className="netview-members" aria-label="Network members">
+          <div className="netview-section-title">Networks</div>
+          <NetworkTree networks={networks} />
+          <div className="netview-section-title">Plans in {network.name}</div>
+          {network.members.map((member) => (
+            <div className="netview-member" key={memberKey(member)}>
+              <label title="Include in totals">
+                <input
+                  type="checkbox"
+                  aria-label={`Include ${member.name}`}
+                  checked={member.included}
+                  onChange={(event) =>
+                    patch({
+                      members: network.members.map((entry) =>
+                        memberKey(entry) === memberKey(member)
+                          ? { ...entry, included: event.target.checked }
+                          : entry,
+                      ),
+                    })
+                  }
+                />
+              </label>
+              <button className="netview-link" onClick={() => void openMember(member)}>
+                {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
+              </button>
+              <button
+                aria-label={`Remove ${member.name}`}
+                onClick={() =>
+                  patch({
+                    members: network.members.filter(
+                      (entry) => memberKey(entry) !== memberKey(member),
+                    ),
+                  })
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {!network.members.length ? <p>Add saved plans to start counting their flows.</p> : null}
+          <label className="netview-field">
+            Parent network
+            <select
+              aria-label="Parent network"
+              value={network.parentId ?? ""}
+              onChange={(event) => patch({ parentId: event.target.value || undefined })}
+            >
+              <option value="">None</option>
+              {networks
+                .filter(
+                  (entry) => entry.id !== network.id && !isDescendant(entry, network.id, networks),
+                )
+                .map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="netview-check">
+            <input
+              type="checkbox"
+              checked={network.included}
+              onChange={(event) => patch({ included: event.target.checked })}
+            />
+            Include in parent totals
+          </label>
+          {armed ? (
+            <div>
+              <p>Delete this network? Plans are kept. Subnetworks move to its parent.</p>
+              <button className="netview-danger" onClick={() => void remove(network.id)}>
+                Delete network
+              </button>{" "}
+              <button onClick={() => setArmed(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setArmed(true)}>Delete network…</button>
+          )}
+        </aside>
+        <main className="netview-ledger">
+          {adding ? (
+            <section className="netview-picker" aria-label="Add plans">
+              <div className="netview-actions">
+                <input
+                  aria-label="Find plans to add"
+                  placeholder="Find a plan"
+                  value={planQuery}
+                  onChange={(event) => setPlanQuery(event.target.value)}
+                />
+                <button onClick={() => setAdding(false)}>Done</button>
+              </div>
+              <div className="netview-choices">
+                {choices
+                  .filter((entry) => entry.name.toLowerCase().includes(planQuery.toLowerCase()))
+                  .map((member) => {
+                    const current = networks.find((entry) =>
+                      entry.members.some((plan) => memberKey(plan) === memberKey(member)),
+                    );
+                    return (
+                      <div className="netview-member" key={memberKey(member)}>
+                        <span>{member.name}</span>
+                        <button
+                          disabled={current?.id === network.id}
+                          onClick={() =>
+                            void useNetworkStore.getState().addMember(network.id, member)
+                          }
+                        >
+                          {current?.id === network.id
+                            ? "Added"
+                            : current
+                              ? `Move from ${current.name}`
+                              : "Add"}
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+              {!choices.length ? <p>Create a plan first, then add it here.</p> : null}
+            </section>
+          ) : null}
+          {excludedAncestor ? (
+            <p className="netview-warning">
+              Excluded from ancestor totals. Figures below describe this network on its own.
+            </p>
+          ) : null}
+          {balance.incomplete.length ? (
+            <details className="netview-warning" open>
+              <summary>Figures incomplete · {balance.incomplete.length} members</summary>
+              {balance.incomplete.map((message, index) => (
+                <p key={index}>{message}</p>
+              ))}
+            </details>
+          ) : null}
+          <div className="netview-power">
+            <span>
+              Power used{" "}
+              <strong>
+                {formatCompact(powerDisplayFromEuT(balance.power.used))} {powerDisplaySuffix()}
+              </strong>
+            </span>
+            <span>
+              Power generated{" "}
+              <strong>
+                {formatCompact(powerDisplayFromEuT(balance.power.made))} {powerDisplaySuffix()}
+              </strong>
+            </span>
+          </div>
+          <div className="netview-actions">
+            <input
+              aria-label="Find a resource"
+              placeholder="Find a resource"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <span>Rates follow each plan’s settings.</span>
+          </div>
+          {network.parentId ? (
+            <p className="netview-hint">
+              From parent is the supply needed. A parent shortage is not allocated between plans.
+            </p>
+          ) : null}
+          <div className="netview-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Resource</th>
+                  <th>Supply</th>
+                  <th>Demand</th>
+                  <th>Free</th>
+                  <th>Shortage</th>
+                  {network.parentId ? (
+                    <>
+                      <th>From parent</th>
+                      <th>To parent</th>
+                      <th>Sharing</th>
+                    </>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody>
+                {balance.resources
+                  .filter((row) => row.label.toLowerCase().includes(query.toLowerCase()))
+                  .map((row) => {
+                    const rate = (value: number) =>
+                      `${formatCompact(value * rateMultiplierForKind(row.kind))}${rateSuffixForKind(row.kind)}`;
+                    const expand = expanded.has(row.key);
+                    const unmet = unmetDemand(networks, balances, network.id, row.key);
+                    const parentShort = row.fromParent > 0 && unmet === undefined;
+                    return (
+                      <ResourceRows key={row.key}>
+                        <tr>
+                          <th>
+                            <button
+                              className="netview-link"
+                              aria-expanded={expand}
+                              onClick={() =>
+                                setExpanded((previous) => {
+                                  const next = new Set(previous);
+                                  if (expand) next.delete(row.key);
+                                  else next.add(row.key);
+                                  return next;
+                                })
+                              }
+                            >
+                              {expand ? "▾" : "▸"} {row.label}
+                            </button>
+                          </th>
+                          <td>{rate(row.supply)}</td>
+                          <td>{rate(row.demand)}</td>
+                          <td className={row.free ? "netview-free" : ""}>{rate(row.free)}</td>
+                          <td className={unmet !== 0 ? "netview-short" : ""}>
+                            {unmet === undefined ? "Unallocated" : rate(unmet)}
+                          </td>
+                          {network.parentId ? (
+                            <>
+                              <td className={row.fromParent && parentShort ? "netview-short" : ""}>
+                                {rate(row.fromParent)}
+                                {row.fromParent && parentShort ? (
+                                  <span className="netview-note">Parent shortage</span>
+                                ) : null}
+                              </td>
+                              <td>{rate(row.toParent)}</td>
+                              <td>
+                                <select
+                                  aria-label={`Sharing for ${row.label}`}
+                                  value={network.sharing[row.key] ?? "internal"}
+                                  onChange={(event) =>
+                                    patch({
+                                      sharing: {
+                                        ...network.sharing,
+                                        [row.key]: event.target.value as Sharing,
+                                      },
+                                    })
+                                  }
+                                >
+                                  <option value="internal">Internal</option>
+                                  <option value="import">Import</option>
+                                  <option value="export">Export</option>
+                                  <option value="both">Both</option>
+                                </select>
+                              </td>
+                            </>
+                          ) : null}
+                        </tr>
+                        {expand
+                          ? row.contributions.map((entry) => (
+                              <tr className="netview-contribution" key={entry.id}>
+                                <th>
+                                  <button
+                                    className="netview-link"
+                                    onClick={() => {
+                                      if (entry.network) open(entry.id);
+                                      else {
+                                        const member = network.members.find(
+                                          (candidate) => memberKey(candidate) === entry.id,
+                                        );
+                                        if (member) void openMember(member);
+                                      }
+                                    }}
+                                  >
+                                    {entry.name}
+                                  </button>
+                                </th>
+                                <td>{rate(entry.supply)}</td>
+                                <td>{rate(entry.demand)}</td>
+                                <td colSpan={network.parentId ? 5 : 2} />
+                              </tr>
+                            ))
+                          : null}
+                      </ResourceRows>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+          {!balance.resources.length ? (
+            <p>No boundary flows yet. Add plans with inputs or collected outputs.</p>
+          ) : null}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function ResourceRows({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
+
+function isDescendant(network: PlanNetwork, ancestor: string, networks: PlanNetwork[]): boolean {
+  let parent = network.parentId;
+  while (parent) {
+    if (parent === ancestor) return true;
+    parent = networks.find((entry) => entry.id === parent)?.parentId;
+  }
+  return false;
+}
+
+function NetworkTree({ networks, parentId }: { networks: PlanNetwork[]; parentId?: string }) {
+  const activeId = useNetworkStore((state) => state.activeId);
+  return (
+    <ul className="netview-tree">
+      {networks
+        .filter((network) => network.parentId === parentId)
+        .map((network) => (
+          <li key={network.id}>
+            <button
+              className="netview-link"
+              aria-current={activeId === network.id ? "page" : undefined}
+              onClick={() => useNetworkStore.getState().open(network.id)}
+            >
+              {network.name}
+              {!network.included ? " (excluded)" : ""}
+            </button>
+            <NetworkTree networks={networks} parentId={network.id} />
+          </li>
+        ))}
+    </ul>
+  );
+}
