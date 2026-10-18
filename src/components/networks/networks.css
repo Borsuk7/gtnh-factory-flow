@@ -1,16 +1,16 @@
 /* The resource ledger uses the planner's frame and signals; its shared boundary stays beside each resource. */
-.netview {
+.netview.mx {
   width: 100%;
   height: 100%;
   overflow: auto;
   background: var(--mc-bar);
   color: var(--mc-ink);
   padding: 18px;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.5;
 }
 .netview h1 {
-  font-size: 22px;
+  font-size: 24px;
   margin: 0 0 6px;
 }
 .netview p {
@@ -30,7 +30,7 @@
   background: var(--mc-key);
   color: var(--mc-ink);
   padding: 5px 9px;
-  min-height: 32px;
+  min-height: 38px;
 }
 .netview button {
   cursor: pointer;
@@ -59,10 +59,10 @@
 .netview-kicker {
   display: block;
   color: var(--mc-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .netview input.netview-title {
-  font-size: 20px;
+  font-size: 24px;
   border-color: transparent;
   background: transparent;
   padding-left: 0;
@@ -77,11 +77,11 @@
 .netview-actions > span,
 .netview-hint {
   color: var(--mc-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 .netview-layout {
   display: grid;
-  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   gap: 20px;
 }
 .netview-members {
@@ -92,7 +92,7 @@
 .netview-section-title {
   margin: 12px 0 8px;
   color: var(--mc-muted);
-  font-size: 11px;
+  font-size: 13px;
   text-transform: uppercase;
 }
 .netview-tree {
@@ -107,7 +107,7 @@
   border: 0;
   background: transparent;
   padding: 4px;
-  min-height: 28px;
+  min-height: 34px;
   text-align: left;
   overflow-wrap: anywhere;
 }
@@ -150,7 +150,7 @@
 }
 .netview-warning p {
   color: inherit;
-  font-size: 11px;
+  font-size: 13px;
 }
 .netview-power {
   display: flex;
@@ -206,12 +206,12 @@
 }
 .netview-note {
   display: block;
-  font-size: 10px;
+  font-size: 13px;
 }
 .netview-contribution {
   background: var(--mc-key);
   color: var(--mc-muted);
-  font-size: 11px;
+  font-size: 14px;
 }
 .netview-contribution th:first-child {
   padding-left: 24px;
