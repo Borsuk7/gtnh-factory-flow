@@ -3,7 +3,11 @@
 import { create } from "zustand";
 import { LiveClientState, type PendingBatch } from "@/lib/live/client-state";
 import { THIS_TAB_ID } from "@/lib/designs/design-tab-sync";
-import { readDesignLiveReplacement, settleDesignLiveReplacement, type LiveReplacementOutbox } from "@/lib/designs/design-storage";
+import {
+  readDesignLiveReplacement,
+  settleDesignLiveReplacement,
+  type LiveReplacementOutbox,
+} from "@/lib/designs/design-storage";
 import { isLiveConfigured, liveSocketAddress } from "@/lib/live/live-config";
 import {
   aliveTabs,
@@ -869,17 +873,21 @@ export class LiveSession {
     this.markTimer = setInterval(() => markDesignOpenLive(designId), OPEN_MARK_MS);
     // Pending imports and offline edits must be applied before any snapshot
     // arrives, rather than briefly replacing the canvas with the old account copy.
-    void this.adoptPending(room).then(() => {
-      if (this.room === room) {
-        room.pendingLoaded = true;
-        this.persistNow();
-        this.joinIfReady();
-      }
-    }).catch(() => {
-      if (this.room === room) {
-        useLiveSession.setState({ notice: noticeOf("Saved edits could not be loaded. Reload this plan to reconnect.") });
-      }
-    });
+    void this.adoptPending(room)
+      .then(() => {
+        if (this.room === room) {
+          room.pendingLoaded = true;
+          this.persistNow();
+          this.joinIfReady();
+        }
+      })
+      .catch(() => {
+        if (this.room === room) {
+          useLiveSession.setState({
+            notice: noticeOf("Saved edits could not be loaded. Reload this plan to reconnect."),
+          });
+        }
+      });
   }
 
   private unbind(): void {
@@ -913,7 +921,8 @@ export class LiveSession {
   /** Edits a closed tab of ours left for this plan: shown and sent with ours. */
   private async adoptPending(room: Room): Promise<void> {
     const [entries, replacement] = await Promise.all([
-      readPending(room.doc), readDesignLiveReplacement(room.designId),
+      readPending(room.doc),
+      readDesignLiveReplacement(room.designId),
     ]);
     const alive = await aliveTabs();
     // This tab's own entry is left from an earlier visit to the plan (its
@@ -927,8 +936,8 @@ export class LiveSession {
     }
     const before = room.engine.view;
     const current = room.engine.pending.slice();
-    const batches = [...replacementBatches, ...orphans.flatMap(entry => entry.pending)];
-    const unique = [...new Map(batches.map(batch => [batch.cid, batch])).values()];
+    const batches = [...replacementBatches, ...orphans.flatMap((entry) => entry.pending)];
+    const unique = [...new Map(batches.map((batch) => [batch.cid, batch])).values()];
     const added = room.engine.adopt(unique);
     // Edits made while the database read waited are newer than saved edits.
     room.engine.pending = [...added, ...current];
@@ -1191,15 +1200,25 @@ let session: LiveSession | undefined;
 
 /** An explicit replacement is an edit to an existing room, never a fresh-plan seed. */
 export async function prepareImportedReplacement(
-  designId: string, before: FactoryProject, after: FactoryProject,
+  designId: string,
+  before: FactoryProject,
+  after: FactoryProject,
 ): Promise<LiveReplacementOutbox> {
   const username = useCommunityAuthStore.getState().user?.username;
   const owner = myAccountId();
-  if (!username || !owner) throw new Error("Connect to your account before updating this plan. Keep the imported plan separately.");
+  if (!username || !owner)
+    throw new Error(
+      "Connect to your account before updating this plan. Keep the imported plan separately.",
+    );
   const doc = docKey(owner, designId);
-  const [entries, replacement] = await Promise.all([readPending(doc), readDesignLiveReplacement(designId)]);
-  if (replacement || entries.some(entry => entry.pending.length > 0)) {
-    throw new Error("That plan has unsent edits. Open it before updating it. Your imported plan was kept separately.");
+  const [entries, replacement] = await Promise.all([
+    readPending(doc),
+    readDesignLiveReplacement(designId),
+  ]);
+  if (replacement || entries.some((entry) => entry.pending.length > 0)) {
+    throw new Error(
+      "That plan has unsent edits. Open it before updating it. Your imported plan was kept separately.",
+    );
   }
   const previous = liveShape(before);
   const next = liveShape(after);

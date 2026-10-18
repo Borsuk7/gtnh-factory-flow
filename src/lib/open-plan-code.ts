@@ -50,15 +50,19 @@ export async function openPlanCode(text: string): Promise<void> {
         Number(Boolean(a.closed)) - Number(Boolean(b.closed)),
     );
     // Summaries carry both hashes: no scan of old plan bodies on each import.
-    const exactCandidates = designs.filter((design) => design.fingerprints!.full === fingerprints.full);
+    const exactCandidates = designs.filter(
+      (design) => design.fingerprints!.full === fingerprints.full,
+    );
     for (const exact of exactCandidates) {
-      if (!await useDesignStore.getState().switchToDesign(exact.id, fingerprints.full)) continue;
+      if (!(await useDesignStore.getState().switchToDesign(exact.id, fingerprints.full))) continue;
       leaveWelcomeTab();
       usePlanImportNotice.setState({
         notice: {
           kind: "existing",
           designId: exact.id,
-          name: useDesignStore.getState().designs.find(design => design.id === exact.id)?.name ?? exact.name,
+          name:
+            useDesignStore.getState().designs.find((design) => design.id === exact.id)?.name ??
+            exact.name,
           project,
           full: fingerprints.full,
           related: [],
@@ -68,9 +72,10 @@ export async function openPlanCode(text: string): Promise<void> {
     }
     // A candidate may have changed while opening. Build update choices from
     // its current hashes, so a related version is not offered with stale data.
-    if (exactCandidates.length) designs = (await listDesignSummaries()).filter(
-      design => !design.cloud && design.fingerprints?.version === FINGERPRINT_VERSION,
-    );
+    if (exactCandidates.length)
+      designs = (await listDesignSummaries()).filter(
+        (design) => !design.cloud && design.fingerprints?.version === FINGERPRINT_VERSION,
+      );
     const related = designs
       .filter((design) => design.fingerprints!.simple === fingerprints.simple)
       .map((design) => ({ id: design.id, name: design.name, full: design.fingerprints!.full }));
@@ -120,10 +125,14 @@ export async function updatePlanFromNotice(
         "The imported plan changed. Open the link again before updating a saved plan.",
       );
     }
-    await useDesignStore.getState().replaceDesignFromImport(target.id, notice.project, target.full, assertUnchangedCanvas);
+    await useDesignStore
+      .getState()
+      .replaceDesignFromImport(target.id, notice.project, target.full, assertUnchangedCanvas);
     // The imported snapshot is now saved in the target. Keep the incoming copy
     // if the player returned to it or changed it while storage was pending.
-    await useDesignStore.getState().cleanupImportedDesign(notice.designId, notice.full, target.id, imported);
+    await useDesignStore
+      .getState()
+      .cleanupImportedDesign(notice.designId, notice.full, target.id, imported);
     if (usePlanImportNotice.getState().notice === notice) dismissPlanImportNotice();
   });
 }

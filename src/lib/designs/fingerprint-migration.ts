@@ -42,7 +42,8 @@ async function migrate(): Promise<void> {
     )
       continue;
     const record = await readDesign(summary.id);
-    if (!record || (record.fingerprints && record.fingerprints.version >= FINGERPRINT_VERSION)) continue;
+    if (!record || (record.fingerprints && record.fingerprints.version >= FINGERPRINT_VERSION))
+      continue;
     let fingerprints;
     try {
       fingerprints = await planFingerprints(record.project);
@@ -53,7 +54,12 @@ async function migrate(): Promise<void> {
       remember(false, skipped);
       continue;
     }
-    await backfillDesignFingerprints(record.id, record.updatedAt, fingerprints, record.fingerprints);
+    await backfillDesignFingerprints(
+      record.id,
+      record.updatedAt,
+      fingerprints,
+      record.fingerprints,
+    );
     // Yield between plans so a large library does not block editing.
     await new Promise((resolve) => setTimeout(resolve, 0));
   }

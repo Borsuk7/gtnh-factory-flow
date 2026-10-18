@@ -3,7 +3,9 @@ import type { DesignRecord } from "./designs/design-library";
 import type { FactoryProject } from "./model/types";
 const mocks = vi.hoisted(() => ({
   records: new Map<string, DesignRecord>(),
-  get designs(): DesignRecord[] { return [...mocks.records.values()]; },
+  get designs(): DesignRecord[] {
+    return [...mocks.records.values()];
+  },
   activeDesignId: undefined as string | undefined,
   canvas: undefined as FactoryProject | undefined,
   counter: 0,
@@ -23,9 +25,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/store/design-store", () => ({
   useDesignStore: { getState: () => mocks },
   captureDesignUpdateGuard: () => {
-    const active = mocks.activeDesignId, canvas = mocks.canvas, navigation = mocks.navigationRevision;
+    const active = mocks.activeDesignId,
+      canvas = mocks.canvas,
+      navigation = mocks.navigationRevision;
     return () => {
-      if (mocks.activeDesignId !== active || mocks.canvas !== canvas || mocks.navigationRevision !== navigation)
+      if (
+        mocks.activeDesignId !== active ||
+        mocks.canvas !== canvas ||
+        mocks.navigationRevision !== navigation
+      )
         throw new Error("The plan changed while updating. Try again.");
     };
   },
@@ -78,7 +86,11 @@ beforeEach(() => {
   });
   mocks.switchToDesign.mockImplementation(async (id: string, expectedFull?: string) => {
     const record = await mocks.readDesign(id);
-    if (!record || (expectedFull !== undefined && (record.cloud || record.fingerprints?.full !== expectedFull))) return false;
+    if (
+      !record ||
+      (expectedFull !== undefined && (record.cloud || record.fingerprints?.full !== expectedFull))
+    )
+      return false;
     mocks.navigationRevision++;
     mocks.activeDesignId = id;
     mocks.canvas = record.project;
@@ -93,7 +105,8 @@ beforeEach(() => {
 });
 describe("opening copied plan versions", () => {
   it("tries another exact candidate when the first one changed", async () => {
-    const plan = createEmptyProject(), code = await encodePlanCode(plan);
+    const plan = createEmptyProject(),
+      code = await encodePlanCode(plan);
     await mocks.importProjectAsDesign(plan, "First");
     await mocks.importProjectAsDesign(plan, "Second");
     mocks.activeDesignId = "design-0";
@@ -110,30 +123,42 @@ describe("opening copied plan versions", () => {
     expect(usePlanImportNotice.getState().notice?.kind).toBe("existing");
   });
 
-  it.each(["related", "different", "deleted", "shared"])("rechecks an exact candidate that becomes %s before opening", async change => {
-    const plan = createEmptyProject();
-    const code = await encodePlanCode(plan);
-    await openPlanCode(code);
-    const original = mocks.switchToDesign.getMockImplementation()!;
-    mocks.switchToDesign.mockImplementationOnce(async (id, expectedFull) => {
-      const target = mocks.records.get(id)!;
-      if (change === "deleted") mocks.records.delete(id);
-      else if (change === "shared") target.cloud = { ownerId: "owner", ownerName: "Owner", designId: id };
-      else {
-        target.project = { ...plan, notes: "New saved contents", ...(change === "different" ? { primaryView: "tasks" as const } : {}) };
-        target.fingerprints = await planFingerprints(target.project);
+  it.each(["related", "different", "deleted", "shared"])(
+    "rechecks an exact candidate that becomes %s before opening",
+    async (change) => {
+      const plan = createEmptyProject();
+      const code = await encodePlanCode(plan);
+      await openPlanCode(code);
+      const original = mocks.switchToDesign.getMockImplementation()!;
+      mocks.switchToDesign.mockImplementationOnce(async (id, expectedFull) => {
+        const target = mocks.records.get(id)!;
+        if (change === "deleted") mocks.records.delete(id);
+        else if (change === "shared")
+          target.cloud = { ownerId: "owner", ownerName: "Owner", designId: id };
+        else {
+          target.project = {
+            ...plan,
+            notes: "New saved contents",
+            ...(change === "different" ? { primaryView: "tasks" as const } : {}),
+          };
+          target.fingerprints = await planFingerprints(target.project);
+        }
+        return original(id, expectedFull);
+      });
+      await openPlanCode(code);
+      expect(mocks.canvas?.notes).toBe(plan.notes);
+      expect(mocks.activeDesignId).not.toBe("design-0");
+      expect(usePlanImportNotice.getState().notice?.kind).toBe(
+        change === "related" ? "related" : undefined,
+      );
+      if (change === "related") {
+        expect(usePlanImportNotice.getState().notice!.related[0].full).toBe(
+          mocks.records.get("design-0")!.fingerprints!.full,
+        );
+        expect(mocks.records.get("design-0")!.project.notes).toBe("New saved contents");
       }
-      return original(id, expectedFull);
-    });
-    await openPlanCode(code);
-    expect(mocks.canvas?.notes).toBe(plan.notes);
-    expect(mocks.activeDesignId).not.toBe("design-0");
-    expect(usePlanImportNotice.getState().notice?.kind).toBe(change === "related" ? "related" : undefined);
-    if (change === "related") {
-      expect(usePlanImportNotice.getState().notice!.related[0].full).toBe(mocks.records.get("design-0")!.fingerprints!.full);
-      expect(mocks.records.get("design-0")!.project.notes).toBe("New saved contents");
-    }
-  });
+    },
+  );
 
   it("opens an exact existing plan from a link or bare code, including closed plans", async () => {
     const plan = createEmptyProject(),
@@ -176,45 +201,71 @@ describe("opening copied plan versions", () => {
     expect(mocks.replaceDesignFromImport).not.toHaveBeenCalled();
     expect(mocks.records.size).toBe(2);
   });
-  it.each(["queued", "flush", "read", "hash"])("cancels navigation during incoming verification: %s", async stage => {
-    const plan = createEmptyProject();
-    await openPlanCode(await encodePlanCode(plan));
-    await openPlanCode(await encodePlanCode({ ...plan, notes: "Updated" }));
-    const notice = usePlanImportNotice.getState().notice!;
-    let release!: () => void;
-    let ready!: () => void;
-    const blocked = new Promise<void>(resolve => { ready = resolve; });
-    const gate = new Promise<void>(resolve => { release = resolve; });
-    let restoreDigest: (() => void) | undefined;
-    if (stage === "flush") mocks.flushActiveDesign.mockImplementationOnce(async () => { ready(); await gate; });
-    if (stage === "read") mocks.readDesign.mockImplementationOnce(async (id: string) => { ready(); await gate; return mocks.records.get(id); });
-    if (stage === "hash") {
-      const digest = crypto.subtle.digest.bind(crypto.subtle);
-      const spy = vi.spyOn(crypto.subtle, "digest").mockImplementationOnce(async (...args) => { ready(); await gate; return digest(...args); });
-      restoreDigest = () => spy.mockRestore();
-    }
-    const update = updatePlanFromNotice(notice, "design-0");
-    const rejection = expect(update).rejects.toThrow("plan changed while updating");
-    try {
-      if (stage !== "queued") await blocked;
-      mocks.navigationRevision++;
-      mocks.activeDesignId = "other";
-      release();
-      await rejection;
-      expect(mocks.replaceDesignFromImport).not.toHaveBeenCalled();
-      expect(mocks.cleanupImportedDesign).not.toHaveBeenCalled();
-      expect(mocks.records.size).toBe(2);
-      expect(mocks.activeDesignId).toBe("other");
-      expect(usePlanImportNotice.getState().notice).toBe(notice);
-    } finally { restoreDigest?.(); }
-  });
+  it.each(["queued", "flush", "read", "hash"])(
+    "cancels navigation during incoming verification: %s",
+    async (stage) => {
+      const plan = createEmptyProject();
+      await openPlanCode(await encodePlanCode(plan));
+      await openPlanCode(await encodePlanCode({ ...plan, notes: "Updated" }));
+      const notice = usePlanImportNotice.getState().notice!;
+      let release!: () => void;
+      let ready!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        ready = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let restoreDigest: (() => void) | undefined;
+      if (stage === "flush")
+        mocks.flushActiveDesign.mockImplementationOnce(async () => {
+          ready();
+          await gate;
+        });
+      if (stage === "read")
+        mocks.readDesign.mockImplementationOnce(async (id: string) => {
+          ready();
+          await gate;
+          return mocks.records.get(id);
+        });
+      if (stage === "hash") {
+        const digest = crypto.subtle.digest.bind(crypto.subtle);
+        const spy = vi.spyOn(crypto.subtle, "digest").mockImplementationOnce(async (...args) => {
+          ready();
+          await gate;
+          return digest(...args);
+        });
+        restoreDigest = () => spy.mockRestore();
+      }
+      const update = updatePlanFromNotice(notice, "design-0");
+      const rejection = expect(update).rejects.toThrow("plan changed while updating");
+      try {
+        if (stage !== "queued") await blocked;
+        mocks.navigationRevision++;
+        mocks.activeDesignId = "other";
+        release();
+        await rejection;
+        expect(mocks.replaceDesignFromImport).not.toHaveBeenCalled();
+        expect(mocks.cleanupImportedDesign).not.toHaveBeenCalled();
+        expect(mocks.records.size).toBe(2);
+        expect(mocks.activeDesignId).toBe("other");
+        expect(usePlanImportNotice.getState().notice).toBe(notice);
+      } finally {
+        restoreDigest?.();
+      }
+    },
+  );
   it("retains the incoming version and notice when an update is interrupted by editing", async () => {
     const plan = createEmptyProject();
     await openPlanCode(await encodePlanCode(plan));
     await openPlanCode(await encodePlanCode({ ...plan, notes: "Updated" }));
     const notice = usePlanImportNotice.getState().notice!;
-    mocks.replaceDesignFromImport.mockRejectedValueOnce(new Error("The plan changed while updating. Try again."));
-    await expect(updatePlanFromNotice(notice, "design-0")).rejects.toThrow("plan changed while updating");
+    mocks.replaceDesignFromImport.mockRejectedValueOnce(
+      new Error("The plan changed while updating. Try again."),
+    );
+    await expect(updatePlanFromNotice(notice, "design-0")).rejects.toThrow(
+      "plan changed while updating",
+    );
     expect(mocks.removeDesign).not.toHaveBeenCalled();
     expect(mocks.records.size).toBe(2);
     expect(usePlanImportNotice.getState().notice).toBe(notice);

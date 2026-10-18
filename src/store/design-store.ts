@@ -102,10 +102,20 @@ interface DesignStore {
   /** Adds `project` as a new design tab and switches to it (community imports). */
   importProjectAsDesign: (project: FactoryProject, name: string) => Promise<void>;
   /** Explicitly replaces an imported version, retaining a recoverable backup. */
-  replaceDesignFromImport: (id: string, project: FactoryProject, expectedFull: string, assertUnchangedCanvas?: () => void) => Promise<void>;
+  replaceDesignFromImport: (
+    id: string,
+    project: FactoryProject,
+    expectedFull: string,
+    assertUnchangedCanvas?: () => void,
+  ) => Promise<void>;
   flushActiveDesign: () => Promise<void>;
   /** Removes an unchanged incoming copy only while nobody is returning to it. */
-  cleanupImportedDesign: (id: string, full: string, targetId: string, expected?: Pick<DesignSummary, "updatedAt" | "metaUpdatedAt">) => Promise<boolean>;
+  cleanupImportedDesign: (
+    id: string,
+    full: string,
+    targetId: string,
+    expected?: Pick<DesignSummary, "updatedAt" | "metaUpdatedAt">,
+  ) => Promise<boolean>;
   /**
    * Opens a plan someone shared with this account: its local copy when this
    * device has one (`cloud`), else a new local copy of `project`. It then
@@ -235,8 +245,12 @@ export function captureDesignUpdateGuard(): () => void {
   const navigation = designNavigationRevision;
   const active = useDesignStore.getState().activeDesignId;
   return () => {
-    if (canvasRevision !== revision || designNavigationRevision !== navigation ||
-        useDesignStore.getState().activeDesignId !== active || pendingDesignSwitches > 0) {
+    if (
+      canvasRevision !== revision ||
+      designNavigationRevision !== navigation ||
+      useDesignStore.getState().activeDesignId !== active ||
+      pendingDesignSwitches > 0
+    ) {
       throw new Error("The plan changed while updating. Try again.");
     }
   };
@@ -511,9 +525,9 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     if (typeof window !== "undefined" && "indexedDB" in window) {
       setTimeout(() => {
         void import("@/lib/designs/fingerprint-migration")
-          .then(module => module.ensurePlanFingerprintMigration())
+          .then((module) => module.ensurePlanFingerprintMigration())
           .then(() => get().refreshLibrary())
-          .catch(error => console.error("Plan fingerprint migration could not finish.", error));
+          .catch((error) => console.error("Plan fingerprint migration could not finish.", error));
       }, 0);
     }
     let summaries: DesignSummary[];
@@ -609,12 +623,15 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     try {
       const revision = canvasRevision;
       const navigation = designNavigationRevision;
-      const unchanged = () => canvasRevision === revision && designNavigationRevision === navigation &&
-        get().activeDesignId === activeDesignId && pendingDesignSwitches === 1;
+      const unchanged = () =>
+        canvasRevision === revision &&
+        designNavigationRevision === navigation &&
+        get().activeDesignId === activeDesignId &&
+        pendingDesignSwitches === 1;
       // An already-active exact match can have new, unsaved edits. Save those
       // before asking storage whether the arriving version still matches.
       if (expectedFull !== undefined) {
-        await flushCanvasInto(designs.find(design => design.id === activeDesignId));
+        await flushCanvasInto(designs.find((design) => design.id === activeDesignId));
         if (!unchanged()) return false;
       }
       const target = await readDesign(id, expectedFull);
@@ -624,7 +641,11 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
       if (expectedFull !== undefined) {
         if (!unchanged()) return false;
       } else await flushCanvasInto(designs.find((design) => design.id === activeDesignId));
-      if (id === activeDesignId && canvasBase?.designId === id && canvasBase.updatedAt === target.updatedAt) {
+      if (
+        id === activeDesignId &&
+        canvasBase?.designId === id &&
+        canvasBase.updatedAt === target.updatedAt
+      ) {
         // Keep undo and view only for the stored version this canvas came from.
         // A newer record must land with its base or the next save can erase it.
         leaveLibrary();
@@ -680,35 +701,56 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
   },
 
   flushActiveDesign: async () => {
-    await flushCanvasInto(get().designs.find(design => design.id === get().activeDesignId));
+    await flushCanvasInto(get().designs.find((design) => design.id === get().activeDesignId));
   },
 
   cleanupImportedDesign: async (id, full, targetId, expected) => {
     const revision = canvasRevision;
     const navigation = designNavigationRevision;
     const active = get().activeDesignId;
-    const sourceMetaAt = get().designs.find(design => design.id === id)?.metaUpdatedAt;
-    const canCleanup = () => get().activeDesignId !== id && get().activeDesignId === active &&
-      pendingDesignSwitches === 0 && designNavigationRevision === navigation && canvasRevision === revision &&
-      get().designs.find(design => design.id === id)?.metaUpdatedAt === sourceMetaAt &&
-      !isDesignOpenLive(id) && !isDesignOpenLive(targetId);
+    const sourceMetaAt = get().designs.find((design) => design.id === id)?.metaUpdatedAt;
+    const canCleanup = () =>
+      get().activeDesignId !== id &&
+      get().activeDesignId === active &&
+      pendingDesignSwitches === 0 &&
+      designNavigationRevision === navigation &&
+      canvasRevision === revision &&
+      get().designs.find((design) => design.id === id)?.metaUpdatedAt === sourceMetaAt &&
+      !isDesignOpenLive(id) &&
+      !isDesignOpenLive(targetId);
     if (!canCleanup()) return false;
     const record = await readDesign(id);
     if (!record || !canCleanup()) return false;
-    if (expected && (record.updatedAt !== expected.updatedAt || record.metaUpdatedAt !== expected.metaUpdatedAt)) return false;
+    if (
+      expected &&
+      (record.updatedAt !== expected.updatedAt || record.metaUpdatedAt !== expected.metaUpdatedAt)
+    )
+      return false;
     const { planFingerprints } = await import("@/lib/import-export/import-fingerprint");
     if ((await planFingerprints(record.project)).full !== full || !canCleanup()) return false;
     // Check navigation and edits inside the deletion transaction too: checking
     // before awaiting IndexedDB leaves a gap for unsaved work to appear.
-    if (!await deleteDesign(id, record.updatedAt, stored => canCleanup() &&
-      stored?.metaUpdatedAt === record.metaUpdatedAt && !stored?.cloud)) return false;
+    if (
+      !(await deleteDesign(
+        id,
+        record.updatedAt,
+        (stored) =>
+          canCleanup() && stored?.metaUpdatedAt === record.metaUpdatedAt && !stored?.cloud,
+      ))
+    )
+      return false;
     forgetDesignCameras([id]);
     noteLibraryDeletion("design", id);
     set(await listLibrary());
     return true;
   },
 
-  replaceDesignFromImport: async (id, project, expectedFull, assertUnchangedCanvas = captureDesignUpdateGuard()) => {
+  replaceDesignFromImport: async (
+    id,
+    project,
+    expectedFull,
+    assertUnchangedCanvas = captureDesignUpdateGuard(),
+  ) => {
     assertUnchangedCanvas();
     await get().flushActiveDesign();
     assertUnchangedCanvas();
@@ -716,7 +758,9 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     assertUnchangedCanvas();
     if (!target) throw new Error("That saved plan was deleted. Keep the imported plan separately.");
     if (target.cloud || isDesignOpenLive(id)) {
-      throw new Error("A live or shared plan cannot be replaced here. Keep the imported plan separately.");
+      throw new Error(
+        "A live or shared plan cannot be replaced here. Keep the imported plan separately.",
+      );
     }
     const { planFingerprints } = await import("@/lib/import-export/import-fingerprint");
     if ((await planFingerprints(target.project)).full !== expectedFull) {
@@ -724,7 +768,8 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     }
     assertUnchangedCanvas();
     const replacementProject = {
-      ...project, name: target.name,
+      ...project,
+      name: target.name,
       metadata: { ...project.metadata, communityPlanId: target.project.metadata?.communityPlanId },
     };
     const statsProject = normalizeLoadedProject(replacementProject);
@@ -733,21 +778,34 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     const result = await solveFreshBooks(statsProject);
     assertUnchangedCanvas();
     if (isDesignOpenLive(id)) {
-      throw new Error("A live or shared plan cannot be replaced here. Keep the imported plan separately.");
+      throw new Error(
+        "A live or shared plan cannot be replaced here. Keep the imported plan separately.",
+      );
     }
-    const liveReplacement = target.remoteUpdatedAt && isLiveConfigured()
-      ? await (await import("./live-session")).prepareImportedReplacement(id, normalizeLoadedProject(target.project), statsProject)
-      : undefined;
+    const liveReplacement =
+      target.remoteUpdatedAt && isLiveConfigured()
+        ? await (
+            await import("./live-session")
+          ).prepareImportedReplacement(id, normalizeLoadedProject(target.project), statsProject)
+        : undefined;
     assertUnchangedCanvas();
-    const backup = duplicateDesignRecord(target, get().designs.map(design => design.name));
-    backup.name = makeUniqueDesignName(`${target.name} (before update)`, get().designs.map(design => design.name));
+    const backup = duplicateDesignRecord(
+      target,
+      get().designs.map((design) => design.name),
+    );
+    backup.name = makeUniqueDesignName(
+      `${target.name} (before update)`,
+      get().designs.map((design) => design.name),
+    );
     backup.project = { ...backup.project, name: backup.name };
     backup.closed = true;
     backup.folderId = target.folderId;
     await writeDesign(backup);
     assertUnchangedCanvas();
     if (isDesignOpenLive(id)) {
-      throw new Error("A live or shared plan cannot be replaced here. Keep the imported plan separately.");
+      throw new Error(
+        "A live or shared plan cannot be replaced here. Keep the imported plan separately.",
+      );
     }
     const replacement = updateDesignProject(target, replacementProject);
     delete replacement.closed;
@@ -756,20 +814,26 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     // to the live pending database cannot leave an undeliverable replacement.
     const outcome = await replaceDesignIfUnchanged(replacement, target, liveReplacement);
     if (outcome === "live") {
-      throw new Error("A live or shared plan cannot be replaced here. Keep the imported plan separately.");
+      throw new Error(
+        "A live or shared plan cannot be replaced here. Keep the imported plan separately.",
+      );
     }
     if (outcome === "missing") {
       throw new Error("That saved plan was deleted. Keep the imported plan separately.");
     }
     if (outcome !== "written") {
-      throw new Error("Another tab changed that saved plan. Your imported plan was kept separately.");
+      throw new Error(
+        "Another tab changed that saved plan. Your imported plan was kept separately.",
+      );
     }
     announceDesignSaved(id, replacement.updatedAt);
     // A write may finish after a new edit. Keep that canvas and the incoming
     // design; a later save can preserve target edits through the conflict guard.
     assertUnchangedCanvas();
     if (isDesignOpenLive(id)) {
-      throw new Error("A live or shared plan cannot be replaced here. Keep the imported plan separately.");
+      throw new Error(
+        "A live or shared plan cannot be replaced here. Keep the imported plan separately.",
+      );
     }
     landOnDesign(set, replacement);
     leaveWelcomeTab();

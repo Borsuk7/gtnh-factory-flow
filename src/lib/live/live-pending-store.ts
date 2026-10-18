@@ -72,8 +72,10 @@ export async function writePending(
     const transaction = db.transaction(STORE, "readwrite");
     const committed = new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error ?? new Error("Live edits could not be saved."));
-      transaction.onerror = () => reject(transaction.error ?? new Error("Live edits could not be saved."));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error("Live edits could not be saved."));
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error("Live edits could not be saved."));
     });
     const store = transaction.objectStore(STORE);
     const key = pendingKey(doc, tabId);
@@ -83,8 +85,14 @@ export async function writePending(
       const current = store.get(key);
       current.onsuccess = () => {
         const saved = (current.result as StoredPending | undefined)?.pending ?? [];
-        const seen = new Set(saved.map(batch => batch.cid));
-        store.put({ key, doc, tabId, pending: [...saved, ...pending.filter(batch => !seen.has(batch.cid))], updatedAt: new Date().toISOString() });
+        const seen = new Set(saved.map((batch) => batch.cid));
+        store.put({
+          key,
+          doc,
+          tabId,
+          pending: [...saved, ...pending.filter((batch) => !seen.has(batch.cid))],
+          updatedAt: new Date().toISOString(),
+        });
       };
     } else if (pending.length === 0) {
       store.delete(key);

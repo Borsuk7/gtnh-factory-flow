@@ -154,7 +154,8 @@ export function keepStoredPlanMarks(
   stored: DesignSummary | undefined,
 ): DesignSummary {
   // Metadata writers never replace fingerprints derived from the stored plan.
-  if (stored && summary.fingerprints !== stored.fingerprints) summary = { ...summary, fingerprints: stored.fingerprints };
+  if (stored && summary.fingerprints !== stored.fingerprints)
+    summary = { ...summary, fingerprints: stored.fingerprints };
   if (!stored || stored.updatedAt === summary.updatedAt) {
     return summary;
   }

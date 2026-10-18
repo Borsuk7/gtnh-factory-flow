@@ -3,7 +3,11 @@
 import type { FactoryProject } from "@/lib/model/types";
 import type { PendingBatch } from "@/lib/live/client-state";
 import { isDesignOpenLive } from "@/store/live-edit-gate";
-import { FINGERPRINT_VERSION, planFingerprints, type PlanFingerprints } from "../import-export/import-fingerprint";
+import {
+  FINGERPRINT_VERSION,
+  planFingerprints,
+  type PlanFingerprints,
+} from "../import-export/import-fingerprint";
 import {
   keepStoredPlanMarks,
   toDesignSummary,
@@ -46,17 +50,27 @@ export interface LiveReplacementOutbox {
   pending: PendingBatch[];
 }
 
-export async function readDesignLiveReplacement(id: string): Promise<LiveReplacementOutbox | undefined> {
+export async function readDesignLiveReplacement(
+  id: string,
+): Promise<LiveReplacementOutbox | undefined> {
   if (!isDesignStorageAvailable()) return undefined;
   const db = await openDesignDb();
   try {
-    const plan = await requestToPromise<StoredPlan | undefined>(db.transaction(PLAN_STORE).objectStore(PLAN_STORE).get(id));
+    const plan = await requestToPromise<StoredPlan | undefined>(
+      db.transaction(PLAN_STORE).objectStore(PLAN_STORE).get(id),
+    );
     return plan?.liveReplacement;
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 /** Only the server's acknowledgement or explicit refusal settles an outbox batch. */
-export async function settleDesignLiveReplacement(id: string, doc: string, cid: string): Promise<void> {
+export async function settleDesignLiveReplacement(
+  id: string,
+  doc: string,
+  cid: string,
+): Promise<void> {
   if (!isDesignStorageAvailable()) return;
   const db = await openDesignDb();
   try {
@@ -67,14 +81,16 @@ export async function settleDesignLiveReplacement(id: string, doc: string, cid: 
     request.onsuccess = () => {
       const plan = request.result as StoredPlan | undefined;
       if (!plan?.liveReplacement || plan.liveReplacement.doc !== doc) return;
-      const pending = plan.liveReplacement.pending.filter(batch => batch.cid !== cid);
+      const pending = plan.liveReplacement.pending.filter((batch) => batch.cid !== cid);
       if (pending.length === plan.liveReplacement.pending.length) return;
       if (pending.length) plan.liveReplacement = { doc, pending };
       else delete plan.liveReplacement;
       store.put(plan);
     };
     await completed;
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 /** Ordinary saves retain delivery intent until the live service settles it. */
@@ -82,7 +98,11 @@ function putPlanPreservingOutbox(store: IDBObjectStore, record: DesignRecord): v
   const request = store.get(record.id);
   request.onsuccess = () => {
     const stored = request.result as StoredPlan | undefined;
-    store.put({ id: record.id, project: record.project, ...(stored?.liveReplacement ? { liveReplacement: stored.liveReplacement } : {}) });
+    store.put({
+      id: record.id,
+      project: record.project,
+      ...(stored?.liveReplacement ? { liveReplacement: stored.liveReplacement } : {}),
+    });
   };
 }
 
@@ -105,7 +125,10 @@ export async function listDesignSummaries(): Promise<DesignSummary[]> {
   }
 }
 
-export async function readDesign(id: string, expectedFull?: string): Promise<DesignRecord | undefined> {
+export async function readDesign(
+  id: string,
+  expectedFull?: string,
+): Promise<DesignRecord | undefined> {
   if (!isDesignStorageAvailable()) {
     return undefined;
   }
@@ -121,11 +144,20 @@ export async function readDesign(id: string, expectedFull?: string): Promise<Des
       const summaryRequest = meta.get(id);
       const planRequest = transaction.objectStore(PLAN_STORE).get(id);
       let summary: DesignSummary | undefined, plan: StoredPlan | undefined;
-      let summaryReady = false, planReady = false;
+      let summaryReady = false,
+        planReady = false;
       let result: DesignRecord | undefined;
       const finish = () => {
-        if (!summaryReady || !planReady || !summary || !plan || summary.cloud ||
-            summary.fingerprints?.version !== FINGERPRINT_VERSION || summary.fingerprints.full !== expectedFull) return;
+        if (
+          !summaryReady ||
+          !planReady ||
+          !summary ||
+          !plan ||
+          summary.cloud ||
+          summary.fingerprints?.version !== FINGERPRINT_VERSION ||
+          summary.fingerprints.full !== expectedFull
+        )
+          return;
         if (summary.closed) {
           summary = touchDesignMeta(summary);
           delete summary.closed;
@@ -133,8 +165,16 @@ export async function readDesign(id: string, expectedFull?: string): Promise<Des
         }
         result = { ...summary, project: plan.project };
       };
-      summaryRequest.onsuccess = () => { summary = summaryRequest.result; summaryReady = true; finish(); };
-      planRequest.onsuccess = () => { plan = planRequest.result; planReady = true; finish(); };
+      summaryRequest.onsuccess = () => {
+        summary = summaryRequest.result;
+        summaryReady = true;
+        finish();
+      };
+      planRequest.onsuccess = () => {
+        plan = planRequest.result;
+        planReady = true;
+        finish();
+      };
       await completed;
       return result;
     }
@@ -277,7 +317,11 @@ export async function replaceDesignIfUnchanged(
             return;
           }
           meta.put(toDesignSummary({ ...record, fingerprints }));
-          plans.put({ id: record.id, project: record.project, ...(liveReplacement?.pending.length ? { liveReplacement } : {}) });
+          plans.put({
+            id: record.id,
+            project: record.project,
+            ...(liveReplacement?.pending.length ? { liveReplacement } : {}),
+          });
           resolve("written");
         };
       };
@@ -333,11 +377,13 @@ export async function backfillDesignFingerprints(
       const stored = request.result as DesignSummary | undefined;
       // Live copies keep their edit stamp. Their freshly written fingerprints
       // must win over a migration computed from an older body with that stamp.
-      if (stored?.updatedAt === updatedAt &&
-          !(stored.fingerprints && stored.fingerprints.version >= fingerprints.version) &&
-          stored.fingerprints?.version === expectedFingerprints?.version &&
-          stored.fingerprints?.simple === expectedFingerprints?.simple &&
-          stored.fingerprints?.full === expectedFingerprints?.full) {
+      if (
+        stored?.updatedAt === updatedAt &&
+        !(stored.fingerprints && stored.fingerprints.version >= fingerprints.version) &&
+        stored.fingerprints?.version === expectedFingerprints?.version &&
+        stored.fingerprints?.simple === expectedFingerprints?.simple &&
+        stored.fingerprints?.full === expectedFingerprints?.full
+      ) {
         store.put({ ...stored, fingerprints });
         written = true;
       }
@@ -373,8 +419,10 @@ export async function deleteDesign(
       const current = meta.get(id);
       current.onsuccess = () => {
         const stored = current.result as DesignSummary | undefined;
-        if ((expectedUpdatedAt === undefined || stored?.updatedAt === expectedUpdatedAt) &&
-            (!canDelete || canDelete(stored)))
+        if (
+          (expectedUpdatedAt === undefined || stored?.updatedAt === expectedUpdatedAt) &&
+          (!canDelete || canDelete(stored))
+        )
           remove();
       };
     }

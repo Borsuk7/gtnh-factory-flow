@@ -35,7 +35,12 @@ beforeEach(() => {
     });
   storage.read.mockImplementation(async (id: string) => storage.records.get(id));
   storage.write.mockImplementation(
-    async (id: string, stamp: string, fingerprints: PlanFingerprints, expected?: PlanFingerprints) => {
+    async (
+      id: string,
+      stamp: string,
+      fingerprints: PlanFingerprints,
+      expected?: PlanFingerprints,
+    ) => {
       const record = storage.records.get(id)!;
       if (record.updatedAt !== stamp) return false;
       if (record.fingerprints && record.fingerprints.version >= fingerprints.version) return false;
