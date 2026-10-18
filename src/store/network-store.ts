@@ -118,15 +118,18 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     get().close(id);
   },
   addMember: (id, member) =>
-    get().edit((networks) =>
-      networks.map((network) => ({
+    get().edit((networks) => {
+      const previous = networks
+        .flatMap((network) => network.members)
+        .find((entry) => memberKey(entry) === memberKey(member));
+      return networks.map((network) => ({
         ...network,
         members: [
           ...network.members.filter((entry) => memberKey(entry) !== memberKey(member)),
-          ...(network.id === id ? [member] : []),
+          ...(network.id === id ? [{ ...previous, ...member }] : []),
         ],
-      })),
-    ),
+      }));
+    }),
   open: (id) => {
     leaveWelcomeTab();
     leaveLibrary();

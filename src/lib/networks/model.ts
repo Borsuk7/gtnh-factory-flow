@@ -8,6 +8,7 @@ export const memberSchema = z.object({
   ownerId: id.optional(),
   name: z.string().max(80),
   included: z.boolean(),
+  portSelection: z.array(z.string().min(1).max(2048)).max(10000).optional(),
 });
 export const networkSchema = z.object({
   id,
@@ -66,9 +67,29 @@ export interface MaterialFlow {
 }
 export interface PlanFlows {
   materials: MaterialFlow[];
+  ports?: NetworkPortFlow[];
   power: { used: number; made: number };
   error?: string;
   stale?: boolean;
+}
+export interface NetworkPortFlow extends MaterialFlow {
+  portKey: string;
+  machine: string;
+  side: "in" | "out";
+}
+
+export function selectedMaterials(plan: PlanFlows, selection?: string[]): MaterialFlow[] {
+  if (selection === undefined) return plan.materials;
+  const selected = new Set(selection);
+  const rows = new Map<string, MaterialFlow>();
+  for (const port of plan.ports ?? []) {
+    if (!selected.has(port.portKey) || (!port.supply && !port.demand)) continue;
+    const row = rows.get(port.key) ?? { ...port, supply: 0, demand: 0 };
+    row.supply += port.supply;
+    row.demand += port.demand;
+    rows.set(port.key, row);
+  }
+  return [...rows.values()];
 }
 export interface Contribution {
   id: string;
@@ -132,7 +153,13 @@ export function aggregateNetworks(
           `${member.name}: ${plan?.error ?? (plan?.stale ? "outdated figures" : "calculating or unavailable")}`,
         );
       if (!plan || plan.error) continue;
-      plan.materials.forEach((flow) => add(flow, { id: key, name: member.name, network: false }));
+      if (
+        member.portSelection?.some((port) => !plan.ports?.some((entry) => entry.portKey === port))
+      )
+        answer.incomplete.push(`${member.name}: selected ports are unavailable`);
+      selectedMaterials(plan, member.portSelection).forEach((flow) =>
+        add(flow, { id: key, name: member.name, network: false }),
+      );
       answer.power.used += plan.power.used;
       answer.power.made += plan.power.made;
     }

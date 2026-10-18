@@ -78,6 +78,19 @@ describe("closed network member calculations", () => {
     act(() => useFactoryStore.setState({ rateUnit: "minute" }));
     hook.rerender();
     expect(posted).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      useNetworkStore.setState((state) => ({
+        catalogue: {
+          ...state.catalogue!,
+          networks: state.catalogue!.networks.map((network) => ({
+            ...network,
+            members: network.members.map((plan) => ({ ...plan, portSelection: [] })),
+          })),
+        },
+      })),
+    );
+    expect(hook.result.current.get(memberKey(member))).toEqual(initial);
+    expect(posted).toHaveBeenCalledTimes(1);
     await act(async () => useDesignStore.setState({ designs: [{ ...summary }] }));
     await waitFor(() => expect(hook.result.current.get(memberKey(member))?.stale).not.toBe(true));
     expect(posted).toHaveBeenCalledTimes(1);

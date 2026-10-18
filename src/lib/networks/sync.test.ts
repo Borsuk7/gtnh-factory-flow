@@ -53,12 +53,20 @@ describe("network persistence and sync", () => {
     await store.edit(() => [network("a"), network("b")]);
     const member = { designId: "line", name: "Oxygen", included: true };
     await store.addMember("a", member);
+    await store.edit((entries) =>
+      entries.map((entry) => ({
+        ...entry,
+        members: entry.members.map((plan) => ({ ...plan, portSelection: ["machine-output"] })),
+      })),
+    );
     await store.addMember("b", member);
     expect(
       useNetworkStore.getState().catalogue!.networks.map((entry) => entry.members.length),
     ).toEqual([0, 1]);
     await store.load("owner");
-    expect(useNetworkStore.getState().catalogue!.networks[1].members).toEqual([member]);
+    expect(useNetworkStore.getState().catalogue!.networks[1].members).toEqual([
+      { ...member, portSelection: ["machine-output"] },
+    ]);
   });
   it("pulls remote data without scheduling a push of the pull", async () => {
     const fetcher = vi

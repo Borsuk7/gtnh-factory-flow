@@ -29,6 +29,24 @@ const plans = (entries: Record<string, PlanFlows>) =>
   new Map(Object.entries(entries).map(([id, value]) => [memberKey(member(id)), value]));
 
 describe("network material ledger", () => {
+  it("counts only selected ports, retains whole-plan power, and flags missing selections", () => {
+    const plan = oxygen(10, 5);
+    plan.ports = [
+      { ...plan.materials[0], portKey: "maker-out", machine: "Maker", side: "out", demand: 0 },
+      { ...plan.materials[0], portKey: "user-in", machine: "User", side: "in", supply: 0 },
+    ];
+    const root = {
+      ...network("main"),
+      members: [{ ...member("line"), portSelection: ["user-in", "removed-port"] }],
+    };
+    const result = aggregateNetworks([root], plans({ line: plan })).get("main")!;
+    expect(result.resources[0]).toMatchObject({ supply: 0, demand: 5, shortage: 5 });
+    expect(result.resources[0].contributions).toHaveLength(1);
+    expect(result.power.used).toBe(32);
+    expect(result.incomplete).toEqual(["line: selected ports are unavailable"]);
+    root.members[0].portSelection = [];
+    expect(aggregateNetworks([root], plans({ line: plan })).get("main")!.resources).toEqual([]);
+  });
   it("reports the oxygen example and preserves gross imports and exports", () => {
     const root = { ...network("main"), members: [member("producer"), member("consumer")] };
     const result = aggregateNetworks(

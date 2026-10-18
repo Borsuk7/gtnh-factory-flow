@@ -20,6 +20,7 @@ import {
   type NetworkMember,
   type PlanNetwork,
   type Sharing,
+  type PlanFlows,
 } from "@/lib/networks/model";
 import { localDesignId, useNetworkCalculations } from "@/lib/networks/calculation";
 import { syncNetworks } from "@/lib/networks/sync";
@@ -116,6 +117,7 @@ export function NetworkPage() {
   const [adding, setAdding] = useState(false);
   const [planQuery, setPlanQuery] = useState("");
   const [armed, setArmed] = useState(false);
+  const [editingPorts, setEditingPorts] = useState<string>();
   // Display dials repaint this view without invalidating its calculations.
   useRateDisplayUnits();
   const flows = useNetworkCalculations(retry);
@@ -227,6 +229,12 @@ export function NetworkPage() {
                 {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
               </button>
               <button
+                aria-label={`Inputs and outputs for ${member.name}`}
+                onClick={() => setEditingPorts(memberKey(member))}
+              >
+                I/O
+              </button>
+              <button
                 aria-label={`Remove ${member.name}`}
                 onClick={() =>
                   patch({
@@ -281,6 +289,23 @@ export function NetworkPage() {
           )}
         </aside>
         <main className="netview-ledger">
+          {network.members
+            .filter((member) => memberKey(member) === editingPorts)
+            .map((member) => (
+              <PortPicker
+                key={editingPorts}
+                member={member}
+                flow={flows.get(memberKey(member))}
+                onDone={() => setEditingPorts(undefined)}
+                onChange={(portSelection) =>
+                  patch({
+                    members: network.members.map((entry) =>
+                      memberKey(entry) === memberKey(member) ? { ...entry, portSelection } : entry,
+                    ),
+                  })
+                }
+              />
+            ))}
           {adding ? (
             <section className="netview-picker" aria-label="Add plans">
               <div className="netview-actions">
@@ -487,6 +512,77 @@ export function NetworkPage() {
 
 function ResourceRows({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
+}
+
+function PortPicker({
+  member,
+  flow,
+  onChange,
+  onDone,
+}: {
+  member: NetworkMember;
+  flow?: PlanFlows;
+  onChange: (selection: string[] | undefined) => void;
+  onDone: () => void;
+}) {
+  const ports = flow?.ports ?? [];
+  const keys = [...new Set(ports.map((port) => port.portKey))];
+  const selected = new Set(member.portSelection ?? keys);
+  const machines = [...new Set(ports.map((port) => port.machine))];
+  const toggle = (key: string, checked: boolean) => {
+    const next = new Set(selected);
+    if (checked) next.add(key);
+    else next.delete(key);
+    onChange([...next]);
+  };
+  return (
+    <section className="netview-picker" aria-label={`Inputs and outputs for ${member.name}`}>
+      <div className="netview-actions">
+        <strong>Inputs and outputs · {member.name}</strong>
+        <button onClick={() => onChange(undefined)}>Use all ports</button>
+        <button onClick={() => onChange([])}>Clear all</button>
+        <button onClick={onDone}>Done</button>
+      </div>
+      <p>
+        Choose which machine ports count toward this network. Only flows entering or leaving the
+        plan count. Drawers are optional.
+      </p>
+      {flow?.error || !flow ? <p>{flow?.error ?? "Calculating ports…"}</p> : null}
+      <div className="netview-port-list">
+        {machines.map((machine) => (
+          <fieldset key={machine}>
+            <legend>{machine}</legend>
+            {ports
+              .filter((port) => port.machine === machine)
+              .map((port) => (
+                <label className="netview-port" key={JSON.stringify([port.portKey, port.key])}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(port.portKey)}
+                    onChange={(event) => toggle(port.portKey, event.target.checked)}
+                  />
+                  <span>
+                    {port.side === "in" ? "Input" : "Output"} · {port.label}
+                  </span>
+                  <span>
+                    {formatCompact((port.supply + port.demand) * rateMultiplierForKind(port.kind))}
+                    {rateSuffixForKind(port.kind)}
+                  </span>
+                </label>
+              ))}
+          </fieldset>
+        ))}
+        {(member.portSelection ?? [])
+          .filter((key) => !keys.includes(key))
+          .map((key) => (
+            <label className="netview-port" key={key}>
+              <input type="checkbox" checked onChange={() => toggle(key, false)} />
+              <span>Unavailable port</span>
+            </label>
+          ))}
+      </div>
+    </section>
+  );
 }
 
 function isDescendant(network: PlanNetwork, ancestor: string, networks: PlanNetwork[]): boolean {

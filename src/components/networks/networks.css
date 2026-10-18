@@ -221,6 +221,27 @@
   padding: 12px;
   margin-bottom: 12px;
 }
+.netview-port-list {
+  display: grid;
+  gap: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+.netview-port-list fieldset {
+  min-width: 0;
+  border: 1px solid var(--mc-ring);
+  padding: 8px 12px;
+}
+.netview-port {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+}
+.netview-port span:last-child {
+  margin-left: auto;
+  white-space: nowrap;
+}
 .netview-choices {
   max-height: 240px;
   overflow: auto;

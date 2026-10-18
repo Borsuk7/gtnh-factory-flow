@@ -67,11 +67,17 @@ export function useNetworkCalculations(retry: number): ReadonlyMap<string, PlanF
   const versionId = useFactoryStore((state) => state.dataset?.datasetVersionId);
   const shared = useCloudLibraryStore((state) => state.shared);
   const [flows, setFlows] = useState<Map<string, PlanFlows>>(() => new Map());
+  // Port choices and hierarchy edits only aggregate existing solves.
+  const calculationMembers = JSON.stringify(
+    (networks ?? []).flatMap((network) =>
+      network.members
+        .filter((member) => member.included)
+        .map(({ designId, ownerId, name }) => ({ designId, ownerId, name })),
+    ),
+  );
   useEffect(() => {
     let cancelled = false;
-    const members = (networks ?? []).flatMap((network) =>
-      network.members.filter((member) => member.included),
-    );
+    const members = JSON.parse(calculationMembers) as NetworkMember[];
     const publish = (key: string, flow: PlanFlows) => {
       if (!cancelled) setFlows((previous) => new Map(previous).set(key, flow));
     };
@@ -170,7 +176,7 @@ export function useNetworkCalculations(retry: number): ReadonlyMap<string, PlanF
       cancelled = true;
     };
   }, [
-    networks,
+    calculationMembers,
     designs,
     activeId,
     canvas,

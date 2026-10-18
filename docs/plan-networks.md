@@ -5,9 +5,18 @@ them from the tab strip's + menu or the library's Networks section. Plans keep t
 
 ## Accounting
 
-A plan contributes its solved boundary imports and collected products, byproducts and buffer surplus. Trash and
-internal machine flow are excluded. Importing and exporting the same resource contributes to both columns. Item and
-fluid identities stay separate; there is no inferred conversion or matching by name.
+A plan contributes its solved boundary imports and exports, through drawers or directly through machine ports.
+Collected products, byproducts and buffer surplus count as supply; trash and internal machine flow are excluded.
+Removing a boundary drawer does not remove the machine's solved flow from the network. Importing and exporting
+the same resource contributes to both columns. Item and fluid identities stay separate; there is no inferred
+conversion or matching by name.
+
+Each plan's I/O button selects network inputs and outputs per machine. All ports count by default. Clear all starts
+an explicit selection; Use all ports also includes ports added later. Selections follow stable machine/recipe-section
+port ids across drawer removal and network moves. An unavailable selected port marks totals incomplete. Internal
+wires contribute no boundary flow, even when selected. Shared buffer surplus and drawer chains have separate Drawers
+entries because their net rates cannot be assigned to a single machine port. Power always covers the included plan.
+These choices only filter the ledger; they never change recipes, rates, or the solve.
 
 At each network, supply minus demand gives free resources or a shortage. These are configured rates, not measured
 inventories or a promise that supplying lines can operate without their own missing inputs. Power generation and
