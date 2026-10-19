@@ -261,8 +261,22 @@
   color: var(--mc-muted);
   margin-top: 6px;
 }
-.netview-library {
+.netview-library.mx {
   height: 100%;
+  font-size: 13px;
+}
+.netview-library h1 {
+  font-size: 20px;
+}
+.netview-library button,
+.netview-library input:not([type="checkbox"]) {
+  min-height: 32px;
+}
+.netview-library .netview-network-list button {
+  padding: 12px;
+}
+.netview-library .netview-network-list span {
+  font-size: 12px;
 }
 html[data-compact] .netview {
   padding: 12px;
