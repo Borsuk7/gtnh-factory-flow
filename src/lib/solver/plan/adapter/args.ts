@@ -61,7 +61,6 @@ export interface PlanSolveArgs {
   storages: Record<string, StorageThroughputResult>;
   projectStorages: FactoryStorage[];
   bottlenecks: BottleneckReport[];
-  crossForm: { hiddenNodeIds: string[]; hiddenEdgeIds: string[] };
   options: { generatedAt?: string };
   /** Absent in tests that build the nameplate by hand: durations then read 20 ticks, factor 1. */
   units?: Record<string, PlanUnit>;

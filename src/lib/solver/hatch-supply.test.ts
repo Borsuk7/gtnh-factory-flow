@@ -127,10 +127,10 @@ describe("hatch supply", () => {
     expect(Object.keys(result.nodes)).toEqual(["n", "n#r1"]);
   });
 
-  it("preserves saved wires, restores them when disabled, and bypasses cross-form wires", () => {
+  it("preserves saved wires and restores them when disabled", () => {
     const project = board();
     project.nodes[0].hatchSupplies = ["water"];
-    const wire = { id: "water-wire", source: "s", target: "n", resourceKind: "item" as const, resourceId: "water-cell", targetHandle: "input:fluid:water", crossForm: { litresPerCell: 1000 } };
+    const wire = { id: "water-wire", source: "s", target: "n", resourceKind: "fluid" as const, resourceId: "water", targetHandle: "input:fluid:water" };
     project.edges.push(wire);
     expect(expandHatchSupplies(project).edges.some((edge) => edge.id === wire.id)).toBe(false);
     expect(project.edges).toContain(wire);

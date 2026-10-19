@@ -16,14 +16,14 @@ export interface BufferFreeGraph {
 
 /**
  * Whether a buffer drawer (fed and drawn from) stays a buffer in plan mode (`docs/buffer-drawers.md`): every wire on
- * it runs to a card, none to another drawer, and none is a loose cell wire. The solver then takes it as a BUFFER
- * drawer. Any other buffer is joined into the wires it stands for.
+ * it runs to a card, none to another drawer. The solver then takes it as a BUFFER drawer. Any other buffer is joined
+ * into the wires it stands for.
  */
 export function keepsBuffer(storageId: string, edges: readonly FactoryEdge[], storageIds: ReadonlySet<string>): boolean {
   for (const edge of edges) {
     if (edge.source !== storageId && edge.target !== storageId) continue;
     const other = edge.source === storageId ? edge.target : edge.source;
-    if (other === storageId || storageIds.has(other) || edge.crossForm) return false;
+    if (other === storageId || storageIds.has(other)) return false;
   }
   return true;
 }
@@ -65,10 +65,6 @@ export function expandBuffers(project: FactoryProject): BufferFreeGraph {
           resourceKind: feeder.resourceKind,
           resourceId: feeder.resourceId,
         };
-        const crossForm = feeder.crossForm ?? taker.crossForm;
-        if (crossForm) {
-          joined.crossForm = crossForm;
-        }
         covers.set(id, [...new Set([...(covers.get(feeder.id) ?? []), ...(covers.get(taker.id) ?? [])])]);
         edges.push(joined);
       }

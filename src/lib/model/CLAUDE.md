@@ -10,17 +10,21 @@ Types, Zod schemas, resource keys, recipe rules, and the load funnel
 - Crossing forms takes a machine, as in the game (thousands of Canner recipes). The
   pipeline also mirrors fluid Canner recipes into a free "Tank" map (0 EU, 1 tick, real
   slots including empty cells).
-- Loose cell wires (always on): a cell and its fluid may wire directly either way. The
-  edge stays same-kind and carries the Canner's litres per cell on `edge.crossForm`,
-  fetched at wire time; no ratio found, no wire. The pair question is
-  `getCrossFormCellMatch` (resources.ts). The rule lives only in the gesture, edge survival
-  (`isFactoryEdgeStillValid`, `dropCrossFormConnections`) and the solver expansion.
+- No wire crosses forms: a cell and its fluid meet only in a fluid tank card
+  (`fluid-tank.ts`), as in the mod. A cell port and a fluid port never take or glow for
+  each other's wires.
+- Older plans carry loose cell wires (`edge.crossForm`: the Canner's litres per cell).
+  `convertLooseCellWires` (cell-wires.ts) makes each a tank card between its two ends where
+  a plan lands: the funnel, `applyLiveOps`, a paste, Pool's bridges. Ids come from the wire,
+  so two screens write the same tank. Parsers (`keepMode`) leave them for the landing,
+  which says so (`planNotice`). Exam: `cell-wires.test.ts` (numbers recorded from the old
+  hidden tank).
 - Never auto-convert at a guessed 1000 L per cell: it hid a real machine, its empty cells
   and its power.
-- `isFluidEquivalentToFilledCell` (name-tolerant) is shared by search, the loose-wire pair
-  match and Pool's cell pairs. It converts nothing: only a Canner ratio lets anything wire.
+- `isFluidEquivalentToFilledCell` (name-tolerant) is shared by search and Pool's cell
+  pairs. It converts nothing.
 - `dropCrossFormConnections` compares KINDS only, never ids (slots legitimately carry ids
-  the edge does not).
+  the edge does not). It lets `crossForm` wires through for the conversion.
 
 ## Ore dictionary and concrete items
 
@@ -57,7 +61,8 @@ Types, Zod schemas, resource keys, recipe rules, and the load funnel
 ## The load funnel (project-normalize.ts)
 
 `normalizeLoadedProject` snaps positions to the grid and migrates legacy shapes (trash
-cans to trash drawers, stored setup rules dropped, cross-form wires dropped). Unknown keys
+cans to trash drawers, stored setup rules dropped, unratioed cross-form wires and overrides
+dropped, loose cell wires to tank cards). Unknown keys
 are stripped by the Zod schema on import, paste and server paths, not here; IndexedDB
 loads are not schema-parsed. Old plans must keep opening: add a migration rather than
 breaking a schema.

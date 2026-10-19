@@ -287,10 +287,6 @@ function expandBuffers(
           resourceKind: feeder.resourceKind,
           resourceId: feeder.resourceId,
         };
-        const crossForm = feeder.crossForm ?? taker.crossForm;
-        if (crossForm) {
-          joined.crossForm = crossForm;
-        }
         edges.push(joined);
       }
     }

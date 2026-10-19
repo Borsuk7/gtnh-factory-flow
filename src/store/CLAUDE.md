@@ -117,7 +117,9 @@ changes nothing until then. Architecture and protocol: `docs/live.md`.
   plan mode yet (an older build's, or the game's, which writes Solve plans) as every landing plan is
   (`normalizeLoadedProjectWithNotice`) and hands the before and after back; the session sends the conversion as an
   edit undo never takes back (`localOps(..., { undoable: false })`). The load-never-writes rule does not hold here:
-  a conversion kept on one screen would read everyone else's edits against a different plan.
+  a conversion kept on one screen would read everyone else's edits against a different plan. A plan already in plan
+  mode converts only its loose cell wires (to tank cards, `convertCellWiresWithNotice`), never the whole funnel, which
+  would move the game's own things.
 - UNDO on a live plan applies the recorded inverses of this person's own edits (`LiveClientState.undo`), sent as a
   new batch. `withProjectHistory` keeps no snapshots while a live handler is set, and entering or leaving live empties
   the snapshot history: a snapshot restored over a live plan would wipe everyone else's edits. Undo buttons and their

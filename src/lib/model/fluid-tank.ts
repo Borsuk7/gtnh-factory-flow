@@ -8,8 +8,8 @@ import type { FactoryNode, Recipe, ResourceAmount } from "./types";
  * nothing is wired to it (`releaseFluidTanks`), as the custom rate card does. It has no count: it keeps up with
  * whatever the plan needs.
  *
- * The solver's hidden Tank behind a loose cell wire (`throughput.ts`) has the same machine type and the map
- * `crossform-tank`; only the recipes below are the visible card.
+ * It is the only place a cell meets its fluid: no wire crosses forms, and an older plan's loose cell wires become tank
+ * cards where the plan lands (`cell-wires.ts`).
  */
 export const FLUID_TANK_MACHINE_TYPE = "Tank";
 /** The dataset's own map, and the empty card's. */

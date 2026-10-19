@@ -313,8 +313,8 @@ describe("pool plans", () => {
     expect(project.storages![0]).toMatchObject({ targetPerSecond: 5, targetMode: "at-least" });
   });
 
-  it("bridges a cell and its fluid with loose cell wires", () => {
-    const cellRecipe = recipe("mk", [["ore", 1]], [["gt:Cell Water", 1]]);
+  it("bridges a cell and its fluid with a fluid tank", () => {
+    const cellRecipe = recipe("mk", [["ore", 1]], [["Water Cell", 1]]);
     const fluidRecipe = {
       ...recipe("use", [], [["x", 1]]),
       inputs: [{ kind: "fluid" as const, id: "water", amount: 1000, displayName: "Water" }],
@@ -323,11 +323,18 @@ describe("pool plans", () => {
       recipes: [cellRecipe, fluidRecipe],
       nodes: [node("mk", "mk"), node("use", "use")],
       storages: [],
-      poolCellRatios: { "gt:Cell Water": 1000 },
+      poolCellRatios: { "Water Cell": 1000 },
     });
     const { project, report } = wirePoolProject(bridged);
-    // The pair is only found when the data says the cell holds that fluid; without it, no bridge.
-    expect(report.bridgeWires).toBe(project.edges.filter((edge) => edge.crossForm).length);
+    // The Water Cell holds Water, at the Canner litres the plan fetched: one tank between maker and user.
+    expect(report.bridgeWires).toBe(1);
+    expect(project.edges.some((edge) => edge.crossForm)).toBe(false);
+    const tank = project.nodes.find((node) => node.id.startsWith("cell-tank:"));
+    expect(tank).toBeDefined();
+    expect(project.edges.filter((edge) => edge.source === tank!.id || edge.target === tank!.id).map((edge) => [edge.source, edge.target])).toEqual([
+      ["mk", tank!.id],
+      [tank!.id, "use"],
+    ]);
   });
 });
 

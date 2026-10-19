@@ -74,7 +74,7 @@ export function calculateThroughput(
   options: SolverOptions = {},
 ): ThroughputResult {
   // SETUP RULES (model/setup-rules.ts). getSetupRules answers every plan
-  // with closed boundaries and loose cell wires on. A free side would add a
+  // with closed boundaries. A free side would add a
   // virtual drawer on every slot of that side, never reaching the board and
   // spent by the LP only after every real wire.
   const rules = getSetupRules(project);
@@ -99,18 +99,9 @@ export function calculateThroughput(
     });
   }
   project = getPoolProject(project);
-  // With the rule off a cross-form wire would carry nothing (its far end
-  // reads NO SUPPLY).
-  const crossFormEdges = rules.looseCellWires
-    ? expandCrossFormEdges(project)
-    : { project, hiddenNodeIds: [], hiddenEdgeIds: [] };
-  // The pool's cell-fluid tanks are hidden helpers exactly like the loose
-  // wires' tanks: weightless to solve mode, and struck from the result.
-  const crossForm = {
-    ...crossFormEdges,
-    hiddenNodeIds: [...crossFormEdges.hiddenNodeIds, ...poolTankIds],
-  };
-  project = crossForm.project;
+  // The pool's cell-fluid tanks are hidden helpers: weightless to solve mode,
+  // and struck from the result.
+  const hidden = { nodeIds: poolTankIds };
   const recipesById = new Map(project.recipes.map((recipe) => [recipe.id, recipe]));
   const nodes: Record<string, NodeThroughputResult> = {};
   const storages: Record<string, StorageThroughputResult> = {};
@@ -255,7 +246,6 @@ export function calculateThroughput(
       storages,
       projectStorages,
       bottlenecks,
-      crossForm,
       options,
       units: planUnits,
       helpers: { buildEdgeResult, refreshStorageResultsFromEdges, calculateFuelEstimate },
@@ -276,7 +266,7 @@ export function calculateThroughput(
       storages,
       projectStorages,
       bottlenecks,
-      crossForm,
+      hidden,
       options,
     );
   }
@@ -368,14 +358,9 @@ export function calculateThroughput(
     });
   }
 
-  // The hidden tanks a loose cell wire ran through stay inside the solve:
-  // their reports and the synthetic fluid half of each wire come out, and
-  // the visible edge keeps the cell-side figures it already carries.
-  for (const hiddenId of crossForm.hiddenNodeIds) {
+  // The pool's hidden tanks stay inside the solve; their reports come out.
+  for (const hiddenId of hidden.nodeIds) {
     delete nodes[hiddenId];
-  }
-  for (const hiddenEdgeId of crossForm.hiddenEdgeIds) {
-    delete edgeResults[hiddenEdgeId];
   }
 
   return {
@@ -391,107 +376,6 @@ export function calculateThroughput(
     unconsumedOutputs,
     generatedAt: options.generatedAt ?? project.metadata?.updatedAt ?? "unspecified",
   };
-}
-
-/**
- * LOOSE CELL WIRES: a wire whose resource is one form and whose target
- * handle names the other (a cell landing on a fluid input, or a fluid on a
- * cell input). Inside the solve each such edge runs through a hidden free
- * Tank converting at the Canner ratio stored on the edge, zero EU, one tick,
- * and a machine count high enough that only its neighbours can bind. The
- * hidden node and the synthetic far half of the wire are stripped from the
- * result; the visible edge keeps its id, so its figures land on the wire
- * the player drew (in its own resource).
- *
- * Known blind spot: the clog-lock detector (components/flow/clog-lock.ts)
- * solves over the UNexpanded project, so its vent analysis does not see
- * through these wires.
- */
-function expandCrossFormEdges(project: FactoryProject): {
-  project: FactoryProject;
-  hiddenNodeIds: string[];
-  hiddenEdgeIds: string[];
-} {
-  const crossEdges = project.edges.filter((edge) => (edge.crossForm?.litresPerCell ?? 0) > 0);
-  if (crossEdges.length === 0) {
-    return { project, hiddenNodeIds: [], hiddenEdgeIds: [] };
-  }
-
-  const recipes = [...project.recipes];
-  const nodes = [...project.nodes];
-  const edges = [...project.edges];
-  const hiddenNodeIds: string[] = [];
-  const hiddenEdgeIds: string[] = [];
-
-  for (const edge of crossEdges) {
-    // The far form is named by the handle the wire lands on: `input:fluid:<id>`
-    // under a cell wire, `input:item:<cellId>` under a fluid wire.
-    const handleParts = (edge.targetHandle ?? "").split(":");
-    const cellToFluid = edge.resourceKind === "item" && handleParts[1] === "fluid";
-    const fluidToCell = edge.resourceKind === "fluid" && handleParts[1] === "item";
-    if (handleParts[0] !== "input" || !handleParts[2] || (!cellToFluid && !fluidToCell)) {
-      continue;
-    }
-    const farKind = cellToFluid ? ("fluid" as const) : ("item" as const);
-    const farId = decodeURIComponent(handleParts[2]);
-    const litresPerCell = edge.crossForm!.litresPerCell;
-
-    const hiddenRecipeId = `crossform-recipe:${edge.id}`;
-    const hiddenNodeId = `crossform:${edge.id}`;
-    recipes.push({
-      id: hiddenRecipeId,
-      name: `Tank: ${farId}`,
-      kind: "custom",
-      category: "crossform-tank",
-      machineType: "Tank",
-      minimumTier: "NONE",
-      durationTicks: 1,
-      eut: 0,
-      inputs: [
-        cellToFluid
-          ? { kind: "item", id: edge.resourceId, amount: 1 }
-          : { kind: "fluid", id: edge.resourceId, amount: litresPerCell },
-      ],
-      outputs: [
-        cellToFluid
-          ? { kind: "fluid", id: farId, amount: litresPerCell }
-          : { kind: "item", id: farId, amount: 1 },
-      ],
-      source: { recipeMap: "crossform-tank" },
-    });
-    nodes.push({
-      id: hiddenNodeId,
-      recipeId: hiddenRecipeId,
-      // 20k cells/s of headroom: far past any real cell line, small enough
-      // that the LP's coefficients stay in a comfortable numeric range.
-      machineCount: 1_000,
-      parallel: 1,
-      overclockTier: "NONE",
-      enabled: true,
-      position: { x: 0, y: 0 },
-    });
-    hiddenNodeIds.push(hiddenNodeId);
-
-    const index = edges.findIndex((entry) => entry.id === edge.id);
-    edges[index] = {
-      ...edge,
-      target: hiddenNodeId,
-      targetHandle: `input:${edge.resourceKind}:${encodeURIComponent(edge.resourceId)}`,
-    };
-    const farEdgeId = `${edge.id}:crossform`;
-    edges.push({
-      id: farEdgeId,
-      source: hiddenNodeId,
-      target: edge.target,
-      sourceHandle: `output:${farKind}:${encodeURIComponent(farId)}`,
-      targetHandle: edge.targetHandle,
-      resourceKind: farKind,
-      resourceId: farId,
-    });
-    hiddenEdgeIds.push(farEdgeId);
-  }
-
-  return { project: { ...project, recipes, nodes, edges }, hiddenNodeIds, hiddenEdgeIds };
 }
 
 /**
@@ -541,7 +425,7 @@ function finalizeSolveModeResult(
   storages: Record<string, StorageThroughputResult>,
   projectStorages: FactoryStorage[],
   bottlenecks: BottleneckReport[],
-  crossForm: { hiddenNodeIds: string[]; hiddenEdgeIds: string[] },
+  hidden: { nodeIds: string[] },
   options: SolverOptions,
 ): ThroughputResult {
   const roles = getStorageRoles(project);
@@ -563,7 +447,7 @@ function finalizeSolveModeResult(
     .filter((node) => node.enabled && (node.solvePin ?? 0) > 0)
     .map((node) => ({ nodeId: node.id, machines: node.solvePin! }));
 
-  const solved = solveSolveMode(project, nodes, targets, pins, new Set(crossForm.hiddenNodeIds));
+  const solved = solveSolveMode(project, nodes, targets, pins, new Set(hidden.nodeIds));
   if (solved.pinsInfeasible) {
     bottlenecks.push({
       id: "solve-pins",
@@ -652,11 +536,8 @@ function finalizeSolveModeResult(
   ) as Record<ResourceKey, ResourceBalance>;
   const { externalInputs, unconsumedOutputs } = splitBalances(Object.values(resourceResults));
 
-  for (const hiddenId of crossForm.hiddenNodeIds) {
+  for (const hiddenId of hidden.nodeIds) {
     delete nodes[hiddenId];
-  }
-  for (const hiddenEdgeId of crossForm.hiddenEdgeIds) {
-    delete edgeResults[hiddenEdgeId];
   }
 
   return {

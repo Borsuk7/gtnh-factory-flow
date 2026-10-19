@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   formatRate,
-  getCrossFormCellMatch,
   getFilledCellFluidEquivalent,
+  isFluidEquivalentToFilledCell,
   isVirtualChoiceResource,
   resourceLabel,
   resourceMatchesInput,
@@ -10,7 +10,7 @@ import {
 } from "./resources";
 
 describe("resource helpers", () => {
-  it("matches a cell to its fluid both ways round, tolerant of id spelling", () => {
+  it("knows the fluid a cell holds, tolerant of id spelling", () => {
     const cell = {
       kind: "item" as const,
       id: "gregtech:gt.metaitem.99@304",
@@ -19,15 +19,15 @@ describe("resource helpers", () => {
     // The fluid id does not spell the display name ("molten.castiron", one
     // word): the name-tolerant equivalence must still pair them.
     const fluid = { kind: "fluid" as const, id: "molten.castiron", displayName: "Molten Cast Iron" };
-    const expected = { cellId: cell.id, fluidId: fluid.id };
-    expect(getCrossFormCellMatch(cell, fluid)).toEqual(expected);
-    expect(getCrossFormCellMatch(fluid, cell)).toEqual(expected);
-    // An unrelated fluid stays unmatched, and same-kind pairs never answer.
-    expect(
-      getCrossFormCellMatch(cell, { kind: "fluid", id: "water", displayName: "Water" }),
-    ).toBeUndefined();
-    expect(getCrossFormCellMatch(cell, cell)).toBeUndefined();
-    expect(getCrossFormCellMatch(fluid, fluid)).toBeUndefined();
+    expect(isFluidEquivalentToFilledCell(fluid, cell)).toBe(true);
+    expect(isFluidEquivalentToFilledCell({ kind: "fluid", id: "water", displayName: "Water" }, cell)).toBe(false);
+  });
+
+  it("never lets a cell fill its fluid's slot or the reverse", () => {
+    const cell = { kind: "item" as const, id: "ic2:itemcellempty@1", displayName: "Water Cell" };
+    const fluid = { kind: "fluid" as const, id: "water", displayName: "Water" };
+    expect(resourceMatchesInput(cell, fluid)).toBe(false);
+    expect(resourceMatchesInput(fluid, cell)).toBe(false);
   });
 
   it("identifies virtual choice resources that should stay out of resource pickers", () => {

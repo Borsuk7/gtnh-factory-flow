@@ -554,7 +554,7 @@ export const factoryEdgeSchema = z.object({
   ratioWeight: z.number().nonnegative().optional(),
   ratioInputWeight: z.number().nonnegative().optional(),
   waypoints: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
-  // A loose cell wire's Canner ratio; see FactoryEdge.crossForm.
+  // An older build's loose cell wire, turned into a fluid tank on landing; see FactoryEdge.crossForm.
   crossForm: z.object({ litresPerCell: z.number().positive() }).optional(),
   gtnhplanner: gtnhplannerDataSchema.optional(),
 });
@@ -754,7 +754,6 @@ export const factoryProjectSchema = z.object({
     .object({
       freeInputs: z.boolean().optional(),
       freeOutputs: z.boolean().optional(),
-      looseCellWires: z.boolean().optional(),
     })
     .optional(),
   // Legacy sketch mode, dropped on load.

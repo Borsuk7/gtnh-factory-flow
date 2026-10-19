@@ -40,9 +40,11 @@ import {
   splitSectionHandleId,
 } from "@/lib/model/shared-machine";
 import {
+  convertCellWiresWithNotice,
   normalizeLoadedProjectWithNotice,
   type LoadOptions,
 } from "@/lib/model/project-normalize";
+import { convertLooseCellWires, hasLooseCellWires } from "@/lib/model/cell-wires";
 import type { PlanConversionNotice } from "@/lib/solver/plan/to-plan";
 import { planClipboard } from "@/lib/solver/plan/convert";
 import { playBoardSound, quietBoardSoundsFor, suppressBoardSound } from "@/lib/board-sounds";
@@ -476,19 +478,6 @@ interface FactoryStore {
     trashNodeId: string,
     source: { nodeId: string; handleId?: string },
     resource: Pick<ResourceAmount, "kind" | "id" | "displayName">,
-  ) => void;
-  /**
-   * A loose cell wire: a filled cell landing
-   * straight on its fluid's input, or a fluid landing straight on its cell's
-   * input. The edge carries the SOURCE's own resource, the far form's input
-   * handle as its target, and the Canner ratio the gesture fetched; the
-   * solver bridges the two forms through a hidden free Tank.
-   */
-  connectCrossFormEdge: (
-    source: { nodeId: string; handleId: string },
-    target: { nodeId: string; handleId: string },
-    resource: Pick<ResourceAmount, "kind" | "id" | "displayName">,
-    litresPerCell: number,
   ) => void;
   /** Swaps the node onto another recipe (crop pick), resetting per-recipe state. */
   setNodeRecipe: (nodeId: string, recipe: Recipe) => void;
@@ -1237,7 +1226,13 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
     quietly(() =>
       write((state) => {
         const landed = applyOps(state.project as unknown as Record<string, unknown>, ops) as unknown as FactoryProject;
-        const opened = landed.planMode ? undefined : normalizeLoadedProjectWithNotice(landed);
+        // A plan in the one mode can still carry an older build's loose cell wires: only those convert (to tanks),
+        // never the rest of the funnel, which would move the game's own things.
+        const opened = landed.planMode
+          ? hasLooseCellWires(landed)
+            ? convertCellWiresWithNotice(landed)
+            : undefined
+          : normalizeLoadedProjectWithNotice(landed);
         // Tests that keep the old modes get the plan back unconverted: nothing to send then.
         const project = opened?.project.planMode ? opened.project : landed;
         if (project !== landed) {
@@ -3568,9 +3563,11 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
   pasteBoardItems: (clipboard, offset) => {
     const pastedIds: string[] = [];
     set((state) => {
-      // Plan mode has no buffers, ratios, pool sides or groups: what an older
-      // board copied is converted on the way in, like a plan that arrives.
-      const payload = state.project.planMode ? planClipboard(clipboard) : clipboard;
+      // Plan mode has no buffers, ratios, pool sides or groups, and cells meet
+      // fluids only in a tank: what an older board copied (or a blueprint it
+      // saved) is converted on the way in, like a plan that arrives.
+      const cells = convertLooseCellWires(clipboard).project;
+      const payload = state.project.planMode ? planClipboard(cells) : cells;
       const shift = (position: { x: number; y: number }) =>
         snapPositionToGrid({ x: position.x + offset.x, y: position.y + offset.y });
       const payloadRecipesById = new Map(payload.recipes.map((recipe) => [recipe.id, recipe]));
@@ -4578,35 +4575,6 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
       }
 
       const finalProject = touchProject(removedAny ? pruneOrphanStorages(project) : project);
-      return withProjectHistory(state, {
-        project: finalProject,
-        lastResult: solveBooks(finalProject),
-      });
-    });
-  },
-  connectCrossFormEdge: (source, target, resource, litresPerCell) => {
-    set((state) => {
-      if (!(litresPerCell > 0)) {
-        return state;
-      }
-      const edge: FactoryEdge = {
-        id: createId("edge"),
-        source: source.nodeId,
-        target: target.nodeId,
-        sourceHandle: source.handleId,
-        targetHandle: target.handleId,
-        resourceKind: resource.kind,
-        resourceId: resource.id,
-        label: resource.displayName,
-        crossForm: { litresPerCell },
-      };
-      if (findDuplicateEdge(state.project.edges, edge)) {
-        return state;
-      }
-      const finalProject = touchProject({
-        ...state.project,
-        edges: [...state.project.edges, edge],
-      });
       return withProjectHistory(state, {
         project: finalProject,
         lastResult: solveBooks(finalProject),
@@ -5803,36 +5771,6 @@ function isFactoryEdgeStillValid(project: FactoryProject, edge: FactoryEdge): bo
 
   if ((!sourceNode && !sourceStorage) || (!targetNode && !targetStorage)) {
     return false;
-  }
-
-  // A conversion wire is valid in the forms at its two ends, including a
-  // tank or drawer at either end. Check it before the same-kind storage
-  // branches: any node edit runs this sweep over the entire board.
-  if (edge.crossForm) {
-    const target = parseResourceHandleId(edge.targetHandle);
-    if (
-      !Number.isFinite(edge.crossForm.litresPerCell) ||
-      edge.crossForm.litresPerCell <= 0 ||
-      target?.side !== "input" ||
-      !((edge.resourceKind === "fluid" && target.kind === "item") ||
-        (edge.resourceKind === "item" && target.kind === "fluid"))
-    ) {
-      return false;
-    }
-    const sourceMatches = sourceStorage
-      ? sourceStorage.kind === edge.resourceKind && sourceStorage.resourceId === edge.resourceId
-      : sourceNode && sourceRecipe &&
-        applyRecipeInputOverrides(sourceRecipe, sourceNode).outputs.some((output) =>
-          resourceMatchesInput({ kind: edge.resourceKind, id: edge.resourceId }, output),
-        );
-    const targetMatches = targetStorage
-      ? targetStorage.kind === target.kind && targetStorage.resourceId === target.resourceId
-      : targetNode && targetRecipe &&
-        applyRecipeInputOverrides(targetRecipe, targetNode).inputs.some((input) =>
-          isRecipeInputConsumed(input) &&
-          resourceMatchesInput({ kind: target.kind, id: target.resourceId }, input),
-        );
-    return Boolean(sourceMatches && targetMatches);
   }
 
   // Trash cans have no recipe slots to match: a line into one stays valid as
