@@ -20,6 +20,8 @@ export async function syncNetworks(): Promise<void> {
   const user = useCommunityAuthStore.getState().user?.username;
   const before = state.catalogue;
   if (!user || !before || before.account !== user || !state.ready || state.conflict) return;
+  const requestId = randomUUID();
+  useNetworkStore.setState({ syncing: requestId });
   const current = () =>
     useNetworkStore.getState().catalogue?.token === before.token &&
     useCommunityAuthStore.getState().user?.username === user;
@@ -77,6 +79,10 @@ export async function syncNetworks(): Promise<void> {
   } catch (error) {
     if (current())
       useNetworkStore.setState({ error: error instanceof Error ? error.message : String(error) });
+  } finally {
+    // A completed older request must not clear a newer request's indicator.
+    if (useNetworkStore.getState().syncing === requestId)
+      useNetworkStore.setState({ syncing: undefined });
   }
 }
 

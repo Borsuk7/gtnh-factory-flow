@@ -20,6 +20,8 @@ These choices only filter the ledger; they never change recipes, rates, or the s
 
 The I/O picker is a modal with the same time-unit dial as the network header: per tick, second, minute or hour.
 Machine headings show selected/available port counts and collapse their port lists. The first machine starts open.
+The question-mark help control explains boundary accounting without taking space from the port list. Group assignment
+stays in the picker. Changes save immediately; X, Escape or clicking the backdrop closes it.
 Counts follow explicit selections, Clear all and Use all ports; collapsing never changes membership or totals.
 Both follow the plan's display setting and never recalculate the solve. Its Plan group field assigns a plan to a
 named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
@@ -38,6 +40,12 @@ Drag the sidebar divider to give plan names more space; arrow keys resize it and
 The width stays on this device. Compact screens stack the list below the ledger. The ledger scrolls independently,
 keeping its headings at the top and resource names on the left. Sharing choices keep short labels with tooltips
 that explain their direction across the parent boundary.
+Resource filters show All, Shortages, Available and, for subnets, Parent connections. Covered parent imports are
+not counted as shortages; unallocated parent shortages are. The shortage count opens the Shortages view. Searches
+and filters with no matches explain why no rows are shown. The resource-name button fills its entire cell.
+Parent and power settings are under Network settings; root networks have no Include in parent totals checkbox.
+Empty Ungrouped sections stay hidden until a plan is dragged. Both pickers use their X close control.
+The header reports local writes, pending cloud synchronization, active sync and updating figures without pop-up messages.
 Right-click a network tab for Rename, New subnetwork, Close tab or Delete network. Shift+F10 opens the same menu.
 The header's trash icon also asks for confirmation, explaining that plans stay and subnetworks move to the deleted
 network's parent. Deleting a subnet opens its parent; deleting a root returns to Networks. A failed deletion save
@@ -46,6 +54,8 @@ keeps the network open.
 At each network, supply minus demand gives free resources or a shortage. These are configured rates, not measured
 inventories or a promise that supplying lines can operate without their own missing inputs. Power generation and
 usage use the same average figures as the plan overview and sum included descendants once.
+Subnetworks call their free balance Local surplus: it precedes consumption elsewhere in the parent. From parent
+is a requested import and To parent is offered supply, not a reservation of resources.
 Mark a subnet Self-powered to keep both its power usage and generation out of parent totals. Its own power figures
 stay visible, and its resource sharing is unchanged. This is an explicit separate-supply choice, not a calculated
 claim that its generators meet demand. The choice persists and syncs with the network.

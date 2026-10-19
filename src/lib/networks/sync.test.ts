@@ -33,6 +33,29 @@ beforeEach(async () => {
 });
 
 describe("network persistence and sync", () => {
+  it("reports pending local writes until the whole edit queue has settled", async () => {
+    const first = useNetworkStore.getState().edit(() => [network("first")]);
+    const second = useNetworkStore.getState().edit((entries) => [...entries, network("second")]);
+    expect(useNetworkStore.getState().saving).toBe(2);
+    await Promise.all([first, second]);
+    expect(useNetworkStore.getState().saving).toBe(0);
+    expect(disk.get("owner")!.networks.map((entry) => entry.id)).toEqual(["first", "second"]);
+  });
+
+  it("shows an active sync only while its request is pending", async () => {
+    let reply!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          reply = resolve;
+        }),
+    );
+    const pending = syncNetworks();
+    expect(useNetworkStore.getState().syncing).toBeTruthy();
+    reply(response(0, []));
+    await pending;
+    expect(useNetworkStore.getState().syncing).toBeUndefined();
+  });
   it("returns to the parent after deleting a subnet, and to Networks after deleting a root", async () => {
     const store = useNetworkStore.getState();
     await store.edit(() => [network("parent"), { ...network("child"), parentId: "parent" }]);

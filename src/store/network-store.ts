@@ -20,6 +20,8 @@ interface NetworkState {
   error?: string;
   conflict?: PlanNetwork[];
   ready: boolean;
+  saving: number;
+  syncing?: string;
   load: (account: string) => Promise<void>;
   edit: (change: (networks: PlanNetwork[]) => PlanNetwork[]) => Promise<void>;
   create: (name: string, parentId?: string) => Promise<void>;
@@ -36,9 +38,18 @@ let loadSequence = 0;
 export const useNetworkStore = create<NetworkState>((set, get) => ({
   openIds: [],
   ready: false,
+  saving: 0,
   load: async (account) => {
     const sequence = ++loadSequence;
-    set({ ready: false, error: undefined, conflict: undefined, activeId: undefined, openIds: [] });
+    set({
+      ready: false,
+      saving: 0,
+      syncing: undefined,
+      error: undefined,
+      conflict: undefined,
+      activeId: undefined,
+      openIds: [],
+    });
     try {
       let catalogue = await readCatalogue(account);
       // Signing in carries this browser's initial networks with its initial plans.
@@ -67,6 +78,8 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
   },
   edit: (change) => {
     const account = get().catalogue?.account;
+    const sequence = loadSequence;
+    set((state) => ({ saving: state.saving + 1 }));
     const run = queue.then(async () => {
       const state = get();
       if (state.catalogue?.account !== account) return;
@@ -92,10 +105,14 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
       if (get().catalogue?.account !== previous.account) return;
       window.dispatchEvent(new Event("gtnh-networks-changed"));
     });
-    queue = run.catch((error) => {
-      if (get().catalogue?.account === account)
-        set({ error: error instanceof Error ? error.message : String(error) });
-    });
+    queue = run
+      .catch((error) => {
+        if (get().catalogue?.account === account)
+          set({ error: error instanceof Error ? error.message : String(error) });
+      })
+      .finally(() => {
+        if (sequence === loadSequence) set((state) => ({ saving: Math.max(0, state.saving - 1) }));
+      });
     return queue;
   },
   create: async (name, parentId) => {

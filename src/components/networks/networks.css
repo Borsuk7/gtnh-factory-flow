@@ -93,6 +93,43 @@
   color: var(--mc-muted);
   font-size: 13px;
 }
+.netview-save-status {
+  color: var(--mc-muted);
+  font-size: 13px;
+}
+.netview-settings {
+  margin-top: 18px;
+  border-top: 1px solid var(--mc-frame);
+  padding-top: 8px;
+}
+.netview-settings > summary {
+  cursor: pointer;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--mc-muted);
+}
+.netview-settings .netview-field {
+  margin-top: 8px;
+}
+.netview-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.netview .netview-filters button,
+.netview .netview-shortage-count {
+  min-height: 30px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+.netview .netview-filters button[aria-pressed="true"] {
+  color: var(--mc-cyan);
+  border-color: var(--mc-cyan);
+}
+.netview .netview-shortage-count {
+  color: var(--mc-red);
+}
 .netview-layout {
   display: grid;
   grid-template-columns: minmax(240px, min(var(--network-sidebar-width, 300px), 50%)) minmax(0, 1fr);
@@ -448,6 +485,23 @@
 }
 .netview thead th:first-child {
   z-index: 3;
+}
+.netview .netview-resource-cell {
+  padding: 0;
+}
+.netview .netview-resource-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  height: 100%;
+  padding: 10px 8px;
+}
+.netview td.netview-empty {
+  text-align: left;
+  white-space: normal;
+  padding: 20px 8px;
+  color: var(--mc-muted);
 }
 .netview .netview-contribution th:first-child {
   background: var(--mc-key);

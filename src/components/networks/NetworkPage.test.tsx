@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useNetworkStore } from "@/store/network-store";
 import { useFactoryStore } from "@/store/factory-store";
-import { memberKey, type PlanFlows } from "@/lib/networks/model";
+import { useDesignStore } from "@/store/design-store";
+import { memberKey, type PlanFlows, type PlanNetwork } from "@/lib/networks/model";
 import { NetworkPage } from "./NetworkPage";
 import * as deviceSettings from "@/lib/device-settings";
 
@@ -72,6 +73,7 @@ it("offers self-powered only for a subnet and saves its explicit choice", () => 
     },
   }));
   render(<NetworkPage />);
+  fireEvent.click(screen.getByText("Network settings"));
   const toggle = screen.getByRole("checkbox", { name: "Self-powered" });
   expect((toggle as HTMLInputElement).checked).toBe(false);
   fireEvent.click(toggle);
@@ -104,6 +106,11 @@ beforeEach(() => {
   useFactoryStore.getState().setRateUnit("second");
   useNetworkStore.setState({
     activeId: "main",
+    ready: true,
+    saving: 0,
+    syncing: undefined,
+    error: undefined,
+    conflict: undefined,
     edit: vi.fn(async (change) =>
       useNetworkStore.setState((state) => ({
         catalogue: { ...state.catalogue!, networks: change(state.catalogue!.networks) },
@@ -308,7 +315,8 @@ it("ignores external drops", () => {
     },
   }));
   render(<NetworkPage />);
-  fireEvent.drop(screen.getByText("Ungrouped").closest("details")!, {
+  expect(screen.queryByText("Ungrouped")).toBeNull();
+  fireEvent.drop(screen.getByText("Source").closest("details")!, {
     dataTransfer: { getData: () => memberKey({ designId: "line" }) },
   });
   expect(useNetworkStore.getState().edit).not.toHaveBeenCalled();
@@ -336,8 +344,161 @@ it("opens Add plans as a dismissible modal", () => {
   fireEvent.click(screen.getByRole("button", { name: "Add plans" }));
   expect(screen.getByRole("dialog", { name: "Add plans" }).getAttribute("aria-modal")).toBe("true");
   expect(screen.getByRole("textbox", { name: "Find plans to add" })).toBeTruthy();
+  expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Done" })).toBeNull();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("explains an Add plans search with no matches", () => {
+  const previous = useDesignStore.getState().designs;
+  useDesignStore.setState({
+    designs: [{ id: "line", name: "Line", createdAt: "", updatedAt: "" }],
+  });
+  try {
+    render(<NetworkPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Add plans" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Find plans to add" }), {
+      target: { value: "missing" },
+    });
+    expect(screen.getByText("No plans match your search.")).toBeTruthy();
+  } finally {
+    cleanup();
+    useDesignStore.setState({ designs: previous });
+  }
+});
+
+it("filters resource problems and available supply without changing the solve", () => {
+  const flow = mocks.flows.values().next().value!;
+  const oxygen = flow.materials[0];
+  flow.materials.push(
+    { ...oxygen, key: "fluid:water", resourceId: "water", label: "Water", supply: 0, demand: 5 },
+    {
+      ...oxygen,
+      key: "fluid:hydrogen",
+      resourceId: "hydrogen",
+      label: "Hydrogen",
+      supply: 3,
+      demand: 3,
+    },
+  );
+  const solve = useFactoryStore.getState().lastResult;
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "1 resource short" }));
+  expect(screen.getByRole("button", { name: "Water" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Oxygen" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Available" }));
+  expect(screen.getByRole("button", { name: "Oxygen" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Water" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "All" }));
+  expect(screen.getByRole("button", { name: "Hydrogen" })).toBeTruthy();
+  fireEvent.change(screen.getByRole("textbox", { name: "Find a resource" }), {
+    target: { value: "missing" },
+  });
+  expect(screen.getByText("No resources match this view.")).toBeTruthy();
+  expect(useFactoryStore.getState().lastResult).toBe(solve);
+});
+
+it("identifies subnet surplus, filters parent connections and skips imports covered by a parent", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        {
+          id: "parent",
+          name: "Parent",
+          members: [],
+          sharing: {} as PlanNetwork["sharing"],
+          included: true,
+        },
+        {
+          ...state.catalogue!.networks[0],
+          parentId: "parent",
+          sharing: { "fluid:oxygen": "export" },
+        },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  expect(screen.getByRole("columnheader", { name: "Local surplus" }).title).toContain(
+    "before consumption elsewhere",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Parent connections" }));
+  expect(screen.getByRole("button", { name: "Oxygen" })).toBeTruthy();
+  fireEvent.change(screen.getByRole("combobox", { name: "Sharing for Oxygen" }), {
+    target: { value: "internal" },
+  });
+  expect(screen.getByText("No resources match this view.")).toBeTruthy();
+});
+
+it("does not mark imports as shortages when the parent covers them", () => {
+  const flow = mocks.flows.values().next().value!;
+  const oxygen = flow.materials[0];
+  flow.materials = [{ ...oxygen, supply: 0, demand: 5 }];
+  mocks.flows.set(memberKey({ designId: "producer" }), {
+    materials: [oxygen],
+    power: { used: 0, made: 0 },
+  });
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        {
+          id: "parent",
+          name: "Parent",
+          members: [{ designId: "producer", name: "Producer", included: true }],
+          sharing: {} as PlanNetwork["sharing"],
+          included: true,
+        },
+        {
+          ...state.catalogue!.networks[0],
+          parentId: "parent",
+          sharing: { "fluid:oxygen": "import" },
+        },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  expect(screen.queryByRole("button", { name: /resource short/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Shortages" }));
+  expect(screen.getByText("No resources match this view.")).toBeTruthy();
+});
+
+it("keeps root-only settings relevant and expands resources with the cell's full-width button", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: state.catalogue!.networks.map((network) => ({ ...network, included: false })),
+    },
+  }));
+  render(<NetworkPage />);
+  expect(screen.queryByText(/Excluded from ancestor totals/)).toBeNull();
+  expect((screen.getByText("Network settings").closest("details") as HTMLDetailsElement).open).toBe(
+    false,
+  );
+  fireEvent.click(screen.getByText("Network settings"));
+  expect(screen.getByRole("combobox", { name: "Parent network" })).toBeTruthy();
+  expect(screen.queryByRole("checkbox", { name: "Include in parent totals" })).toBeNull();
+  const resource = screen.getByRole("button", { name: "Oxygen" });
+  fireEvent.click(resource);
+  expect(resource.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getAllByRole("button", { name: "Line" })).toHaveLength(2);
+});
+
+it("shows port help on request and distinguishes local saving, syncing and errors", () => {
+  render(<NetworkPage />);
+  expect(screen.getByRole("status").textContent).toBe("Saved locally");
+  act(() => useNetworkStore.setState({ saving: 1 }));
+  expect(screen.getByRole("status").textContent).toBe("Saving…");
+  act(() => useNetworkStore.setState({ saving: 0, syncing: "request" }));
+  expect(screen.getByRole("status").textContent).toBe("Syncing…");
+  act(() => useNetworkStore.setState({ syncing: undefined, error: "Save failed" }));
+  expect(screen.getByRole("status").textContent).toBe("Changes need attention");
+  fireEvent.click(screen.getByRole("button", { name: "Inputs and outputs for Line" }));
+  const help = screen.getByRole("button", { name: "About network ports" });
+  expect(help.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(help);
+  expect(help.getAttribute("aria-expanded")).toBe("true");
+  expect(document.getElementById("network-port-help")!.hidden).toBe(false);
 });
 
 it("renames a group and its members without changing I/O choices or totals", () => {
