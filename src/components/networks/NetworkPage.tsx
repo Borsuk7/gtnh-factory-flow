@@ -1,7 +1,14 @@
 "use client";
 
 import "./networks.css";
-import { useEffect, useMemo, useRef, useState, type SelectHTMLAttributes } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SelectHTMLAttributes,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRightLeft,
@@ -12,6 +19,7 @@ import {
   RefreshCw,
   Trash2,
   X,
+  Zap,
 } from "lucide-react";
 import {
   ChromeMenu,
@@ -21,7 +29,13 @@ import {
   type MenuEntry,
 } from "@/components/chrome/ChromeMenu";
 import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
-import { wheelChangesValues } from "@/lib/device-settings";
+import {
+  readDeviceSettings,
+  useDeviceSettings,
+  wheelChangesValues,
+  writeDeviceSettings,
+} from "@/lib/device-settings";
+import { PanelHandle } from "@/components/PanelHandle";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
@@ -144,6 +158,9 @@ export function NetworkPage() {
   const [groupName, setGroupName] = useState("");
   const [renamingGroup, setRenamingGroup] = useState<string>();
   const [editingPorts, setEditingPorts] = useState<string>();
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const { networkSidebarWidth } = useDeviceSettings();
   // Display dials repaint this view without invalidating its calculations.
   useRateDisplayUnits();
   const flows = useNetworkCalculations(retry);
@@ -200,7 +217,7 @@ export function NetworkPage() {
     return false;
   })();
   return (
-    <div className="netview mx" data-network-page="">
+    <div className="netview mx netview-page" data-network-page="">
       <header className="netview-header">
         <div>
           <span className="netview-kicker">{network.parentId ? "Subnetwork" : "Network"}</span>
@@ -244,178 +261,207 @@ export function NetworkPage() {
         </div>
       </header>
       <NetworkStatus />
-      <div className="netview-layout">
-        <aside className="netview-members" aria-label="Network members">
-          <div className="netview-section-title">
-            Networks
-            <button
-              className="netview-icon-button"
-              aria-label="New subnetwork"
-              title="New subnetwork"
-              onClick={() => void create("New subnetwork", network.id)}
-            >
-              <Plus size={18} aria-hidden="true" />
-            </button>
-          </div>
-          <NetworkTree networks={networks} />
-          <div className="netview-section-title">
-            <span>Plans in {network.name}</span>
-            <div className="netview-section-actions">
+      <div
+        className="netview-layout"
+        ref={layoutRef}
+        style={{ "--network-sidebar-width": `${networkSidebarWidth}px` } as CSSProperties}
+      >
+        <aside className="netview-members" aria-label="Network members" ref={sidebarRef}>
+          <div className="netview-members-scroll">
+            <div className="netview-section-title">
+              Networks
               <button
                 className="netview-icon-button"
-                aria-label="New group"
-                title="New group"
-                onClick={() => {
-                  setRenamingGroup(undefined);
-                  setGroupName("");
-                  setCreatingGroup(true);
-                }}
-              >
-                <FolderPlus size={18} aria-hidden="true" />
-              </button>
-              <button
-                className="netview-icon-button"
-                aria-label="Add plans"
-                title="Add plans"
-                onClick={() => setAdding(!adding)}
+                aria-label="New subnetwork"
+                title="New subnetwork"
+                onClick={() => void create("New subnetwork", network.id)}
               >
                 <Plus size={18} aria-hidden="true" />
               </button>
             </div>
-          </div>
-          <PlanGroups
-            members={network.members}
-            groups={groupNames}
-            onRenameGroup={(group) => {
-              setRenamingGroup(group);
-              setGroupName(group);
-              setCreatingGroup(true);
-            }}
-            onRemoveGroup={(group) =>
-              patch({
-                groups: groupNames.filter((name) => name !== group),
-                members: network.members.map((member) =>
-                  member.group === group ? { ...member, group: undefined } : member,
-                ),
-              })
-            }
-            onMove={(key, group) =>
-              patch({
-                groups: groupNames,
-                members: network.members.map((member) =>
-                  memberKey(member) === key ? { ...member, group } : member,
-                ),
-              })
-            }
-            renderMember={(member) => (
-              <div className="netview-member netview-member-plan" key={memberKey(member)}>
-                <span
-                  className="netview-drag-handle"
-                  title="Drag to another plan group"
-                  aria-hidden="true"
-                >
-                  <GripVertical size={14} />
-                </span>
-                <label title="Include in totals">
-                  <input
-                    type="checkbox"
-                    aria-label={`Include ${member.name}`}
-                    checked={member.included}
-                    onChange={(event) =>
-                      patch({
-                        members: network.members.map((entry) =>
-                          memberKey(entry) === memberKey(member)
-                            ? { ...entry, included: event.target.checked }
-                            : entry,
-                        ),
-                      })
-                    }
-                  />
-                </label>
+            <NetworkTree networks={networks} />
+            <div className="netview-section-title">
+              <span>Plans in {network.name}</span>
+              <div className="netview-section-actions">
                 <button
-                  className="netview-link netview-plan-name"
-                  title={
-                    designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name
-                  }
-                  onClick={() => void openMember(member)}
+                  className="netview-icon-button"
+                  aria-label="New group"
+                  title="New group"
+                  onClick={() => {
+                    setRenamingGroup(undefined);
+                    setGroupName("");
+                    setCreatingGroup(true);
+                  }}
                 >
-                  {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
+                  <FolderPlus size={18} aria-hidden="true" />
                 </button>
-                <OverflowMenu
-                  label={`Options for ${member.name}`}
-                  entries={[
-                    {
-                      label: "Inputs and outputs",
-                      onSelect: () => setEditingPorts(memberKey(member)),
-                    },
-                    {
-                      label: "Remove from network",
-                      detail: "plan is kept",
-                      tone: "red",
-                      onSelect: () =>
-                        patch({
-                          members: network.members.filter(
-                            (entry) => memberKey(entry) !== memberKey(member),
-                          ),
-                        }),
-                    },
-                  ]}
-                />
                 <button
-                  className="netview-plan-io"
-                  aria-label={`Inputs and outputs for ${member.name}`}
-                  title="Inputs and outputs"
-                  onClick={() => setEditingPorts(memberKey(member))}
+                  className="netview-icon-button"
+                  aria-label="Add plans"
+                  title="Add plans"
+                  onClick={() => setAdding(!adding)}
                 >
-                  <ArrowRightLeft size={14} aria-hidden="true" />
+                  <Plus size={18} aria-hidden="true" />
                 </button>
               </div>
-            )}
-          />
-          {!network.members.length ? <p>Add saved plans to start counting their flows.</p> : null}
-          <label className="netview-field">
-            Parent network
-            <select
-              aria-label="Parent network"
-              value={network.parentId ?? ""}
-              onChange={(event) => patch({ parentId: event.target.value || undefined })}
-            >
-              <option value="">None</option>
-              {networks
-                .filter(
-                  (entry) => entry.id !== network.id && !isDescendant(entry, network.id, networks),
-                )
-                .map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="netview-check">
-            <input
-              type="checkbox"
-              checked={network.included}
-              onChange={(event) => patch({ included: event.target.checked })}
-            />
-            Include in parent totals
-          </label>
-          {network.parentId ? (
-            <div>
-              <label className="netview-check">
-                <input
-                  type="checkbox"
-                  checked={network.selfPowered ?? false}
-                  onChange={(event) => patch({ selfPowered: event.target.checked })}
-                  aria-describedby="network-self-powered-help"
-                />
-                Self-powered
-              </label>
-              <p className="netview-note" id="network-self-powered-help">
-                Keep this subnetwork’s power out of parent totals.
-              </p>
             </div>
-          ) : null}
+            <PlanGroups
+              members={network.members}
+              groups={groupNames}
+              onRenameGroup={(group) => {
+                setRenamingGroup(group);
+                setGroupName(group);
+                setCreatingGroup(true);
+              }}
+              onRemoveGroup={(group) =>
+                patch({
+                  groups: groupNames.filter((name) => name !== group),
+                  members: network.members.map((member) =>
+                    member.group === group ? { ...member, group: undefined } : member,
+                  ),
+                })
+              }
+              onMove={(key, group) =>
+                patch({
+                  groups: groupNames,
+                  members: network.members.map((member) =>
+                    memberKey(member) === key ? { ...member, group } : member,
+                  ),
+                })
+              }
+              renderMember={(member) => (
+                <div className="netview-member netview-member-plan" key={memberKey(member)}>
+                  <span
+                    className="netview-drag-handle"
+                    title="Drag to another plan group"
+                    aria-hidden="true"
+                  >
+                    <GripVertical size={14} />
+                  </span>
+                  <label title="Include in totals">
+                    <input
+                      type="checkbox"
+                      aria-label={`Include ${member.name}`}
+                      checked={member.included}
+                      onChange={(event) =>
+                        patch({
+                          members: network.members.map((entry) =>
+                            memberKey(entry) === memberKey(member)
+                              ? { ...entry, included: event.target.checked }
+                              : entry,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    className="netview-link netview-plan-name"
+                    title={
+                      designs.find((entry) => entry.id === localDesignId(member))?.name ??
+                      member.name
+                    }
+                    onClick={() => void openMember(member)}
+                  >
+                    {designs.find((entry) => entry.id === localDesignId(member))?.name ??
+                      member.name}
+                  </button>
+                  <OverflowMenu
+                    label={`Options for ${member.name}`}
+                    entries={[
+                      {
+                        label: "Inputs and outputs",
+                        onSelect: () => setEditingPorts(memberKey(member)),
+                      },
+                      {
+                        label: "Remove from network",
+                        detail: "plan is kept",
+                        tone: "red",
+                        onSelect: () =>
+                          patch({
+                            members: network.members.filter(
+                              (entry) => memberKey(entry) !== memberKey(member),
+                            ),
+                          }),
+                      },
+                    ]}
+                  />
+                  <button
+                    className="netview-plan-io"
+                    aria-label={`Inputs and outputs for ${member.name}`}
+                    title="Inputs and outputs"
+                    onClick={() => setEditingPorts(memberKey(member))}
+                  >
+                    <ArrowRightLeft size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+            />
+            {!network.members.length ? <p>Add saved plans to start counting their flows.</p> : null}
+            <label className="netview-field">
+              Parent network
+              <select
+                aria-label="Parent network"
+                value={network.parentId ?? ""}
+                onChange={(event) => patch({ parentId: event.target.value || undefined })}
+              >
+                <option value="">None</option>
+                {networks
+                  .filter(
+                    (entry) =>
+                      entry.id !== network.id && !isDescendant(entry, network.id, networks),
+                  )
+                  .map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="netview-check">
+              <input
+                type="checkbox"
+                checked={network.included}
+                onChange={(event) => patch({ included: event.target.checked })}
+              />
+              Include in parent totals
+            </label>
+            {network.parentId ? (
+              <div>
+                <label className="netview-check">
+                  <input
+                    type="checkbox"
+                    checked={network.selfPowered ?? false}
+                    onChange={(event) => patch({ selfPowered: event.target.checked })}
+                    aria-describedby="network-self-powered-help"
+                  />
+                  Self-powered
+                </label>
+                <p className="netview-note" id="network-self-powered-help">
+                  Keep this subnetwork’s power out of parent totals.
+                </p>
+              </div>
+            ) : null}
+          </div>
+          <PanelHandle
+            label="Resize network plan list"
+            edge="right"
+            getWidth={() => sidebarRef.current?.offsetWidth || networkSidebarWidth}
+            getLimits={() => ({
+              min: 240,
+              max: Math.max(240, Math.min(640, (layoutRef.current?.clientWidth || 1280) / 2)),
+            })}
+            onDrag={(width) =>
+              layoutRef.current?.style.setProperty("--network-sidebar-width", `${width}px`)
+            }
+            onCommit={(width) => writeDeviceSettings({ networkSidebarWidth: width })}
+            onReset={() => writeDeviceSettings({ networkSidebarWidth: 300 })}
+            onEnd={() =>
+              layoutRef.current?.style.setProperty(
+                "--network-sidebar-width",
+                `${readDeviceSettings().networkSidebarWidth}px`,
+              )
+            }
+          />
         </aside>
         <main className="netview-ledger">
           {network.members
@@ -559,6 +605,7 @@ export function NetworkPage() {
             </details>
           ) : null}
           <div className="netview-power">
+            {network.parentId && network.selfPowered ? <SelfPoweredIcon /> : null}
             <span>
               Power used{" "}
               <strong>
@@ -654,6 +701,7 @@ export function NetworkPage() {
                               <td>
                                 <WheelSelect
                                   aria-label={`Sharing for ${row.label}`}
+                                  title={sharingDescription[network.sharing[row.key] ?? "internal"]}
                                   value={network.sharing[row.key] ?? "internal"}
                                   onValueChange={(value) =>
                                     patch({
@@ -715,6 +763,26 @@ export function NetworkPage() {
 
 function ResourceRows({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
+}
+
+const sharingDescription: Record<Sharing, string> = {
+  internal: "Internal: no resources cross the parent boundary",
+  import: "Import from parent: request missing resources",
+  export: "Export to parent: share surplus resources",
+  both: "Both directions: import shortages and export surplus",
+};
+
+function SelfPoweredIcon() {
+  return (
+    <span
+      className="netview-self-powered"
+      role="img"
+      aria-label="Self-powered"
+      title="Self-powered: power excluded from parent totals"
+    >
+      <Zap size={16} aria-hidden="true" />
+    </span>
+  );
 }
 
 function PortPicker({
@@ -958,7 +1026,10 @@ function WheelSelect({
       event.preventDefault();
       event.stopPropagation();
       const index = select.selectedIndex;
-      const next = Math.max(0, Math.min(select.options.length - 1, index + (event.deltaY < 0 ? 1 : -1)));
+      const next = Math.max(
+        0,
+        Math.min(select.options.length - 1, index + (event.deltaY < 0 ? 1 : -1)),
+      );
       if (next !== index) onValueChange(select.options[next]!.value);
     };
     select.addEventListener("wheel", wheel, { passive: false });
@@ -1087,6 +1158,7 @@ function NetworkTree({ networks, parentId }: { networks: PlanNetwork[]; parentId
               onClick={() => useNetworkStore.getState().open(network.id)}
             >
               {network.name}
+              {network.parentId && network.selfPowered ? <SelfPoweredIcon /> : null}
               {!network.included ? " (excluded)" : ""}
             </button>
             <NetworkTree networks={networks} parentId={network.id} />

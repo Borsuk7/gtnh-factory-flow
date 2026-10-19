@@ -45,12 +45,16 @@ it("wheel-steps time and sharing, clamps at the ends and respects the scroll pre
   fireEvent.wheel(sharing, { deltaY: -100 });
   expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe("import");
   fireEvent.wheel(sharing, { deltaY: 100 });
-  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe("internal");
+  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe(
+    "internal",
+  );
   preference.mockReturnValue(false);
   expect(fireEvent.wheel(time, { deltaY: -100, cancelable: true })).toBe(true);
   fireEvent.wheel(sharing, { deltaY: -100 });
   expect(useFactoryStore.getState().rateUnit).toBe("minute");
-  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe("internal");
+  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe(
+    "internal",
+  );
   expect(useFactoryStore.getState().lastResult).toBe(solve);
 });
 
@@ -77,6 +81,7 @@ it("offers self-powered only for a subnet and saves its explicit choice", () => 
 });
 
 beforeEach(() => {
+  deviceSettings.writeDeviceSettings({ networkSidebarWidth: 300 });
   const member = { designId: "line", name: "Line", included: true };
   const material = {
     key: "fluid:oxygen",
@@ -112,6 +117,35 @@ beforeEach(() => {
       networks: [{ id: "main", name: "Main", included: true, members: [member], sharing: {} }],
     },
   });
+});
+
+it("resizes the sidebar with keys and resets it with a double click", () => {
+  render(<NetworkPage />);
+  const handle = screen.getByRole("separator", { name: "Resize network plan list" });
+  fireEvent.keyDown(handle, { key: "ArrowRight", shiftKey: true });
+  expect(deviceSettings.readDeviceSettings().networkSidebarWidth).toBe(364);
+  fireEvent.keyDown(handle, { key: "Home" });
+  expect(deviceSettings.readDeviceSettings().networkSidebarWidth).toBe(240);
+  fireEvent.doubleClick(handle);
+  expect(deviceSettings.readDeviceSettings().networkSidebarWidth).toBe(300);
+});
+
+it("shows self-powered status in the tree and power summary and explains sharing direction", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        { id: "parent", name: "Parent", included: true, members: [], sharing: {} },
+        { ...state.catalogue!.networks[0], parentId: "parent", selfPowered: true },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  expect(screen.getAllByRole("img", { name: "Self-powered" })).toHaveLength(2);
+  const sharing = screen.getByRole("combobox", { name: "Sharing for Oxygen" });
+  expect(sharing.title).toContain("no resources cross");
+  fireEvent.change(sharing, { target: { value: "import" } });
+  expect(sharing.title).toContain("Import from parent");
 });
 
 it("opens I/O as a modal, traps focus and closes with Escape", () => {

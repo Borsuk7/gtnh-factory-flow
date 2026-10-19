@@ -32,6 +32,10 @@ menu renames the group and all its members, or deletes the group and returns its
 compact single-line rows, with full names on hover. Their options menu contains I/O and Remove from network;
 an I/O shortcut appears on hover and keyboard focus, or stays visible on touch screens. Add plans opens a modal
 with search and existing membership shown.
+Drag the sidebar divider to give plan names more space; arrow keys resize it and double-click restores its default.
+The width stays on this device. Compact screens stack the list below the ledger. The ledger scrolls independently,
+keeping its headings at the top and resource names on the left. Sharing choices keep short labels with tooltips
+that explain their direction across the parent boundary.
 Right-click a network tab for Rename, New subnetwork, Close tab or Delete network. Shift+F10 opens the same menu.
 The header's trash icon also asks for confirmation, explaining that plans stay and subnetworks move to the deleted
 network's parent. Deleting a subnet opens its parent; deleting a root returns to Networks. A failed deletion save
@@ -43,6 +47,7 @@ usage use the same average figures as the plan overview and sum included descend
 Mark a subnet Self-powered to keep both its power usage and generation out of parent totals. Its own power figures
 stay visible, and its resource sharing is unchanged. This is an explicit separate-supply choice, not a calculated
 claim that its generators meet demand. The choice persists and syncs with the network.
+A lightning bolt beside the subnet name and its power summary identifies this separate supply.
 
 Subnetworks balance locally first. Internal (the default) exposes nothing; Import exposes residual demand; Export
 exposes residual supply; Both exposes either. Every ancestor boundary needs its own permission. Parent totals only see

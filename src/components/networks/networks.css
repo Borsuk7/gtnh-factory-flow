@@ -9,6 +9,15 @@
   font-size: 16px;
   line-height: 1.5;
 }
+.netview.mx.netview-page {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.netview-page > :not(.netview-layout) {
+  flex-shrink: 0;
+}
 .netview h1 {
   font-size: 24px;
   margin: 0 0 6px;
@@ -86,13 +95,44 @@
 }
 .netview-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, min(var(--network-sidebar-width, 300px), 50%)) minmax(0, 1fr);
   gap: 20px;
+  flex: 1;
+  min-height: 0;
 }
 .netview-members {
+  position: relative;
   border-right: 1px solid var(--mc-frame);
-  padding-right: 16px;
   min-width: 0;
+  min-height: 0;
+}
+.netview-members-scroll {
+  height: 100%;
+  overflow: auto;
+  padding-right: 16px;
+}
+.netview-members > .panel-handle {
+  top: 0;
+}
+.netview-ledger {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.netview-ledger > :not(.netview-table-scroll) {
+  flex-shrink: 0;
+}
+.netview-self-powered {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: var(--mc-gold);
+}
+.netview-power .netview-self-powered {
+  color: var(--mc-gold);
+  margin-left: 0;
 }
 .netview-section-title {
   display: flex;
@@ -147,7 +187,7 @@
   padding-left: 12px;
   margin: 0;
 }
-.netview-members > .netview-tree {
+.netview-members-scroll > .netview-tree {
   padding-left: 0;
 }
 .netview .netview-link {
@@ -365,11 +405,14 @@
 }
 .netview-table-scroll {
   width: 100%;
-  overflow-x: auto;
+  overflow: auto;
   margin-top: 14px;
+  flex: 1;
+  min-height: 120px;
 }
 .netview table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   font-variant-numeric: tabular-nums;
 }
@@ -391,6 +434,23 @@
 }
 .netview thead th {
   border-bottom: 2px solid var(--mc-frame);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mc-bar);
+}
+.netview tr > th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--mc-bar);
+  border-right: 1px solid var(--mc-frame);
+}
+.netview thead th:first-child {
+  z-index: 3;
+}
+.netview .netview-contribution th:first-child {
+  background: var(--mc-key);
 }
 .netview .netview-free {
   color: var(--mc-cyan);
@@ -484,9 +544,25 @@ html[data-compact] .netview-members {
   border-bottom: 1px solid var(--mc-frame);
   padding: 0 0 12px;
 }
+html[data-compact] .netview-page {
+  overflow: auto;
+}
+html[data-compact] .netview-members > .panel-handle {
+  display: none;
+}
+html[data-compact] .netview-members-scroll {
+  height: auto;
+  overflow: visible;
+  padding: 0;
+}
+html[data-compact] .netview-table-scroll {
+  flex: none;
+  max-height: calc(65 * var(--ui-dvh));
+}
 html[data-compact] .netview-layout {
   display: flex;
   flex-direction: column;
+  flex: none;
 }
 html[data-compact] .netview-ledger {
   order: 1;
