@@ -169,7 +169,7 @@ it("opens I/O as a modal, traps focus and closes with Escape", () => {
   const checkbox = screen.getByRole("checkbox", { name: /Output · Oxygen/ });
   checkbox.focus();
   fireEvent.keyDown(document, { key: "Tab" });
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close" }));
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "About network ports" }));
   expect(close).toBeTruthy();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -197,7 +197,9 @@ it("counts selected ports per machine and keeps collapsed sections and selection
   expect(second.open).toBe(false);
   headings[1].focus();
   fireEvent.keyDown(document.activeElement!, { key: "Tab" });
-  expect(document.activeElement).toBe(within(modal).getByRole("button", { name: "Close" }));
+  expect(document.activeElement).toBe(
+    within(modal).getByRole("button", { name: "About network ports" }),
+  );
   fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
   expect(document.activeElement).toBe(headings[1]);
   const originalMembers = useNetworkStore.getState().catalogue!.networks[0].members;
@@ -241,15 +243,71 @@ it("changes rate units without changing the solve and uses compact section actio
 });
 
 it("organizes plans into collapsible groups without changing totals", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: state.catalogue!.networks.map((network) => ({
+        ...network,
+        groups: ["Oxygen lines"],
+      })),
+    },
+  }));
   render(<NetworkPage />);
   fireEvent.click(screen.getByRole("button", { name: "Inputs and outputs for Line" }));
   const group = screen.getByRole("combobox", { name: "Plan group" });
   fireEvent.change(group, { target: { value: "Oxygen lines" } });
-  fireEvent.blur(group);
   fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.getByText("Oxygen lines").closest("details")).toBeTruthy();
   expect(useNetworkStore.getState().catalogue!.networks[0].members[0].group).toBe("Oxygen lines");
   expect(screen.getAllByText("10 L/s").length).toBeGreaterThan(0);
+});
+
+it("applies group selections immediately, follows external moves and can return to Ungrouped", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: state.catalogue!.networks.map((network) => ({
+        ...network,
+        groups: ["Source", "Target"],
+        members: network.members.map((member) => ({
+          ...member,
+          group: "Source",
+          portSelection: ["out"],
+        })),
+      })),
+    },
+  }));
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Inputs and outputs for Line" }));
+  const picker = screen.getByRole("combobox", { name: "Plan group" }) as HTMLSelectElement;
+  expect(picker.tagName).toBe("SELECT");
+  expect(picker.value).toBe("Source");
+  fireEvent.change(picker, { target: { value: "Target" } });
+  expect(useNetworkStore.getState().catalogue!.networks[0].members[0]).toMatchObject({
+    group: "Target",
+    included: true,
+    portSelection: ["out"],
+  });
+  expect(picker.value).toBe("Target");
+  act(() =>
+    useNetworkStore.setState((state) => ({
+      catalogue: {
+        ...state.catalogue!,
+        networks: state.catalogue!.networks.map((network) => ({
+          ...network,
+          members: network.members.map((member) => ({ ...member, group: "Source" })),
+        })),
+      },
+    })),
+  );
+  expect(picker.value).toBe("Source");
+  fireEvent.change(picker, { target: { value: "" } });
+  expect(useNetworkStore.getState().catalogue!.networks[0].members[0].group).toBeUndefined();
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  fireEvent.click(screen.getByRole("button", { name: "Inputs and outputs for Line" }));
+  expect((screen.getByRole("combobox", { name: "Plan group" }) as HTMLSelectElement).value).toBe(
+    "",
+  );
 });
 
 it("moves dragged plans into groups and back to Ungrouped while keeping their I/O choices", () => {

@@ -906,33 +906,11 @@ function PortPicker({
     onChange([...next]);
   };
   return (
-    <NetworkModal title={`Inputs and outputs · ${member.name}`} onClose={onDone}>
-      <label className="netview-group-field">
-        Plan group
-        <input
-          aria-label="Plan group"
-          placeholder="Ungrouped"
-          list="network-plan-groups"
-          defaultValue={member.group ?? ""}
-          maxLength={80}
-          onBlur={(event) => {
-            const group = event.target.value.trim() || undefined;
-            if (group !== member.group) onGroupChange(group);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur();
-          }}
-        />
-        <datalist id="network-plan-groups">
-          {groups.map((group) => (
-            <option key={group} value={group} />
-          ))}
-        </datalist>
-      </label>
-      <div className="netview-actions">
-        <NetworkRateControl />
-        <button onClick={() => onChange(undefined)}>Use all ports</button>
-        <button onClick={() => onChange([])}>Clear all</button>
+    <NetworkModal
+      title={`Inputs and outputs · ${member.name}`}
+      onClose={onDone}
+      initialFocus='button[aria-label="Close"]'
+      actions={
         <button
           className="netview-icon-button"
           aria-label="About network ports"
@@ -943,6 +921,27 @@ function PortPicker({
         >
           <CircleHelp size={18} aria-hidden="true" />
         </button>
+      }
+    >
+      <div className="netview-port-toolbar">
+        <label className="netview-group-field">
+          Plan group
+          <select
+            aria-label="Plan group"
+            value={member.group ?? ""}
+            onChange={(event) => onGroupChange(event.target.value || undefined)}
+          >
+            <option value="">Ungrouped</option>
+            {groups.map((group) => (
+              <option key={group} value={group}>
+                {group}
+              </option>
+            ))}
+          </select>
+        </label>
+        <NetworkRateControl />
+        <button onClick={() => onChange(undefined)}>Use all ports</button>
+        <button onClick={() => onChange([])}>Clear all</button>
       </div>
       <p id="network-port-help" hidden={!showHelp}>
         Choose which machine ports count toward this network. Only flows entering or leaving the
@@ -1194,11 +1193,13 @@ function NetworkModal({
   title,
   initialFocus,
   onClose,
+  actions,
   children,
 }: {
   title: string;
   initialFocus?: string;
   onClose: () => void;
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1219,9 +1220,12 @@ function NetworkModal({
       >
         <div className="netview-modal-title">
           <strong>{title}</strong>
-          <button className="netview-icon-button" aria-label="Close" onClick={onClose}>
-            <X size={18} aria-hidden="true" />
-          </button>
+          <div className="netview-modal-actions">
+            {actions}
+            <button className="netview-icon-button" aria-label="Close" onClick={onClose}>
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
         </div>
         {children}
       </div>

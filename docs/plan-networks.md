@@ -20,8 +20,10 @@ These choices only filter the ledger; they never change recipes, rates, or the s
 
 The I/O picker is a modal with the same time-unit dial as the network header: per tick, second, minute or hour.
 Machine headings show selected/available port counts and collapse their port lists. The first machine starts open.
-The question-mark help control explains boundary accounting without taking space from the port list. Group assignment
-stays in the picker. Changes save immediately; X, Escape or clicking the backdrop closes it.
+The question-mark help control beside X explains boundary accounting without taking space from the port list.
+The group dropdown lists this network's groups and Ungrouped, saves on selection, and follows later group moves.
+Create groups with the sidebar's folder-plus control. Group, rate and bulk port controls share one wrapping toolbar.
+Changes save immediately; X, Escape or clicking the backdrop closes it.
 Counts follow explicit selections, Clear all and Use all ports; collapsing never changes membership or totals.
 Both follow the plan's display setting and never recalculate the solve. Its Plan group field assigns a plan to a
 named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
