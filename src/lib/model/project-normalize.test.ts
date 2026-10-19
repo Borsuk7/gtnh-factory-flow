@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FactoryProject } from "./types";
-import { normalizeLoadedProject } from "./project-normalize";
+import { normalizeLoadedProject, normalizeLoadedProjectWithNotice } from "./project-normalize";
 
 const PROJECT_SCHEMA_VERSION = 1;
 
@@ -239,8 +239,8 @@ describe("wires into a trash can survive a reload", () => {
   });
 });
 
-describe("loose cell wires survive a reload", () => {
-  it("keeps a cross-form edge that carries its Canner ratio", () => {
+describe("loose cell wires on load", () => {
+  it("turns a cell wired into a fluid slot into a fluid tank between the two", () => {
     const project = {
       schemaVersion: PROJECT_SCHEMA_VERSION,
       id: "loose",
@@ -287,9 +287,16 @@ describe("loose cell wires survive a reload", () => {
       fuelProfiles: [],
     } as unknown as FactoryProject;
 
-    const normalized = normalizeLoadedProject(project);
-    expect(normalized.edges.map((edge) => edge.id)).toEqual(["w"]);
-    expect(normalized.edges[0]?.crossForm?.litresPerCell).toBe(1000);
+    const { project: normalized, notice } = normalizeLoadedProjectWithNotice(project);
+    const tank = normalized.nodes.find((node) => node.id === "cell-tank:w");
+    expect(tank).toBeDefined();
+    expect(normalized.edges.map((edge) => [edge.id, edge.source, edge.target, edge.crossForm])).toEqual([
+      ["w", "maker", "cell-tank:w", undefined],
+      ["w:tank", "cell-tank:w", "taker", undefined],
+    ]);
+    expect(notice?.details).toContain("1 cell wire now goes through a fluid tank.");
+    // A parser keeps the wire for the landing to convert and say so.
+    expect(normalizeLoadedProject(project, { keepMode: true }).edges[0]?.crossForm?.litresPerCell).toBe(1000);
   });
 });
 

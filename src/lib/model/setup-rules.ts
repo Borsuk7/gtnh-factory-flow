@@ -5,14 +5,13 @@ export type ResolvedSetupRules = Required<SetupRules>;
 
 /**
  * Fixed for every plan: the board's three MODES do the rules' job (build and
- * solve are closed setups, pool imports and banks by itself), and loose cell
- * wires are always on. Callers still ask; a stored `setupRules` or legacy
- * sketch flag is ignored (the load funnel drops both).
+ * solve are closed setups, pool imports and banks by itself). Callers still
+ * ask; a stored `setupRules` or legacy sketch flag is ignored (the load
+ * funnel drops both).
  */
 const RULES: ResolvedSetupRules = Object.freeze({
   freeInputs: false,
   freeOutputs: false,
-  looseCellWires: true,
 });
 
 export function getSetupRules(_project: {

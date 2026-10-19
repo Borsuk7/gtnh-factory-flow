@@ -105,7 +105,6 @@ import {
   makeResourceKey,
   resourceMatchesInput,
 } from "@/lib/model";
-import { getCrossFormCellMatch } from "@/lib/model/resources";
 import { fetchLitresPerCell } from "@/lib/datasets/cell-ratio";
 import { BoardContextMenu, type BoardMenuTarget } from "./BoardContextMenu";
 import { listPoolCellPairs } from "@/lib/solver/pool-mode";
@@ -427,7 +426,6 @@ import { playEditSfx } from "@/lib/sound/sfx";
 import { visibleAnnotations } from "./clean/note/note-model";
 import { settleZonePoints } from "@/lib/model/zone-points";
 import { BOARD_PAPER_IDS } from "@/lib/model/board-paper";
-import { getSetupRules } from "@/lib/model/setup-rules";
 import { nearestFreeSpot, type PlacementRect, type PlacementRegion } from "./board-placement";
 import { registerBoardResize, type BoardResizeDraft } from "./board-resize";
 import { RESOURCE_DRAG_TYPE, readResourceDrag } from "@/lib/resource-drag";
@@ -1934,7 +1932,6 @@ export function FactoryFlow() {
   const connectNodesBatch = useFactoryStore((state) => state.connectNodesBatch);
   const connectCustomRate = useFactoryStore((state) => state.connectCustomRate);
   const connectTrash = useFactoryStore((state) => state.connectTrash);
-  const connectCrossFormEdge = useFactoryStore((state) => state.connectCrossFormEdge);
   // Pool mode's cell-fluid bridges need the Canner's litres-per-cell for every
   // cell/fluid pair the plan names in both forms. Fetched as the plan changes
   // and stored on the plan (`poolCellRatios`) so the solve and every shared
@@ -1973,31 +1970,6 @@ export function FactoryFlow() {
       });
     }
   }, [poolPairsSignature]);
-
-  // The async half of a loose cell wire: fetch the Canner's litres-per-cell,
-  // then commit the edge; no ratio drops the gesture whole. The wire carries
-  // the SOURCE's own resource and the target handle names the far form.
-  const connectLooseCellWire = useCallback(
-    async (
-      source: { nodeId: string; handleId: string },
-      target: { nodeId: string; handleId: string },
-      wireResource: Pick<ResourceAmount, "kind" | "id" | "displayName">,
-      match: { cellId: string; fluidId: string },
-    ) => {
-      const state = useFactoryStore.getState();
-      const version = state.datasetManifest?.versions.find(
-        (entry) => entry.id === state.selectedDatasetVersionId,
-      );
-      if (!version) {
-        return;
-      }
-      const litresPerCell = await fetchLitresPerCell(version, match.cellId, match.fluidId);
-      if (litresPerCell) {
-        connectCrossFormEdge(source, target, wireResource, litresPerCell);
-      }
-    },
-    [connectCrossFormEdge],
-  );
   const addStorageForConnection = useFactoryStore((state) => state.addStorageForConnection);
   const selectedNodeId = useFactoryStore((state) => state.selectedNodeId);
   const deleteNode = useFactoryStore((state) => state.deleteNode);
@@ -2321,10 +2293,8 @@ export function FactoryFlow() {
   const connectCompletedRef = useRef(false);
   // For the failure sound: the plan as it stood when the wire drag began
   // (onConnect runs before onConnectEnd, so "did this gesture change
-  // anything" must compare against drag START, not connect-end entry), and
-  // whether the gesture handed off to the async loose-cell ratio fetch.
+  // anything" must compare against drag START, not connect-end entry).
   const connectStartFingerprintRef = useRef<string | undefined>(undefined);
-  const pendingLooseWireRef = useRef(false);
   // The gesture's origin card, tracked separately from draggedResourceRef:
   // a drag can start on a handle whose resource cannot be resolved, and
   // such a drag ending dead must still buzz rather than slip through the
@@ -4055,23 +4025,8 @@ export function FactoryFlow() {
           if (!outputResource || !inputResource) {
             return;
           }
+          // A cell and its fluid never wire straight to each other: they meet in a fluid tank.
           if (!resourceMatchesInput(outputResource, inputResource)) {
-            // LOOSE CELL WIRES: a filled cell may land straight on its fluid's
-            // input, and a fluid on its cell's input. The ratio comes from the
-            // Canner's recipes (an API call, so the wire arrives a beat later);
-            // no recipe found means no wire, never a guessed ratio.
-            const crossFormMatch = getSetupRules(project).looseCellWires
-              ? getCrossFormCellMatch(outputResource, inputResource)
-              : undefined;
-            if (crossFormMatch && outputHandle.handleId && inputHandle.handleId) {
-              pendingLooseWireRef.current = true;
-              void connectLooseCellWire(
-                { nodeId: outputHandle.nodeId, handleId: outputHandle.handleId },
-                { nodeId: inputHandle.nodeId, handleId: inputHandle.handleId },
-                outputResource,
-                crossFormMatch,
-              );
-            }
             return;
           }
 
@@ -4096,7 +4051,7 @@ export function FactoryFlow() {
         connectResourceEdges(connection.source, connection.target);
       }
     },
-    [connectCustomRate, connectLooseCellWire, connectResourceEdges, connectTrash, project],
+    [connectCustomRate, connectResourceEdges, connectTrash, project],
   );
 
   const isValidResourceConnection = useCallback(
@@ -4246,7 +4201,6 @@ export function FactoryFlow() {
       connectStartFingerprintRef.current = projectSoundFingerprint(
         useFactoryStore.getState().project,
       );
-      pendingLooseWireRef.current = false;
       wireGestureOriginRef.current = nodeId ?? undefined;
       lastConnectionPointerRef.current = getClientPosition(event);
       draggedResourceRef.current =
@@ -4369,18 +4323,7 @@ export function FactoryFlow() {
             return;
           }
 
-          // LOOSE CELL WIRES: a cross-form drop commits through the ratio
-          // fetch, like a handle-precise wire; a plain edge here would cross
-          // kinds with no ratio and sit inert.
           if (inputResource && !resourceMatchesInput(outputResource, inputResource)) {
-            const crossFormMatch = getSetupRules(project).looseCellWires
-              ? getCrossFormCellMatch(outputResource, inputResource)
-              : undefined;
-            if (crossFormMatch) {
-              connectCompletedRef.current = true;
-              pendingLooseWireRef.current = true;
-              void connectLooseCellWire(source, target, outputResource, crossFormMatch);
-            }
             return;
           }
 
@@ -4451,7 +4394,6 @@ export function FactoryFlow() {
     [
       addStorageForConnection,
       connectCustomRate,
-      connectLooseCellWire,
       connectResourceEdges,
       connectTrash,
       project,
@@ -4479,9 +4421,6 @@ export function FactoryFlow() {
         return;
       }
       if (projectSoundFingerprint(useFactoryStore.getState().project) !== fingerprintAtStart) {
-        return;
-      }
-      if (pendingLooseWireRef.current) {
         return;
       }
       const dropCardId = clientPosition ? getBoardNodeIdAtPosition(clientPosition) : undefined;
@@ -11999,18 +11938,8 @@ function isCompatibleDraggedResourceTarget(
     targetHandle.side === "input"
       ? [draggedResource, targetResource]
       : [targetResource, draggedResource];
-  if (resourceMatchesInput(output, input)) {
-    return true;
-  }
-  // LOOSE CELL WIRES, machine to machine only: a drawer holds one form and
-  // its wires must stay in it, so the bidirectional drag and storage targets
-  // stay strict.
-  return Boolean(
-    getSetupRules(project).looseCellWires &&
-      !draggedResource.bidirectional &&
-      !(project.storages ?? []).some((storage) => storage.id === targetHandle.nodeId) &&
-      getCrossFormCellMatch(output, input),
-  );
+  // A cell and its fluid never take each other's wires: they meet in a fluid tank.
+  return resourceMatchesInput(output, input);
 }
 
 function getStorageHandleAtPointer(
@@ -12245,20 +12174,6 @@ function findNodeDropTargetOnSide(
     side === "input"
       ? resourceMatchesInput(draggedResource, candidate)
       : resourceMatchesInput(candidate, draggedResource);
-  // LOOSE CELL WIRES: a machine slot in the other form also takes the drop,
-  // either way round, so the wash and whole-card drop agree with a
-  // handle-precise wire. Drawers stay strict: a drawer holds one form.
-  const acceptsLoose = (
-    candidate: Pick<ResourceAmount, "kind" | "id" | "displayName" | "alternatives">,
-  ) =>
-    accepts(candidate) ||
-    Boolean(
-      getSetupRules(project).looseCellWires &&
-        !draggedResource.bidirectional &&
-        (side === "input"
-          ? getCrossFormCellMatch(draggedResource, candidate)
-          : getCrossFormCellMatch(candidate, draggedResource)),
-    );
   const port = (resource: Pick<ResourceAmount, "kind" | "id">): ResolvedResourceHandle => ({
     nodeId,
     handleId: makeResourceHandleId(side, resource),
@@ -12345,7 +12260,7 @@ function findNodeDropTargetOnSide(
     const candidates = side === "input" ? sectionRecipe.inputs : sectionRecipe.outputs;
     const match = (candidates ?? []).find(
       (candidate) =>
-        (side === "output" || isRecipeInputConsumed(candidate)) && acceptsLoose(candidate),
+        (side === "output" || isRecipeInputConsumed(candidate)) && accepts(candidate),
     );
     if (match) {
       const resolved = port(match);
@@ -12763,15 +12678,7 @@ function isCompatibleResourceConnection(
   if (sourceHandle.side === targetHandle.side) {
     return false;
   }
-  if (resourceMatchesInput(output, input)) {
-    return true;
-  }
-  // LOOSE CELL WIRES: a filled cell may land on its fluid's input and a
-  // fluid on its cell's input; handleConnect fetches the Canner ratio and
-  // commits the edge.
-  return Boolean(
-    getSetupRules(project).looseCellWires && getCrossFormCellMatch(output, input),
-  );
+  return resourceMatchesInput(output, input);
 }
 
 function getDraggedResourceForHandle(

@@ -322,21 +322,6 @@ describe("convertBuildToPlan", () => {
       ]);
     });
 
-    it("joins a buffer with a loose cell wire, keeping its litres on the joined wire", () => {
-      const plan = convertBuildToPlan(
-        project({
-          recipes: [recipe("make", [], [["gear", 1]]), recipe("use", [["gear", 1]], [["kit", 1]])],
-          nodes: [node("a", "make"), node("b", "use")],
-          storages: [drawer("buf", "gear")],
-          edges: [
-            wire("in", "a", "buf", "gear", { crossForm: { litresPerCell: 144 } }),
-            wire("out", "buf", "b", "gear"),
-          ],
-        }),
-      );
-      expect(plan.edges[0]!.crossForm).toEqual({ litresPerCell: 144 });
-    });
-
     it("leaves source, product and trash drawers alone", () => {
       const plan = convertBuildToPlan(chain({ storages: [drawer("src", "ore"), drawer("out", "kit", { drainMode: "trash" })] }));
       expect(plan.storages!.map((s) => s.id)).toEqual(["src", "out"]);

@@ -14,6 +14,7 @@ export function applyEdgeInputOverride(
   edge: FactoryEdge,
   resource?: ResourceFace,
 ): FactoryProject {
+  // An older build's loose cell wire, still waiting for its tank (cell-wires.ts): its far slot is the other form.
   if (edge.crossForm) return project;
   // Supplying an entire category does not select one of its members.
   if (isOreDictionaryResource({ id: edge.resourceId })) return project;

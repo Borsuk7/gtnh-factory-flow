@@ -71,11 +71,11 @@ const solve = (project: FactoryProject) => calculateThroughput(project, { genera
 
 describe("board rules are gone", () => {
   it("answers every plan the same way", () => {
-    expect(getSetupRules({})).toEqual({ freeInputs: false, freeOutputs: false, looseCellWires: true });
-    expect(getSetupRules({ setupRules: { freeInputs: true, freeOutputs: true, looseCellWires: false } })).toEqual(
-      { freeInputs: false, freeOutputs: false, looseCellWires: true },
+    expect(getSetupRules({})).toEqual({ freeInputs: false, freeOutputs: false });
+    expect(getSetupRules({ setupRules: { freeInputs: true, freeOutputs: true } })).toEqual(
+      { freeInputs: false, freeOutputs: false },
     );
-    expect(getSetupRules({ assumeBoundaries: true })).toEqual({ freeInputs: false, freeOutputs: false, looseCellWires: true });
+    expect(getSetupRules({ assumeBoundaries: true })).toEqual({ freeInputs: false, freeOutputs: false });
   });
 
   it("a half-wired chain reads zero whatever the stored rules say", () => {
@@ -90,7 +90,7 @@ describe("board rules are gone", () => {
 
   it("the load funnel drops both stored forms", () => {
     const loaded = normalizeLoadedProject({
-      ...board({ freeInputs: true, looseCellWires: true }),
+      ...board({ freeInputs: true }),
       assumeBoundaries: true,
     } as FactoryProject);
     expect(loaded.setupRules).toBeUndefined();

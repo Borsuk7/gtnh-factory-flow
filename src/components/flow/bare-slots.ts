@@ -1,5 +1,4 @@
 import type { FactoryProject, NodeThroughputResult, ResourceKind } from "@/lib/model/types";
-import { inputEdgeResourceKey } from "./input-edge";
 import { makeResourceKey } from "@/lib/model";
 import type { ResolvedSetupRules } from "@/lib/model/setup-rules";
 
@@ -42,7 +41,7 @@ export function findBareSlots(
   const inputs: BareSlot[] = [];
   if (!rules.freeInputs) {
     for (const [key, flow] of Object.entries(nodeResult.inputs)) {
-      if (flow.amountPerSecond > RATE_EPSILON && !incoming.some((edge) => inputEdgeResourceKey(edge) === key)) {
+      if (flow.amountPerSecond > RATE_EPSILON && !incoming.some((edge) => makeResourceKey(edge.resourceKind, edge.resourceId) === key)) {
         inputs.push(describe(flow, key));
       }
     }

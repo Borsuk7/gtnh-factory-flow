@@ -130,6 +130,5 @@ export function splitIslands(input: SolveInput): SolveInput[] {
     drawers: ds[i]!,
     extentPins: pins[i]!,
     spares: sparesIn(ids[i]!),
-    ...(input.weightless ? { weightless: input.weightless.filter((id) => ids[i]!.has(id)) } : {}),
   }));
 }

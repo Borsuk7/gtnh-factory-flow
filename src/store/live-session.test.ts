@@ -379,6 +379,39 @@ describe("live editing in the store", () => {
     expect(annotations()[0]!.text).toBe("from bob");
   });
 
+  it("turns a live plan's loose cell wire into a fluid tank once, for everyone, as an edit undo never takes back", async () => {
+    // An older build saved a cell wired straight into a fluid slot; the plan is already in the one mode.
+    const recipes = [
+      { id: "fill", name: "fill", machineType: "Bender", minimumTier: "LV", durationTicks: 20, eut: 30, inputs: [],
+        outputs: [{ kind: "item" as const, id: "water_cell", amount: 2, displayName: "Water Cell" }] },
+      { id: "drink", name: "drink", machineType: "Bender", minimumTier: "LV", durationTicks: 20, eut: 30,
+        inputs: [{ kind: "fluid" as const, id: "water", amount: 1000, displayName: "Water" }], outputs: [] },
+    ];
+    const at = (x: number) => ({ machineCount: 1, parallel: 1, overclockTier: "LV", enabled: true, position: { x, y: 0 } });
+    const wired: FactoryProject = {
+      ...planWith(),
+      recipes,
+      nodes: [{ id: "maker", recipeId: "fill", ...at(0) }, { id: "taker", recipeId: "drink", ...at(400) }],
+      edges: [{ id: "w", source: "maker", target: "taker", sourceHandle: "output:item:water_cell",
+        targetHandle: "input:fluid:water", resourceKind: "item", resourceId: "water_cell", crossForm: { litresPerCell: 1000 } }],
+    };
+    await openLiveDesign(wired);
+
+    const batches = service.sent("ops");
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.ops).toContainEqual(expect.objectContaining({ o: "put", c: "nodes", id: "cell-tank:w" }));
+    const edges = service.plan.edges as Array<{ id: string; crossForm?: unknown }>;
+    expect(edges.map((edge) => edge.id).sort()).toEqual(["w", "w:tank"]);
+    expect(edges.some((edge) => edge.crossForm)).toBe(false);
+    expect(useFactoryStore.getState().project.nodes.some((node) => node.id === "cell-tank:w")).toBe(true);
+    expect(useFactoryStore.getState().liveUndo?.canUndo).toBe(false);
+
+    // Someone else's edit lands as it is: nothing more to convert or send.
+    service.remote([{ o: "patch", c: "nodes", id: "maker", f: { machineCount: 2 } }]);
+    await settle();
+    expect(service.sent("ops")).toHaveLength(1);
+  });
+
   it("sends each edit as the batch of what changed, nothing derived, confirmed by its echo", async () => {
     await openLiveDesign(planWith(annotation("n1", "one"), annotation("n2", "two")));
 

@@ -122,13 +122,12 @@ export function loopsOf(next: readonly (readonly number[])[]): number[] {
  * Per connected port, how far along the plan a trade there is, in machine steps. At an input: the fewest machines it
  * takes to make the good, counting the one that makes it (wheat 1, flour 2). At an output: the most machines the good
  * could still go through, counting the one that takes it (wheat 2, flour 1). A loop (SCC of machines and networks) is
- * one step. A weightless machine (the hidden tank of a loose cell wire: the player drew one wire) is no step of its own.
+ * one step.
  */
 export function portStepsOf(
   machineCount: number,
   ports: readonly PortShape[],
   portComponent: readonly number[],
-  weightless: readonly boolean[] = [],
 ): number[] {
   const n = machineCount;
   const networkNode = new Map<number, number>();
@@ -152,7 +151,7 @@ export function portStepsOf(
   let loops = 0;
   for (const l of loop) loops = Math.max(loops, l + 1);
   const hasMachine = new Array<boolean>(loops).fill(false);
-  for (let m = 0; m < n; m++) if (!weightless[m]) hasMachine[loop[m]!] = true;
+  for (let m = 0; m < n; m++) hasMachine[loop[m]!] = true;
   const after: number[][] = Array.from({ length: loops }, () => []);
   for (let v = 0; v < nodes; v++) {
     for (const w of next[v]!) if (loop[v] !== loop[w]) after[loop[v]!]!.push(loop[w]!);
@@ -174,10 +173,9 @@ export function portStepsOf(
       for (const m of makers[net]!) fewest = Math.min(fewest, stage[loop[m]!]!);
       out[p] = (fewest === Number.MAX_SAFE_INTEGER ? 0 : fewest) + 1;
     } else {
-      // The taker itself is a step too, unless it is weightless (then only what comes after it counts).
       let most = 0;
-      for (const m of takers[net]!) most = Math.max(most, depth[loop[m]!]! + (weightless[m] ? 0 : 1));
-      out[p] = Math.max(1, most);
+      for (const m of takers[net]!) most = Math.max(most, depth[loop[m]!]!);
+      out[p] = most + 1;
     }
   }
   return out;

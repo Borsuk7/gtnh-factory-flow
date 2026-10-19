@@ -237,8 +237,8 @@ function matchesAnyDamage(wildcardId: string, concreteId: string): boolean {
  * cell goes through a Canner first. Do not add a cross-kind branch: it hides
  * the Canner, its empty cells and its power from the plan.
  *
- * Cross-form equivalence exists only for SEARCH (`isFluidEquivalentToFilledCell`)
- * and the loose cell wire gesture (`getCrossFormCellMatch`).
+ * Cross-form equivalence exists only for SEARCH (`isFluidEquivalentToFilledCell`).
+ * A cell meets its fluid on the board only in a fluid tank card.
  */
 export function resourceMatchesInput(
   resource: Pick<ResourceAmount, "kind" | "id" | "displayName">,
@@ -291,46 +291,10 @@ export function getFilledCellFluidEquivalent(
 }
 
 /**
- * LOOSE CELL WIRES only: are this output and this input the same substance
- * worn as a cell on one end and a fluid on the other?
- * Either way round - a cell output feeding a fluid input, or a fluid output
- * filling a cell input. Answers with which end is which so the gesture can
- * fetch the Canner ratio; undefined for every ordinary pair. Never consulted
- * by the solver or by `resourceMatchesInput` - kinds stay strict everywhere
- * but the gesture.
- */
-export function getCrossFormCellMatch(
-  output: Pick<ResourceAmount, "kind" | "id" | "displayName"> & {
-    alternatives?: ResourceAmount["alternatives"];
-  },
-  input: Pick<ResourceAmount, "kind" | "id" | "displayName"> & {
-    alternatives?: ResourceAmount["alternatives"];
-  },
-): { cellId: string; fluidId: string } | undefined {
-  // The same name-tolerant equivalence the recipe search uses: a fluid id
-  // rarely spells its display name exactly ("Molten Cast Iron" is
-  // `molten.castiron`), so an id derived from the cell's name alone misses
-  // real pairs. A false name match still cannot wire anything: the Canner
-  // ratio fetch that follows is the hard validator, and it looks the pair up
-  // by exact ids.
-  if (output.kind === "item" && input.kind === "fluid") {
-    return isFluidEquivalentToFilledCell(input, output)
-      ? { cellId: output.id, fluidId: input.id }
-      : undefined;
-  }
-  if (output.kind === "fluid" && input.kind === "item") {
-    return isFluidEquivalentToFilledCell(output, input)
-      ? { cellId: input.id, fluidId: output.id }
-      : undefined;
-  }
-  return undefined;
-}
-
-/**
  * Name-tolerant "is this fluid what this cell holds", shared by the recipe
- * search and by `getCrossFormCellMatch` above. On its own it converts no
- * amounts and wires nothing: the loose-cell gesture that consults it still
- * has to find a real Canner ratio before an edge exists.
+ * search and Pool's cell pairs. A fluid id rarely spells its display name
+ * exactly ("Molten Cast Iron" is `molten.castiron`). On its own it converts
+ * no amounts and wires nothing: only a Canner ratio does.
  */
 export function isFluidEquivalentToFilledCell(
   fluid: Pick<ResourceAmount, "kind" | "id" | "displayName">,

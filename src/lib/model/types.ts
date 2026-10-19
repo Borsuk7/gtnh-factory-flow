@@ -782,11 +782,11 @@ export interface FactoryEdge {
   /** Independent relative share entering a ratio buffer; absent is one. */
   ratioInputWeight?: number;
   /**
-   * A loose cell wire: the edge's own resource is what leaves the source (the
-   * filled CELL or the FLUID), and its target handle names the other form's
-   * input. Carries the Canner's litres-per-cell ratio, fetched at wire time.
-   * The solver expands it through a hidden free Tank (expandCrossFormEdges in
-   * throughput.ts); no wire crosses kinds on its own.
+   * A loose cell wire from an older build: the edge's own resource is what
+   * leaves the source (the filled CELL or the FLUID), its target handle names
+   * the other form's input, and this is the Canner's litres per cell. Only
+   * ever read on the way in: where a plan lands, each becomes a fluid tank
+   * card between its two ends (`model/cell-wires.ts`). No wire crosses kinds.
    */
   crossForm?: {
     litresPerCell: number;
@@ -848,9 +848,9 @@ export interface PlanViewState {
 
 /**
  * Legacy per-plan boundary rules. Every plan gets the same answer from
- * `getSetupRules` (setup-rules.ts): closed inputs and outputs, loose cell
- * wires on. A stored value is dropped on load; the type remains so old JSON
- * parses and callers can still ask.
+ * `getSetupRules` (setup-rules.ts): closed inputs and outputs. A stored value
+ * is dropped on load; the type remains so old JSON parses and callers can
+ * still ask.
  *
  * When on, a free rule acts like a virtual source/product drawer on every
  * slot inside the solve, never on the board.
@@ -860,11 +860,6 @@ export interface SetupRules {
   freeInputs?: boolean;
   /** Output with nowhere to go leaves the board instead of clogging. */
   freeOutputs?: boolean;
-  /**
-   * A filled cell may wire straight onto its fluid's input, converting at the
-   * Canner's ratio stored on the edge (FactoryEdge.crossForm).
-   */
-  looseCellWires?: boolean;
 }
 
 /** Share skips this scope's match; import permits external supply here. */

@@ -40,6 +40,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "4.3.0",
+    date: "2026-10-18",
+    headline: "Recipe search looks like NEI",
+    notes: [
+      "Recipe search works like NEI's recipe window. Each machine has a tab and each recipe shows as the card it becomes.",
+      "Click an item in a recipe to see what makes it. Right-click it to see what uses it.",
+      "Drag the edge of the overview or the items list to resize it. On a narrow window they shrink and fold away before the board gets cramped.",
+      "The top bar stays on one row. On a narrow window Plans, Share and Sign in shrink to icons.",
+      "A window of 1280x720 or more keeps all three columns at every Size.",
+      "Settings has a Scroll changes values switch. Turn it off and the wheel only zooms and scrolls.",
+      "Dead loops and clog locks only show when their machines really stand still. A loop fed from outside no longer counts.",
+      "A card in a dead loop or clog lock says so on its bar. Its notice blinks, and notices list the most pressing first.",
+      "Cells no longer wire straight into fluid slots. A cell and its fluid meet in a Fluid Tank (Non-recipe), as in the mod. A plan that had such a wire opens with a tank in its place and the same numbers.",
+      "Fixed boards that stayed at zero in some browsers, and menus that ran off the edge of the window.",
+    ],
+  },
+  {
     version: "4.2.0",
     date: "2026-10-17",
     headline: "Pick where the zoomed-out view starts",

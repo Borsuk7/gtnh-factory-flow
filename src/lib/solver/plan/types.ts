@@ -127,11 +127,6 @@ export interface SolveInput {
   extentPins: Record<Id, number>;
   /** Stored leftover splits: leftover key -> bearer key -> share. */
   spares: Record<string, Record<string, number>>;
-  /**
-   * Machines that are no step of their own in `portSteps` (the hidden tank of a loose cell wire: the player drew one
-   * wire, so it counts as one). Website-only; the Java has no such field. Absent = none.
-   */
-  weightless?: Id[];
 }
 
 // ---------------------------------------------------------------------------
