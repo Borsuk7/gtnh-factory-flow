@@ -10,7 +10,7 @@ import {
   type PlanNetwork,
 } from "@/lib/networks/model";
 import { readCatalogue, writeCatalogue, type StoredCatalogue } from "@/lib/networks/storage";
-import { leaveLibrary } from "@/lib/library/library-tab";
+import { leaveLibrary, openLibrary } from "@/lib/library/library-tab";
 import { leaveWelcomeTab } from "@/lib/welcome/welcome-tab";
 
 interface NetworkState {
@@ -114,8 +114,16 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     if (get().catalogue?.networks.some((network) => network.id === id)) get().open(id);
   },
   remove: async (id) => {
-    await get().edit((networks) => removeNetwork(networks, id));
-    if (!get().catalogue?.networks.some((network) => network.id === id)) get().close(id);
+    let parentId: string | undefined;
+    await get().edit((networks) => {
+      parentId = networks.find((network) => network.id === id)?.parentId;
+      return removeNetwork(networks, id);
+    });
+    if (!get().catalogue?.networks.some((network) => network.id === id)) {
+      get().close(id);
+      if (parentId) get().open(parentId);
+      else openLibrary({ kind: "networks" });
+    }
   },
   addMember: (id, member) =>
     get().edit((networks) => {

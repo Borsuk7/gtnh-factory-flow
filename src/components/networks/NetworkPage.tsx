@@ -3,8 +3,7 @@
 import "./networks.css";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FolderPlus, GripVertical, Plus, RefreshCw, Trash2, X } from "lucide-react";
-import { openLibrary } from "@/lib/library/library-tab";
+import { FolderPlus, GripVertical, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
@@ -123,9 +122,10 @@ export function NetworkPage() {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [adding, setAdding] = useState(false);
   const [planQuery, setPlanQuery] = useState("");
-  const [armed, setArmed] = useState(false);
+  const [armed, setArmed] = useState<string>();
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
+  const [renamingGroup, setRenamingGroup] = useState<string>();
   const [editingPorts, setEditingPorts] = useState<string>();
   // Display dials repaint this view without invalidating its calculations.
   useRateDisplayUnits();
@@ -205,8 +205,13 @@ export function NetworkPage() {
         </div>
         <div className="netview-actions">
           <NetworkRateControl />
-          <button className="netview-danger netview-actions" onClick={() => setArmed(true)}>
-            <Trash2 size={16} aria-hidden="true" /> Delete network
+          <button
+            className="netview-danger netview-icon-button"
+            aria-label="Delete network"
+            title="Delete network"
+            onClick={() => setArmed(network.id)}
+          >
+            <Trash2 size={18} aria-hidden="true" />
           </button>
           <button
             className="netview-icon-button"
@@ -237,28 +242,38 @@ export function NetworkPage() {
           </div>
           <NetworkTree networks={networks} />
           <div className="netview-section-title">
-            Plans in {network.name}
-            <button
-              className="netview-icon-button"
-              aria-label="Add plans"
-              title="Add plans"
-              onClick={() => setAdding(!adding)}
-            >
-              <Plus size={18} aria-hidden="true" />
-            </button>
+            <span>Plans in {network.name}</span>
+            <div className="netview-section-actions">
+              <button
+                className="netview-icon-button"
+                aria-label="New group"
+                title="New group"
+                onClick={() => {
+                  setRenamingGroup(undefined);
+                  setGroupName("");
+                  setCreatingGroup(true);
+                }}
+              >
+                <FolderPlus size={18} aria-hidden="true" />
+              </button>
+              <button
+                className="netview-icon-button"
+                aria-label="Add plans"
+                title="Add plans"
+                onClick={() => setAdding(!adding)}
+              >
+                <Plus size={18} aria-hidden="true" />
+              </button>
+            </div>
           </div>
-          <button
-            className="netview-actions"
-            onClick={() => {
-              setGroupName("");
-              setCreatingGroup(true);
-            }}
-          >
-            <FolderPlus size={16} aria-hidden="true" /> New group
-          </button>
           <PlanGroups
             members={network.members}
             groups={groupNames}
+            onRenameGroup={(group) => {
+              setRenamingGroup(group);
+              setGroupName(group);
+              setCreatingGroup(true);
+            }}
             onRemoveGroup={(group) =>
               patch({
                 groups: groupNames.filter((name) => name !== group),
@@ -276,7 +291,7 @@ export function NetworkPage() {
               })
             }
             renderMember={(member) => (
-              <div className="netview-member" key={memberKey(member)}>
+              <div className="netview-member netview-member-plan" key={memberKey(member)}>
                 <span
                   className="netview-drag-handle"
                   title="Drag to another plan group"
@@ -300,27 +315,35 @@ export function NetworkPage() {
                     }
                   />
                 </label>
-                <button className="netview-link" onClick={() => void openMember(member)}>
+                <button
+                  className="netview-link netview-plan-name"
+                  title={
+                    designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name
+                  }
+                  onClick={() => void openMember(member)}
+                >
                   {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
                 </button>
-                <button
-                  aria-label={`Inputs and outputs for ${member.name}`}
-                  onClick={() => setEditingPorts(memberKey(member))}
-                >
-                  I/O
-                </button>
-                <button
-                  aria-label={`Remove ${member.name}`}
-                  onClick={() =>
-                    patch({
-                      members: network.members.filter(
-                        (entry) => memberKey(entry) !== memberKey(member),
-                      ),
-                    })
-                  }
-                >
-                  ×
-                </button>
+                <div className="netview-plan-actions">
+                  <button
+                    aria-label={`Inputs and outputs for ${member.name}`}
+                    onClick={() => setEditingPorts(memberKey(member))}
+                  >
+                    I/O
+                  </button>
+                  <button
+                    aria-label={`Remove ${member.name}`}
+                    onClick={() =>
+                      patch({
+                        members: network.members.filter(
+                          (entry) => memberKey(entry) !== memberKey(member),
+                        ),
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             )}
           />
@@ -422,7 +445,7 @@ export function NetworkPage() {
           ) : null}
           {creatingGroup ? (
             <NetworkModal
-              title="New group"
+              title={renamingGroup ? "Rename group" : "New group"}
               initialFocus="input"
               onClose={() => setCreatingGroup(false)}
             >
@@ -432,7 +455,22 @@ export function NetworkPage() {
                   event.preventDefault();
                   const name = groupName.trim();
                   if (!name) return;
-                  patch({ groups: [...new Set([...groupNames, name])] });
+                  if (name !== renamingGroup && groupNames.includes(name)) return;
+                  patch({
+                    groups: [
+                      ...new Set([
+                        ...groupNames.map((group) => (group === renamingGroup ? name : group)),
+                        name,
+                      ]),
+                    ],
+                    ...(renamingGroup
+                      ? {
+                          members: network.members.map((member) =>
+                            member.group === renamingGroup ? { ...member, group: name } : member,
+                          ),
+                        }
+                      : {}),
+                  });
                   setCreatingGroup(false);
                 }}
               >
@@ -443,29 +481,24 @@ export function NetworkPage() {
                   value={groupName}
                   onChange={(event) => setGroupName(event.target.value)}
                 />
-                <button disabled={!groupName.trim()}>Create group</button>
+                <button
+                  disabled={
+                    !groupName.trim() ||
+                    (groupName.trim() !== renamingGroup && groupNames.includes(groupName.trim()))
+                  }
+                >
+                  {renamingGroup ? "Save name" : "Create group"}
+                </button>
               </form>
               <p>Drag plans into the group, or choose it in a plan’s I/O settings.</p>
             </NetworkModal>
           ) : null}
-          {armed ? (
-            <NetworkModal title={`Delete ${network.name}?`} onClose={() => setArmed(false)}>
+          {armed === network.id ? (
+            <NetworkModal title={`Delete ${network.name}?`} onClose={() => setArmed(undefined)}>
               <p>Plans are kept. Subnetworks move to this network’s parent.</p>
               <div className="netview-actions">
-                <button onClick={() => setArmed(false)}>Cancel</button>
-                <button
-                  className="netview-danger"
-                  onClick={() =>
-                    void remove(network.id).then(() => {
-                      if (
-                        !useNetworkStore
-                          .getState()
-                          .catalogue?.networks.some((entry) => entry.id === network.id)
-                      )
-                        openLibrary({ kind: "networks" });
-                    })
-                  }
-                >
+                <button onClick={() => setArmed(undefined)}>Cancel</button>
+                <button className="netview-danger" onClick={() => void remove(network.id)}>
                   Delete network
                 </button>
               </div>
@@ -748,12 +781,14 @@ function PlanGroups({
   renderMember,
   onMove,
   onRemoveGroup,
+  onRenameGroup,
 }: {
   members: NetworkMember[];
   groups: string[];
   renderMember: (member: NetworkMember) => React.ReactNode;
   onMove: (key: string, group: string | undefined) => void;
   onRemoveGroup: (group: string) => void;
+  onRenameGroup: (group: string) => void;
 }) {
   const [dragged, setDragged] = useState<string>();
   const dragKey = useRef<string>(undefined);
@@ -822,18 +857,32 @@ function PlanGroups({
                 <span className="netview-group-name">{group ?? "Ungrouped"}</span>{" "}
                 <span className="netview-group-count">{plans.length}</span>
                 {group ? (
-                  <button
-                    className="netview-group-remove"
-                    aria-label={`Delete group ${group}`}
-                    title="Delete group. Plans become ungrouped."
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onRemoveGroup(group);
-                    }}
-                  >
-                    <X size={12} aria-hidden="true" />
-                  </button>
+                  <>
+                    <button
+                      className="netview-group-remove"
+                      aria-label={`Rename group ${group}`}
+                      title="Rename group"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onRenameGroup(group);
+                      }}
+                    >
+                      <Pencil size={12} aria-hidden="true" />
+                    </button>
+                    <button
+                      className="netview-group-remove"
+                      aria-label={`Delete group ${group}`}
+                      title="Delete group. Plans become ungrouped."
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onRemoveGroup(group);
+                      }}
+                    >
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  </>
                 ) : null}
               </span>
             </summary>
@@ -921,8 +970,8 @@ function NetworkResourceIcon({ flow }: { flow: MaterialFlow }) {
         showAmount={false}
         tooltip={false}
         showConsumedState={false}
-        className="!h-5 !w-5"
-        iconPixelSize={20}
+        className="!h-7 !w-7"
+        iconPixelSize={28}
       />
     </span>
   );

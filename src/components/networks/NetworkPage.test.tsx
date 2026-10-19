@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useNetworkStore } from "@/store/network-store";
 import { useFactoryStore } from "@/store/factory-store";
@@ -82,6 +82,8 @@ it("changes rate units without changing the solve and uses compact section actio
   expect(screen.queryByRole("button", { name: "Back to networks" })).toBeNull();
   expect(screen.getByRole("button", { name: "Add plans" }).textContent).toBe("");
   expect(screen.getByRole("button", { name: "New subnetwork" }).textContent).toBe("");
+  expect(screen.getByRole("button", { name: "New group" }).textContent).toBe("");
+  expect(screen.getByRole("button", { name: "Delete network" }).textContent).toBe("");
   fireEvent.change(screen.getByRole("combobox", { name: "Rate unit" }), {
     target: { value: "minute" },
   });
@@ -195,6 +197,42 @@ it("opens Add plans as a dismissible modal", () => {
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
+it("renames a group and its members without changing I/O choices or totals", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        {
+          ...state.catalogue!.networks[0],
+          groups: ["Chemistry"],
+          members: [
+            {
+              designId: "line",
+              name: "Line",
+              included: true,
+              group: "Chemistry",
+              portSelection: ["out"],
+            },
+          ],
+        },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Rename group Chemistry" }));
+  const dialog = screen.getByRole("dialog", { name: "Rename group" });
+  fireEvent.change(within(dialog).getByRole("textbox", { name: "Group name" }), {
+    target: { value: "Oxygen lines" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save name" }));
+  expect(useNetworkStore.getState().catalogue!.networks[0]).toMatchObject({
+    groups: ["Oxygen lines"],
+    members: [{ group: "Oxygen lines", included: true, portSelection: ["out"] }],
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getAllByText("10 L/s").length).toBeGreaterThan(0);
+});
+
 it("makes network deletion visible and explains it before confirmation", () => {
   render(<NetworkPage />);
   fireEvent.click(screen.getByRole("button", { name: "Delete network" }));
@@ -203,4 +241,23 @@ it("makes network deletion visible and explains it before confirmation", () => {
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(useNetworkStore.getState().catalogue!.networks).toHaveLength(1);
+});
+
+it("closes the subnet deletion dialog when the parent opens", async () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        { ...state.catalogue!.networks[0], parentId: "parent" },
+        { id: "parent", name: "Parent", included: true, members: [], sharing: {} },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Delete network" }));
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Delete network" }),
+  );
+  await waitFor(() => expect(useNetworkStore.getState().activeId).toBe("parent"));
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

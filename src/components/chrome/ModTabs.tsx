@@ -371,9 +371,7 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
     }
     if (m.kind === "network-delete") {
       return [
-        { label: "Delete network", detail: "plans are kept", tone: "red", onSelect: () => void useNetworkStore.getState().remove(m.id).then(() => {
-          if (!useNetworkStore.getState().catalogue?.networks.some((network) => network.id === m.id)) openLibrary({ kind: "networks" });
-        }) },
+        { label: "Delete network", detail: "plans are kept", tone: "red", onSelect: () => void useNetworkStore.getState().remove(m.id) },
         { label: "Cancel", onSelect: () => undefined },
       ];
     }

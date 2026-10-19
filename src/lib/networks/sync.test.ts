@@ -5,6 +5,7 @@ import { useCommunityAuthStore } from "@/store/community-auth-store";
 import { syncNetworks } from "./sync";
 import type { StoredCatalogue } from "./storage";
 import type { PlanNetwork } from "./model";
+import { readLibraryTabState } from "@/lib/library/library-tab";
 
 const disk = vi.hoisted(() => new Map<string, StoredCatalogue>());
 vi.mock("./storage", () => ({
@@ -32,6 +33,17 @@ beforeEach(async () => {
 });
 
 describe("network persistence and sync", () => {
+  it("returns to the parent after deleting a subnet, and to Networks after deleting a root", async () => {
+    const store = useNetworkStore.getState();
+    await store.edit(() => [network("parent"), { ...network("child"), parentId: "parent" }]);
+    store.open("child");
+    await store.remove("child");
+    expect(useNetworkStore.getState().activeId).toBe("parent");
+    expect(readLibraryTabState().active).toBe(false);
+    expect(useNetworkStore.getState().openIds).toContain("parent");
+    await store.remove("parent");
+    expect(readLibraryTabState()).toEqual({ active: true, view: { kind: "networks" } });
+  });
   it("keeps edits made during a successful save pending on the acknowledged revision", async () => {
     await useNetworkStore.getState().edit(() => [network("first-edit")]);
     vi.spyOn(globalThis, "fetch")
