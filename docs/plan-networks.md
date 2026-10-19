@@ -23,6 +23,8 @@ Both follow the plan's display setting and never recalculate the solve. Its Plan
 named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
 rules, and travel with a plan on a network move. Use the plus beside Plans to add members and the plus beside
 Networks to create a subnetwork of the open network. The refresh icon retries figures and sync.
+Drag a plan row onto a group to move it, even when the group is collapsed. Ungrouped remains a drop target when
+empty. The I/O group field is also available for keyboard and touch use. Group moves keep inclusion and port choices.
 
 At each network, supply minus demand gives free resources or a shortage. These are configured rates, not measured
 inventories or a promise that supplying lines can operate without their own missing inputs. Power generation and

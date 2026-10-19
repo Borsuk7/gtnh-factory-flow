@@ -177,6 +177,26 @@
 }
 .netview-plan-group {
   margin: 10px 0;
+  border: 1px solid transparent;
+  padding: 4px;
+}
+.netview-plan-group[data-drop-target] {
+  border-color: var(--mc-cyan);
+  background: var(--mc-key);
+}
+.netview-draggable-plan {
+  cursor: grab;
+}
+.netview-draggable-plan[data-dragging] {
+  opacity: 0.45;
+}
+.netview .netview-drag-handle {
+  flex: 0 0 auto;
+  color: var(--mc-muted);
+}
+.netview-drop-hint {
+  font-size: 13px;
+  padding: 4px;
 }
 .netview-plan-group summary {
   cursor: pointer;

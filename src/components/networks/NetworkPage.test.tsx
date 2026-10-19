@@ -100,3 +100,72 @@ it("organizes plans into collapsible groups without changing totals", () => {
   expect(useNetworkStore.getState().catalogue!.networks[0].members[0].group).toBe("Oxygen lines");
   expect(screen.getAllByText("10 L/s").length).toBeGreaterThan(0);
 });
+
+it("moves dragged plans into groups and back to Ungrouped while keeping their I/O choices", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        {
+          ...state.catalogue!.networks[0],
+          members: [
+            {
+              designId: "line",
+              name: "Line",
+              included: true,
+              group: "Source",
+              portSelection: ["out"],
+            },
+            { designId: "other", name: "Other", included: false, group: "Target" },
+          ],
+        },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  const data = new Map<string, string>();
+  const transfer = {
+    setData: (type: string, value: string) => data.set(type, value),
+    getData: (type: string) => data.get(type) ?? "",
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  const dragTo = (name: string) => {
+    fireEvent.dragStart(screen.getByRole("group", { name: "Draggable plan Line" }), {
+      dataTransfer: transfer,
+    });
+    const target = screen.getByText(name).closest("details")!;
+    expect(fireEvent.dragEnter(target, { dataTransfer: transfer })).toBe(false);
+    fireEvent.dragOver(target, { dataTransfer: transfer });
+    expect(target.hasAttribute("data-drop-target")).toBe(true);
+    fireEvent.drop(target, { dataTransfer: transfer });
+  };
+  dragTo("Target");
+  expect(useNetworkStore.getState().catalogue!.networks[0].members[0]).toMatchObject({
+    group: "Target",
+    included: true,
+    portSelection: ["out"],
+  });
+  dragTo("Ungrouped");
+  expect(useNetworkStore.getState().catalogue!.networks[0].members[0].group).toBeUndefined();
+  expect(screen.getAllByText("10 L/s").length).toBeGreaterThan(0);
+});
+
+it("ignores external drops", () => {
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        {
+          ...state.catalogue!.networks[0],
+          members: [{ designId: "line", name: "Line", included: true, group: "Source" }],
+        },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  fireEvent.drop(screen.getByText("Ungrouped").closest("details")!, {
+    dataTransfer: { getData: () => memberKey({ designId: "line" }) },
+  });
+  expect(useNetworkStore.getState().edit).not.toHaveBeenCalled();
+});

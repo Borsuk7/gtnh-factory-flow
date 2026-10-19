@@ -3,7 +3,7 @@
 import "./networks.css";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, RefreshCw, X } from "lucide-react";
+import { GripVertical, Plus, RefreshCw, X } from "lucide-react";
 import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
@@ -237,8 +237,22 @@ export function NetworkPage() {
           </div>
           <PlanGroups
             members={network.members}
+            onMove={(key, group) =>
+              patch({
+                members: network.members.map((member) =>
+                  memberKey(member) === key ? { ...member, group } : member,
+                ),
+              })
+            }
             renderMember={(member) => (
               <div className="netview-member" key={memberKey(member)}>
+                <span
+                  className="netview-drag-handle"
+                  title="Drag to another plan group"
+                  aria-hidden="true"
+                >
+                  <GripVertical size={14} />
+                </span>
                 <label title="Include in totals">
                   <input
                     type="checkbox"
@@ -663,25 +677,82 @@ function PortPicker({
 function PlanGroups({
   members,
   renderMember,
+  onMove,
 }: {
   members: NetworkMember[];
   renderMember: (member: NetworkMember) => React.ReactNode;
+  onMove: (key: string, group: string | undefined) => void;
 }) {
+  const [dragged, setDragged] = useState<string>();
+  const dragKey = useRef<string>(undefined);
+  const [over, setOver] = useState<string>();
+  const finish = () => {
+    dragKey.current = undefined;
+    setDragged(undefined);
+    setOver(undefined);
+  };
+  const render = (member: NetworkMember) => (
+    <div
+      key={memberKey(member)}
+      className="netview-draggable-plan"
+      role="group"
+      aria-label={`Draggable plan ${member.name}`}
+      draggable
+      data-dragging={dragged === memberKey(member) ? "" : undefined}
+      onDragStart={(event) => {
+        const key = memberKey(member);
+        event.dataTransfer.setData("application/x-gtnh-network-plan", key);
+        event.dataTransfer.effectAllowed = "move";
+        dragKey.current = key;
+        setDragged(key);
+      }}
+      onDragEnd={finish}
+    >
+      {renderMember(member)}
+    </div>
+  );
   const groups = [
     ...new Set(members.flatMap((member) => (member.group ? [member.group] : []))),
   ].sort((a, b) => a.localeCompare(b));
-  if (!groups.length) return <>{members.map(renderMember)}</>;
-  const ungrouped = members.filter((member) => !member.group);
+  if (!groups.length) return <>{members.map(render)}</>;
   return (
     <>
-      {[...groups, ...(ungrouped.length ? [undefined] : [])].map((group) => {
+      {[...groups, undefined].map((group) => {
         const plans = members.filter((member) => member.group === group);
         return (
-          <details className="netview-plan-group" key={group ?? ""} open>
+          <details
+            className="netview-plan-group"
+            key={group ?? ""}
+            open
+            data-drop-target={over === (group ?? "") ? "" : undefined}
+            onDragEnter={(event) => {
+              if (!dragKey.current) return;
+              event.preventDefault();
+              setOver(group ?? "");
+            }}
+            onDragOver={(event) => {
+              if (!dragKey.current) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setOver(group ?? "");
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                setOver(undefined);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const key = event.dataTransfer.getData("application/x-gtnh-network-plan");
+              const member = members.find((entry) => memberKey(entry) === key);
+              if (key === dragKey.current && member && member.group !== group) onMove(key, group);
+              finish();
+            }}
+          >
             <summary>
               {group ?? "Ungrouped"} <span>{plans.length}</span>
             </summary>
-            {plans.map(renderMember)}
+            {plans.map(render)}
+            {!plans.length ? <p className="netview-drop-hint">Drop a plan here</p> : null}
           </details>
         );
       })}
