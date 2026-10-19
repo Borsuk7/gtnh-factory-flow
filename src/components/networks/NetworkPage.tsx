@@ -840,7 +840,6 @@ function PortPicker({
         <NetworkRateControl />
         <button onClick={() => onChange(undefined)}>Use all ports</button>
         <button onClick={() => onChange([])}>Clear all</button>
-        <button onClick={onDone}>Done</button>
       </div>
       <p>
         Choose which machine ports count toward this network. Only flows entering or leaving the

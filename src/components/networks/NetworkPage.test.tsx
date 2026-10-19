@@ -156,7 +156,8 @@ it("opens I/O as a modal, traps focus and closes with Escape", () => {
   const dialog = screen.getByRole("dialog", { name: "Inputs and outputs · Line" });
   expect(dialog.getAttribute("aria-modal")).toBe("true");
   expect(dialog.contains(document.activeElement)).toBe(true);
-  const close = screen.getByRole("button", { name: "Done" });
+  const close = screen.getByRole("button", { name: "Close" });
+  expect(within(dialog).queryByRole("button", { name: "Done" })).toBeNull();
   // Last checkbox wraps Tab back to the first control.
   const checkbox = screen.getByRole("checkbox", { name: /Output · Oxygen/ });
   checkbox.focus();
@@ -238,7 +239,7 @@ it("organizes plans into collapsible groups without changing totals", () => {
   const group = screen.getByRole("combobox", { name: "Plan group" });
   fireEvent.change(group, { target: { value: "Oxygen lines" } });
   fireEvent.blur(group);
-  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.getByText("Oxygen lines").closest("details")).toBeTruthy();
   expect(useNetworkStore.getState().catalogue!.networks[0].members[0].group).toBe("Oxygen lines");
   expect(screen.getAllByText("10 L/s").length).toBeGreaterThan(0);
