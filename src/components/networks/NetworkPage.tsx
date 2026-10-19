@@ -3,7 +3,23 @@
 import "./networks.css";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FolderPlus, GripVertical, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  ArrowRightLeft,
+  FolderPlus,
+  GripVertical,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  ChromeMenu,
+  chromeAnchorOf,
+  MENU_ANCHOR_ATTR,
+  type ChromeAnchor,
+  type MenuEntry,
+} from "@/components/chrome/ChromeMenu";
 import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
@@ -324,26 +340,34 @@ export function NetworkPage() {
                 >
                   {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
                 </button>
-                <div className="netview-plan-actions">
-                  <button
-                    aria-label={`Inputs and outputs for ${member.name}`}
-                    onClick={() => setEditingPorts(memberKey(member))}
-                  >
-                    I/O
-                  </button>
-                  <button
-                    aria-label={`Remove ${member.name}`}
-                    onClick={() =>
-                      patch({
-                        members: network.members.filter(
-                          (entry) => memberKey(entry) !== memberKey(member),
-                        ),
-                      })
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
+                <OverflowMenu
+                  label={`Options for ${member.name}`}
+                  entries={[
+                    {
+                      label: "Inputs and outputs",
+                      onSelect: () => setEditingPorts(memberKey(member)),
+                    },
+                    {
+                      label: "Remove from network",
+                      detail: "plan is kept",
+                      tone: "red",
+                      onSelect: () =>
+                        patch({
+                          members: network.members.filter(
+                            (entry) => memberKey(entry) !== memberKey(member),
+                          ),
+                        }),
+                    },
+                  ]}
+                />
+                <button
+                  className="netview-plan-io"
+                  aria-label={`Inputs and outputs for ${member.name}`}
+                  title="Inputs and outputs"
+                  onClick={() => setEditingPorts(memberKey(member))}
+                >
+                  <ArrowRightLeft size={14} aria-hidden="true" />
+                </button>
               </div>
             )}
           />
@@ -857,37 +881,25 @@ function PlanGroups({
                 <span className="netview-group-name">{group ?? "Ungrouped"}</span>{" "}
                 <span className="netview-group-count">{plans.length}</span>
                 {group ? (
-                  <>
-                    <button
-                      className="netview-group-remove"
-                      aria-label={`Rename group ${group}`}
-                      title="Rename group"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onRenameGroup(group);
-                      }}
-                    >
-                      <Pencil size={12} aria-hidden="true" />
-                    </button>
-                    <button
-                      className="netview-group-remove"
-                      aria-label={`Delete group ${group}`}
-                      title="Delete group. Plans become ungrouped."
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onRemoveGroup(group);
-                      }}
-                    >
-                      <X size={12} aria-hidden="true" />
-                    </button>
-                  </>
+                  <OverflowMenu
+                    label={`Options for group ${group}`}
+                    entries={[
+                      { label: "Rename group", onSelect: () => onRenameGroup(group) },
+                      {
+                        label: "Delete group",
+                        detail: "plans become Ungrouped",
+                        tone: "red",
+                        onSelect: () => onRemoveGroup(group),
+                      },
+                    ]}
+                  />
                 ) : null}
               </span>
             </summary>
             {plans.map(render)}
-            {!plans.length ? <p className="netview-drop-hint">Drop a plan here</p> : null}
+            {!plans.length && (group || dragged) ? (
+              <p className="netview-drop-hint">Drop a plan here</p>
+            ) : null}
           </details>
         );
       })}
@@ -910,6 +922,39 @@ function NetworkRateControl() {
       <option value="minute">/min</option>
       <option value="hour">/hr</option>
     </select>
+  );
+}
+
+function OverflowMenu({ label, entries }: { label: string; entries: MenuEntry[] }) {
+  const [anchor, setAnchor] = useState<ChromeAnchor>();
+  return (
+    <>
+      <button
+        className="netview-more"
+        aria-label={label}
+        title={label}
+        aria-haspopup="menu"
+        aria-expanded={!!anchor}
+        {...{ [MENU_ANCHOR_ATTR]: anchor ? "" : undefined }}
+        draggable={false}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setAnchor(anchor ? undefined : chromeAnchorOf(event.currentTarget));
+        }}
+      >
+        <MoreHorizontal size={16} aria-hidden="true" />
+      </button>
+      {anchor ? (
+        <ChromeMenu
+          label={label}
+          anchor={anchor}
+          align="right"
+          entries={entries}
+          onClose={() => setAnchor(undefined)}
+        />
+      ) : null}
+    </>
   );
 }
 

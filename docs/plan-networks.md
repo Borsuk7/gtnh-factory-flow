@@ -25,8 +25,10 @@ rules, and travel with a plan on a network move. Use the plus beside Plans to ad
 Networks to create a subnetwork of the open network. The refresh icon retries figures and sync.
 Drag a plan row onto a group to move it, even when the group is collapsed. Ungrouped remains a drop target when
 empty. The I/O group field is also available for keyboard and touch use. Group moves keep inclusion and port choices.
-The folder-plus beside the Plans heading creates an empty named drop target. Empty groups persist; their pencil
-renames the group and all its members, and their cross returns its plans to Ungrouped. Add plans opens a modal
+The folder-plus beside the Plans heading creates an empty named drop target. Empty groups persist; their options
+menu renames the group and all its members, or deletes the group and returns its plans to Ungrouped. Plans use
+compact single-line rows, with full names on hover. Their options menu contains I/O and Remove from network;
+an I/O shortcut appears on hover and keyboard focus, or stays visible on touch screens. Add plans opens a modal
 with search and existing membership shown.
 Right-click a network tab for Rename, New subnetwork, Close tab or Delete network. Shift+F10 opens the same menu.
 The header's trash icon also asks for confirmation, explaining that plans stay and subnetworks move to the deleted

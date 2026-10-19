@@ -183,7 +183,8 @@ it("creates an empty group from a visible control and removes it without removin
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(useNetworkStore.getState().catalogue!.networks[0].groups).toEqual(["Chemistry"]);
   expect(screen.getByText("Chemistry").closest("details")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Delete group Chemistry" }));
+  fireEvent.click(screen.getByRole("button", { name: "Options for group Chemistry" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: /Delete group/ }));
   expect(useNetworkStore.getState().catalogue!.networks[0].groups).toEqual([]);
   expect(useNetworkStore.getState().catalogue!.networks[0].members).toHaveLength(1);
 });
@@ -219,7 +220,8 @@ it("renames a group and its members without changing I/O choices or totals", () 
     },
   }));
   render(<NetworkPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Rename group Chemistry" }));
+  fireEvent.click(screen.getByRole("button", { name: "Options for group Chemistry" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename group" }));
   const dialog = screen.getByRole("dialog", { name: "Rename group" });
   fireEvent.change(within(dialog).getByRole("textbox", { name: "Group name" }), {
     target: { value: "Oxygen lines" },
@@ -260,4 +262,16 @@ it("closes the subnet deletion dialog when the parent opens", async () => {
   );
   await waitFor(() => expect(useNetworkStore.getState().activeId).toBe("parent"));
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("offers I/O and removal in a plan menu, keeping the saved plan when removed", () => {
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Options for Line" }));
+  expect(screen.getByRole("menu", { name: "Options for Line" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Inputs and outputs" }));
+  expect(screen.queryByRole("menu")).toBeNull();
+  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.click(screen.getByRole("button", { name: "Options for Line" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: /Remove from network/ }));
+  expect(useNetworkStore.getState().catalogue!.networks[0].members).toEqual([]);
 });
