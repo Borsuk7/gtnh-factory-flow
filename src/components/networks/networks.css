@@ -482,10 +482,54 @@
   max-height: 420px;
   overflow: auto;
 }
-.netview-port-list fieldset {
+.netview-port-machine {
   min-width: 0;
   border: 1px solid var(--mc-ring);
+}
+.netview-port-machine > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
   padding: 8px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.netview-port-machine > summary::-webkit-details-marker {
+  display: none;
+}
+.netview-port-machine-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.netview-port-chevron {
+  flex-shrink: 0;
+  color: var(--mc-muted);
+}
+.netview-port-machine[open] > summary .netview-port-chevron {
+  transform: rotate(90deg);
+}
+.netview-port-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--mc-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.netview-machine-ports {
+  border-top: 1px solid var(--mc-ring);
+  padding: 4px 12px 8px;
+}
+@media (max-width: 380px) {
+  .netview-port-count-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .netview-port {
   display: flex;

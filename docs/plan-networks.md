@@ -19,6 +19,8 @@ entries because their net rates cannot be assigned to a single machine port. Pow
 These choices only filter the ledger; they never change recipes, rates, or the solve.
 
 The I/O picker is a modal with the same time-unit dial as the network header: per tick, second, minute or hour.
+Machine headings show selected/available port counts and collapse their port lists. The first machine starts open.
+Counts follow explicit selections, Clear all and Use all ports; collapsing never changes membership or totals.
 Both follow the plan's display setting and never recalculate the solve. Its Plan group field assigns a plan to a
 named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
 rules, and travel with a plan on a network move. Use the plus beside Plans to add members and the plus beside

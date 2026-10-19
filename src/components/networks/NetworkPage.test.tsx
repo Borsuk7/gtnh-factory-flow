@@ -168,6 +168,55 @@ it("opens I/O as a modal, traps focus and closes with Escape", () => {
   expect(document.activeElement).toBe(trigger);
 });
 
+it("counts selected ports per machine and keeps collapsed sections and selections independent", () => {
+  const flow = mocks.flows.values().next().value!;
+  const port = flow.ports![0];
+  flow.ports = [
+    port,
+    { ...port, portKey: "in", side: "in", supply: 0, demand: 5 },
+    { ...port, key: "fluid:hydrogen", resourceId: "hydrogen", label: "Hydrogen" },
+    { ...port, portKey: "other", machine: "Other machine" },
+  ];
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Inputs and outputs for Line" }));
+  const modal = screen.getByRole("dialog");
+  const headings = modal.querySelectorAll<HTMLElement>(".netview-port-machine > summary");
+  const first = headings[0].parentElement! as HTMLDetailsElement;
+  const second = headings[1].parentElement! as HTMLDetailsElement;
+  expect(headings[0].textContent).toBe("Machine2/2 selected");
+  expect(headings[1].textContent).toBe("Other machine1/1 selected");
+  expect(first.open).toBe(true);
+  expect(second.open).toBe(false);
+  headings[1].focus();
+  fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+  expect(document.activeElement).toBe(within(modal).getByRole("button", { name: "Close" }));
+  fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(headings[1]);
+  const originalMembers = useNetworkStore.getState().catalogue!.networks[0].members;
+  fireEvent.click(headings[0]);
+  expect(first.open).toBe(false);
+  expect(useNetworkStore.getState().catalogue!.networks[0].members).toBe(originalMembers);
+  fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+  expect(headings[0].textContent).toBe("Machine0/2 selected");
+  expect(headings[1].textContent).toBe("Other machine0/1 selected");
+  expect(first.open).toBe(false);
+  fireEvent.click(headings[0]);
+  fireEvent.click(within(first).getByRole("checkbox", { name: /Output · Oxygen/ }));
+  expect(headings[0].textContent).toBe("Machine1/2 selected");
+  // Both resource rows describing the same output follow its single selection.
+  expect(
+    (within(first).getByRole("checkbox", { name: /Output · Hydrogen/ }) as HTMLInputElement)
+      .checked,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Use all ports" }));
+  expect(headings[0].textContent).toBe("Machine2/2 selected");
+  expect(headings[1].textContent).toBe("Other machine1/1 selected");
+  expect(second.open).toBe(false);
+  expect(
+    useNetworkStore.getState().catalogue!.networks[0].members[0].portSelection,
+  ).toBeUndefined();
+});
+
 it("changes rate units without changing the solve and uses compact section actions", () => {
   const result = useFactoryStore.getState().lastResult;
   render(<NetworkPage />);

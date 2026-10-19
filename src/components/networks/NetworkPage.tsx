@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import {
   ArrowRightLeft,
+  ChevronRight,
   FolderPlus,
   GripVertical,
   MoreHorizontal,
@@ -847,30 +848,45 @@ function PortPicker({
       </p>
       {flow?.error || !flow ? <p>{flow?.error ?? "Calculating ports…"}</p> : null}
       <div className="netview-port-list">
-        {machines.map((machine) => (
-          <fieldset key={machine}>
-            <legend>{machine}</legend>
-            {ports
-              .filter((port) => port.machine === machine)
-              .map((port) => (
-                <label className="netview-port" key={JSON.stringify([port.portKey, port.key])}>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(port.portKey)}
-                    onChange={(event) => toggle(port.portKey, event.target.checked)}
-                  />
-                  <NetworkResourceIcon flow={port} />
-                  <span>
-                    {port.side === "in" ? "Input" : "Output"} · {port.label}
-                  </span>
-                  <span>
-                    {formatCompact((port.supply + port.demand) * rateMultiplierForKind(port.kind))}
-                    {rateSuffixForKind(port.kind)}
-                  </span>
-                </label>
-              ))}
-          </fieldset>
-        ))}
+        {machines.map((machine, index) => {
+          const machinePorts = ports.filter((port) => port.machine === machine);
+          // Several resource rows may describe one port; selection acts on the port key.
+          const machineKeys = [...new Set(machinePorts.map((port) => port.portKey))];
+          const selectedCount = machineKeys.filter((key) => selected.has(key)).length;
+          return (
+            <details className="netview-port-machine" key={machine} open={index === 0}>
+              <summary>
+                <ChevronRight className="netview-port-chevron" size={16} aria-hidden="true" />
+                <span className="netview-port-machine-name">{machine}</span>
+                <span className="netview-port-count" aria-live="polite">
+                  {selectedCount}/{machineKeys.length}
+                  <span className="netview-port-count-word"> selected</span>
+                </span>
+              </summary>
+              <div className="netview-machine-ports">
+                {machinePorts.map((port) => (
+                  <label className="netview-port" key={JSON.stringify([port.portKey, port.key])}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(port.portKey)}
+                      onChange={(event) => toggle(port.portKey, event.target.checked)}
+                    />
+                    <NetworkResourceIcon flow={port} />
+                    <span>
+                      {port.side === "in" ? "Input" : "Output"} · {port.label}
+                    </span>
+                    <span>
+                      {formatCompact(
+                        (port.supply + port.demand) * rateMultiplierForKind(port.kind),
+                      )}
+                      {rateSuffixForKind(port.kind)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </details>
+          );
+        })}
         {(member.portSelection ?? [])
           .filter((key) => !keys.includes(key))
           .map((key) => (
