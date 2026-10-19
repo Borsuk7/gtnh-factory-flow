@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ResourceKind } from "@/lib/model/types";
+import type { ResourceAmount, ResourceKind } from "@/lib/model/types";
 
 export const sharingSchema = z.enum(["internal", "import", "export", "both"]);
 const id = z.string().min(1).max(160);
@@ -57,7 +57,10 @@ export const catalogueSchema = z
     }
   });
 
-export interface MaterialFlow {
+export interface MaterialFlow extends Pick<
+  ResourceAmount,
+  "iconPath" | "iconAtlas" | "dominantColor"
+> {
   key: string;
   kind: ResourceKind;
   resourceId: string;
@@ -140,6 +143,11 @@ export function aggregateNetworks(
         };
         rows.set(flow.key, row);
       }
+      if (!row.iconPath && !row.iconAtlas) {
+        row.iconPath = flow.iconPath;
+        row.iconAtlas = flow.iconAtlas;
+      }
+      row.dominantColor ??= flow.dominantColor;
       row.supply += flow.supply;
       row.demand += flow.demand;
       row.contributions.push({ ...contribution, supply: flow.supply, demand: flow.demand });

@@ -114,6 +114,14 @@
 .netview .netview-link[aria-current] {
   color: var(--mc-cyan);
 }
+.netview-resource {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.netview-resource-icon {
+  flex-shrink: 0;
+}
 .netview-member {
   display: flex;
   align-items: center;

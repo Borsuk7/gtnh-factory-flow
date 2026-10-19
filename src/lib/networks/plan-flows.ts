@@ -10,6 +10,27 @@ import type { MaterialFlow, NetworkPortFlow, PlanFlows } from "./model";
 export function planFlows(project: FactoryProject, result: ThroughputResult): PlanFlows {
   const machines = buildMachineList(project, result);
   const failure = result.plan?.failure;
+  const artwork = new Map<string, Pick<MaterialFlow, "iconPath" | "iconAtlas" | "dominantColor">>();
+  for (const recipe of project.recipes) {
+    for (const resource of [...recipe.inputs, ...recipe.outputs]) {
+      const key = `${resource.kind}:${resource.id}`;
+      if (resource.iconPath || resource.iconAtlas || resource.dominantColor)
+        artwork.set(key, {
+          ...artwork.get(key),
+          iconPath: resource.iconPath,
+          iconAtlas: resource.iconAtlas,
+          dominantColor: resource.dominantColor,
+        });
+    }
+  }
+  for (const drawer of project.storages ?? []) {
+    if (drawer.iconPath || drawer.iconAtlas || drawer.dominantColor)
+      artwork.set(`${drawer.kind}:${drawer.resourceId}`, {
+        iconPath: drawer.iconPath,
+        iconAtlas: drawer.iconAtlas,
+        dominantColor: drawer.dominantColor,
+      });
+  }
   const materials = new Map<string, MaterialFlow>(
     Object.values(result.resources)
       .filter((row) => row.kind !== "power")
@@ -155,8 +176,10 @@ export function planFlows(project: FactoryProject, result: ThroughputResult): Pl
     );
   }
   return {
-    materials: [...materials.values()].filter((row) => row.supply > 0 || row.demand > 0),
-    ports: [...choices.values()],
+    materials: [...materials.values()]
+      .filter((row) => row.supply > 0 || row.demand > 0)
+      .map((row) => ({ ...row, ...artwork.get(row.key) })),
+    ports: [...choices.values()].map((row) => ({ ...row, ...artwork.get(row.key) })),
     power: {
       used: machines.reduce((sum, machine) => sum + (machine.avgEuT ?? 0), 0),
       made: machines.reduce((sum, machine) => sum + (machine.avgMadeEuT ?? 0), 0),

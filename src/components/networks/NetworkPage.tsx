@@ -24,6 +24,9 @@ import {
 } from "@/lib/networks/model";
 import { localDesignId, useNetworkCalculations } from "@/lib/networks/calculation";
 import { syncNetworks } from "@/lib/networks/sync";
+import { openLibrary } from "@/lib/library/library-tab";
+import { ResourceIcon } from "@/components/nei/ResourceIcon";
+import type { MaterialFlow } from "@/lib/networks/model";
 
 export function NetworksLibrary() {
   const catalogue = useNetworkStore((state) => state.catalogue);
@@ -189,6 +192,14 @@ export function NetworkPage() {
           />
         </div>
         <div className="netview-actions">
+          <button
+            onClick={() => {
+              useNetworkStore.getState().leave();
+              openLibrary({ kind: "networks" });
+            }}
+          >
+            Back to networks
+          </button>
           <button
             onClick={() => {
               setRetry((value) => value + 1);
@@ -430,7 +441,11 @@ export function NetworkPage() {
                                 })
                               }
                             >
-                              {expand ? "▾" : "▸"} {row.label}
+                              <span className="netview-resource">
+                                <span aria-hidden>{expand ? "▾" : "▸"}</span>
+                                <NetworkResourceIcon flow={row} />
+                                <span>{row.label}</span>
+                              </span>
                             </button>
                           </th>
                           <td>{rate(row.supply)}</td>
@@ -561,6 +576,7 @@ function PortPicker({
                     checked={selected.has(port.portKey)}
                     onChange={(event) => toggle(port.portKey, event.target.checked)}
                   />
+                  <NetworkResourceIcon flow={port} />
                   <span>
                     {port.side === "in" ? "Input" : "Output"} · {port.label}
                   </span>
@@ -582,6 +598,30 @@ function PortPicker({
           ))}
       </div>
     </section>
+  );
+}
+
+function NetworkResourceIcon({ flow }: { flow: MaterialFlow }) {
+  return (
+    <span aria-hidden="true" className="netview-resource-icon">
+      <ResourceIcon
+        resource={{
+          kind: flow.kind,
+          id: flow.resourceId,
+          displayName: flow.label,
+          amount: 1,
+          iconPath: flow.iconPath,
+          iconAtlas: flow.iconAtlas,
+          dominantColor: flow.dominantColor,
+        }}
+        bare
+        showAmount={false}
+        tooltip={false}
+        showConsumedState={false}
+        className="!h-5 !w-5"
+        iconPixelSize={20}
+      />
+    </span>
   );
 }
 

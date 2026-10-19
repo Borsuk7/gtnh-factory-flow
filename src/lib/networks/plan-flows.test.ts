@@ -5,6 +5,17 @@ import { planFlows } from "./plan-flows";
 import { selectedMaterials } from "./model";
 
 describe("solved plan boundaries", () => {
+  it("keeps recipe artwork with closed-plan flows and machine ports", () => {
+    const make = recipe("make", [], [["product", 1]]);
+    make.outputs[0].iconPath = "/icons/product.png";
+    const input = project({
+      recipes: [make],
+      nodes: [node("a", "make", { solvePin: 1, solvePinExact: true })],
+    });
+    const result = planFlows(input, calculateThroughput(input));
+    expect(result.materials[0].iconPath).toBe("/icons/product.png");
+    expect(result.ports![0].iconPath).toBe("/icons/product.png");
+  });
   it("keeps the same imports and exports when boundary drawers are removed", () => {
     const withDrawers = project({
       recipes: [recipe("make", [["ore", 2]], [["product", 1]])],

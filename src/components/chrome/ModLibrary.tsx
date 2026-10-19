@@ -27,6 +27,7 @@ import { isLiveConfigured } from "@/lib/live/live-config";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
 import { ChecklistIcon } from "./pixel-icons";
 import { NetworksLibrary } from "@/components/networks/NetworkPage";
+import { useNetworkStore } from "@/store/network-store";
 
 /** Plans shared with you come with live plans: none of it shows without NEXT_PUBLIC_LIVE_URL. */
 const LIVE = isLiveConfigured();
@@ -42,6 +43,7 @@ export function ModLibrary() {
   // Copies of plans shared with us are listed under Shared with me, never among ours.
   const designs = useMemo(() => everyDesign.filter((design) => !design.cloud), [everyDesign]);
   const sharedCount = useCloudLibraryStore((state) => state.shared?.length);
+  const networkCount = useNetworkStore((state) => state.catalogue?.networks.length);
   const filters = useSetupFilters("top");
   const [publicTotal, setPublicTotal] = useState<number>();
   const [mineQuery, setMineQuery] = useState("");
@@ -96,7 +98,7 @@ export function ModLibrary() {
     <div className="ml mx" data-mod-library="">
       <div className="ml-head">
         <ShelfTab label="MY PLANS" count={String(designs.length)} on={shelf === "mine"} onClick={() => setLibraryView({ kind: "all" })} />
-        <ShelfTab label="NETWORKS" count="" on={shelf === "networks"} onClick={() => setLibraryView({ kind: "networks" })} />
+        <ShelfTab label="NETWORKS" count={networkCount === undefined ? "..." : String(networkCount)} on={shelf === "networks"} onClick={() => setLibraryView({ kind: "networks" })} />
         {showShared ? (
           <ShelfTab
             label="SHARED WITH ME"
