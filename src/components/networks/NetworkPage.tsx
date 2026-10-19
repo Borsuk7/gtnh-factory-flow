@@ -703,11 +703,6 @@ export function NetworkPage() {
               </button>
             ))}
           </div>
-          {network.parentId ? (
-            <p className="netview-hint">
-              From parent is the supply needed. A parent shortage is not allocated between plans.
-            </p>
-          ) : null}
           <div className="netview-table-scroll">
             <table>
               <thead>
@@ -727,7 +722,7 @@ export function NetworkPage() {
                   <th>Shortage</th>
                   {network.parentId ? (
                     <>
-                      <th title="Requested import from the parent, not a reserved allocation.">
+                      <th title="Supply needed from the parent. A parent shortage is not allocated between plans.">
                         From parent
                       </th>
                       <th title="Surplus offered to the parent. Other plans may consume it there.">
