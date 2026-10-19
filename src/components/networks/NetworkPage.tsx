@@ -3,7 +3,8 @@
 import "./networks.css";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GripVertical, Plus, RefreshCw, X } from "lucide-react";
+import { FolderPlus, GripVertical, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { openLibrary } from "@/lib/library/library-tab";
 import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
@@ -123,6 +124,8 @@ export function NetworkPage() {
   const [adding, setAdding] = useState(false);
   const [planQuery, setPlanQuery] = useState("");
   const [armed, setArmed] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
   const [editingPorts, setEditingPorts] = useState<string>();
   // Display dials repaint this view without invalidating its calculations.
   useRateDisplayUnits();
@@ -135,6 +138,12 @@ export function NetworkPage() {
   const network = networks.find((entry) => entry.id === activeId);
   const balance = activeId ? balances.get(activeId) : undefined;
   if (!network || !balance) return <NetworksLibrary />;
+  const groupNames = [
+    ...new Set([
+      ...(network.groups ?? []),
+      ...network.members.flatMap((member) => (member.group ? [member.group] : [])),
+    ]),
+  ].sort((a, b) => a.localeCompare(b));
   const patch = (values: Partial<PlanNetwork>) =>
     void edit((entries) =>
       entries.map((entry) => (entry.id === network.id ? { ...entry, ...values } : entry)),
@@ -196,6 +205,9 @@ export function NetworkPage() {
         </div>
         <div className="netview-actions">
           <NetworkRateControl />
+          <button className="netview-danger netview-actions" onClick={() => setArmed(true)}>
+            <Trash2 size={16} aria-hidden="true" /> Delete network
+          </button>
           <button
             className="netview-icon-button"
             aria-label="Refresh figures"
@@ -235,10 +247,29 @@ export function NetworkPage() {
               <Plus size={18} aria-hidden="true" />
             </button>
           </div>
+          <button
+            className="netview-actions"
+            onClick={() => {
+              setGroupName("");
+              setCreatingGroup(true);
+            }}
+          >
+            <FolderPlus size={16} aria-hidden="true" /> New group
+          </button>
           <PlanGroups
             members={network.members}
+            groups={groupNames}
+            onRemoveGroup={(group) =>
+              patch({
+                groups: groupNames.filter((name) => name !== group),
+                members: network.members.map((member) =>
+                  member.group === group ? { ...member, group: undefined } : member,
+                ),
+              })
+            }
             onMove={(key, group) =>
               patch({
+                groups: groupNames,
                 members: network.members.map((member) =>
                   memberKey(member) === key ? { ...member, group } : member,
                 ),
@@ -321,17 +352,6 @@ export function NetworkPage() {
             />
             Include in parent totals
           </label>
-          {armed ? (
-            <div>
-              <p>Delete this network? Plans are kept. Subnetworks move to its parent.</p>
-              <button className="netview-danger" onClick={() => void remove(network.id)}>
-                Delete network
-              </button>{" "}
-              <button onClick={() => setArmed(false)}>Cancel</button>
-            </div>
-          ) : (
-            <button onClick={() => setArmed(true)}>Delete network…</button>
-          )}
         </aside>
         <main className="netview-ledger">
           {network.members
@@ -341,13 +361,10 @@ export function NetworkPage() {
                 key={editingPorts}
                 member={member}
                 flow={flows.get(memberKey(member))}
-                groups={[
-                  ...new Set(
-                    network.members.flatMap((entry) => (entry.group ? [entry.group] : [])),
-                  ),
-                ]}
+                groups={groupNames}
                 onGroupChange={(group) =>
                   patch({
+                    groups: [...new Set([...groupNames, ...(group ? [group] : [])])],
                     members: network.members.map((entry) =>
                       memberKey(entry) === memberKey(member) ? { ...entry, group } : entry,
                     ),
@@ -364,7 +381,7 @@ export function NetworkPage() {
               />
             ))}
           {adding ? (
-            <section className="netview-picker" aria-label="Add plans">
+            <NetworkModal title="Add plans" initialFocus="input" onClose={() => setAdding(false)}>
               <div className="netview-actions">
                 <input
                   aria-label="Find plans to add"
@@ -401,7 +418,58 @@ export function NetworkPage() {
                   })}
               </div>
               {!choices.length ? <p>Create a plan first, then add it here.</p> : null}
-            </section>
+            </NetworkModal>
+          ) : null}
+          {creatingGroup ? (
+            <NetworkModal
+              title="New group"
+              initialFocus="input"
+              onClose={() => setCreatingGroup(false)}
+            >
+              <form
+                className="netview-actions"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const name = groupName.trim();
+                  if (!name) return;
+                  patch({ groups: [...new Set([...groupNames, name])] });
+                  setCreatingGroup(false);
+                }}
+              >
+                <input
+                  aria-label="Group name"
+                  placeholder="Group name"
+                  maxLength={80}
+                  value={groupName}
+                  onChange={(event) => setGroupName(event.target.value)}
+                />
+                <button disabled={!groupName.trim()}>Create group</button>
+              </form>
+              <p>Drag plans into the group, or choose it in a plan’s I/O settings.</p>
+            </NetworkModal>
+          ) : null}
+          {armed ? (
+            <NetworkModal title={`Delete ${network.name}?`} onClose={() => setArmed(false)}>
+              <p>Plans are kept. Subnetworks move to this network’s parent.</p>
+              <div className="netview-actions">
+                <button onClick={() => setArmed(false)}>Cancel</button>
+                <button
+                  className="netview-danger"
+                  onClick={() =>
+                    void remove(network.id).then(() => {
+                      if (
+                        !useNetworkStore
+                          .getState()
+                          .catalogue?.networks.some((entry) => entry.id === network.id)
+                      )
+                        openLibrary({ kind: "networks" });
+                    })
+                  }
+                >
+                  Delete network
+                </button>
+              </div>
+            </NetworkModal>
           ) : null}
           {excludedAncestor ? (
             <p className="netview-warning">
@@ -676,12 +744,16 @@ function PortPicker({
 
 function PlanGroups({
   members,
+  groups,
   renderMember,
   onMove,
+  onRemoveGroup,
 }: {
   members: NetworkMember[];
+  groups: string[];
   renderMember: (member: NetworkMember) => React.ReactNode;
   onMove: (key: string, group: string | undefined) => void;
+  onRemoveGroup: (group: string) => void;
 }) {
   const [dragged, setDragged] = useState<string>();
   const dragKey = useRef<string>(undefined);
@@ -711,9 +783,6 @@ function PlanGroups({
       {renderMember(member)}
     </div>
   );
-  const groups = [
-    ...new Set(members.flatMap((member) => (member.group ? [member.group] : []))),
-  ].sort((a, b) => a.localeCompare(b));
   if (!groups.length) return <>{members.map(render)}</>;
   return (
     <>
@@ -749,7 +818,24 @@ function PlanGroups({
             }}
           >
             <summary>
-              {group ?? "Ungrouped"} <span>{plans.length}</span>
+              <span className="netview-group-caption">
+                <span className="netview-group-name">{group ?? "Ungrouped"}</span>{" "}
+                <span className="netview-group-count">{plans.length}</span>
+                {group ? (
+                  <button
+                    className="netview-group-remove"
+                    aria-label={`Delete group ${group}`}
+                    title="Delete group. Plans become ungrouped."
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onRemoveGroup(group);
+                    }}
+                  >
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </span>
             </summary>
             {plans.map(render)}
             {!plans.length ? <p className="netview-drop-hint">Drop a plan here</p> : null}
@@ -780,15 +866,17 @@ function NetworkRateControl() {
 
 function NetworkModal({
   title,
+  initialFocus,
   onClose,
   children,
 }: {
   title: string;
+  initialFocus?: string;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  useDialogA11y(ref, { onClose });
+  useDialogA11y(ref, { onClose, initialFocus });
   return createPortal(
     <div
       className="netview-modal-backdrop"

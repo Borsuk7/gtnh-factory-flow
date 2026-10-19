@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useNetworkStore } from "@/store/network-store";
 import { useFactoryStore } from "@/store/factory-store";
@@ -168,4 +168,39 @@ it("ignores external drops", () => {
     dataTransfer: { getData: () => memberKey({ designId: "line" }) },
   });
   expect(useNetworkStore.getState().edit).not.toHaveBeenCalled();
+});
+
+it("creates an empty group from a visible control and removes it without removing plans", () => {
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "New group" }));
+  const dialog = screen.getByRole("dialog", { name: "New group" });
+  fireEvent.change(within(dialog).getByRole("textbox", { name: "Group name" }), {
+    target: { value: "Chemistry" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Create group" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(useNetworkStore.getState().catalogue!.networks[0].groups).toEqual(["Chemistry"]);
+  expect(screen.getByText("Chemistry").closest("details")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Delete group Chemistry" }));
+  expect(useNetworkStore.getState().catalogue!.networks[0].groups).toEqual([]);
+  expect(useNetworkStore.getState().catalogue!.networks[0].members).toHaveLength(1);
+});
+
+it("opens Add plans as a dismissible modal", () => {
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Add plans" }));
+  expect(screen.getByRole("dialog", { name: "Add plans" }).getAttribute("aria-modal")).toBe("true");
+  expect(screen.getByRole("textbox", { name: "Find plans to add" })).toBeTruthy();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("makes network deletion visible and explains it before confirmation", () => {
+  render(<NetworkPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Delete network" }));
+  const dialog = screen.getByRole("dialog", { name: "Delete Main?" });
+  expect(within(dialog).getByText(/Plans are kept/)).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(useNetworkStore.getState().catalogue!.networks).toHaveLength(1);
 });

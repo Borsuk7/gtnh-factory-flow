@@ -115,7 +115,7 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
   },
   remove: async (id) => {
     await get().edit((networks) => removeNetwork(networks, id));
-    get().close(id);
+    if (!get().catalogue?.networks.some((network) => network.id === id)) get().close(id);
   },
   addMember: (id, member) =>
     get().edit((networks) => {

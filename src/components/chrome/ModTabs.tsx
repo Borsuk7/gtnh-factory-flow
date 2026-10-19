@@ -68,6 +68,7 @@ const TAB_GAP = 2;
 
 type TabMenu =
   | { kind: "plus"; anchor: ChromeAnchor }
+  | { kind: "network" | "network-delete"; anchor: ChromeAnchor; id: string; name: string }
   | { kind: "tab"; anchor: ChromeAnchor; id: string; name: string }
   | { kind: "delete"; anchor: ChromeAnchor; id: string; name: string };
 
@@ -368,6 +369,22 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
         { label: "Keep it", onSelect: () => undefined },
       ];
     }
+    if (m.kind === "network-delete") {
+      return [
+        { label: "Delete network", detail: "plans are kept", tone: "red", onSelect: () => void useNetworkStore.getState().remove(m.id).then(() => {
+          if (!useNetworkStore.getState().catalogue?.networks.some((network) => network.id === m.id)) openLibrary({ kind: "networks" });
+        }) },
+        { label: "Cancel", onSelect: () => undefined },
+      ];
+    }
+    if (m.kind === "network") {
+      return [
+        { label: "Rename", onSelect: () => setRenaming(`network:${m.id}`) },
+        { label: "New subnetwork", onSelect: () => void useNetworkStore.getState().create("New subnetwork", m.id) },
+        { label: "Close tab", detail: "kept in Networks", onSelect: () => useNetworkStore.getState().close(m.id) },
+        { label: "Delete network", tone: "red", onSelect: () => setMenu({ ...m, kind: "network-delete" }) },
+      ];
+    }
     const rows: MenuEntry[] = [
       { label: "Rename", onSelect: () => setRenaming(m.id) },
       { label: "Copy plan code", detail: "to paste or share", onSelect: () => void copyCode(m.id) },
@@ -442,8 +459,17 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
           {networkTabs.map((id) => {
             const network = networks?.find((entry) => entry.id === id);
             if (!network) return null;
-            return <div key={`network:${id}`} className="mt-tab" role="tab" aria-selected={networkId === id} data-active={networkId === id ? "" : undefined} data-network-tab={id} tabIndex={networkId === id ? 0 : -1} onKeyDown={activateOnKey} onClick={() => useNetworkStore.getState().open(id)}>
-              <span className="mt-name">▤ {network.name}</span><span className="mt-close" role="button" aria-label={`Close ${network.name}`} onClick={(event) => { event.stopPropagation(); useNetworkStore.getState().close(id); }}><CloseGlyph /></span>
+            const showMenu = (element: HTMLElement) => setMenu({ kind: "network", id, name: network.name, anchor: chromeAnchorOf(element) });
+            return <div key={`network:${id}`} className="mt-tab" role="tab" aria-selected={networkId === id} data-active={networkId === id ? "" : undefined} data-network-tab={id} tabIndex={tabStop === `network:${id}` ? 0 : -1}
+              onContextMenu={(event) => { event.preventDefault(); showMenu(event.currentTarget); }}
+              onKeyDown={(event) => { if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) { event.preventDefault(); showMenu(event.currentTarget); } else activateOnKey(event); }}
+              onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); useNetworkStore.getState().close(id); } }}
+              onDoubleClick={() => setRenaming(`network:${id}`)} onClick={() => useNetworkStore.getState().open(id)}>
+              {renaming === `network:${id}` ? <RenameField initial={network.name} label="Network name" onDone={(name) => {
+                setRenaming(undefined);
+                if (name) void useNetworkStore.getState().edit((entries) => entries.map((entry) => entry.id === id ? { ...entry, name } : entry));
+              }} /> : <span className="mt-name">▤ {network.name}</span>}
+              <span className="mt-close" role="button" aria-label={`Close ${network.name}`} onClick={(event) => { event.stopPropagation(); useNetworkStore.getState().close(id); }}><CloseGlyph /></span>
             </div>;
           })}
           {publicViews.map((view) => {
@@ -622,8 +648,8 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
         <ChromeMenu
           anchor={menu.anchor}
           entries={entries(menu)}
-          label={menu.kind === "plus" ? "New plan" : `Plan options for ${menu.name}`}
-          title={menu.kind === "delete" ? `Delete '${menu.name}' for good?` : undefined}
+          label={menu.kind === "plus" ? "New plan" : `${menu.kind === "network" || menu.kind === "network-delete" ? "Network" : "Plan"} options for ${menu.name}`}
+          title={menu.kind === "delete" ? `Delete '${menu.name}' for good?` : menu.kind === "network-delete" ? `Delete '${menu.name}'? Plans stay. Subnetworks move to its parent.` : undefined}
           minWidth={menu.kind === "plus" ? 190 : menu.kind === "delete" ? 150 : 170}
           onClose={closeMenu}
         />
@@ -645,7 +671,7 @@ function CloseGlyph() {
   );
 }
 
-function RenameField({ initial, onDone }: { initial: string; onDone: (name: string) => void }) {
+function RenameField({ initial, label = "Plan name", onDone }: { initial: string; label?: string; onDone: (name: string) => void }) {
   const [value, setValue] = useState(initial);
   const doneRef = useRef(false);
   const finish = (commit: boolean) => {
@@ -657,7 +683,8 @@ function RenameField({ initial, onDone }: { initial: string; onDone: (name: stri
     <input
       autoFocus
       className="mt-rename"
-      aria-label="Plan name"
+      aria-label={label}
+      maxLength={80}
       value={value}
       onFocus={(event) => event.currentTarget.select()}
       onChange={(event) => setValue(event.target.value)}

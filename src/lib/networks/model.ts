@@ -17,6 +17,7 @@ export const networkSchema = z.object({
   parentId: id.optional(),
   included: z.boolean(),
   members: z.array(memberSchema).max(500),
+  groups: z.array(z.string().trim().min(1).max(80)).max(200).optional(),
   sharing: z.record(z.string().max(512), sharingSchema),
 });
 export type Sharing = z.infer<typeof sharingSchema>;

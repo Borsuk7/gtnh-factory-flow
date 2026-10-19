@@ -25,6 +25,11 @@ rules, and travel with a plan on a network move. Use the plus beside Plans to ad
 Networks to create a subnetwork of the open network. The refresh icon retries figures and sync.
 Drag a plan row onto a group to move it, even when the group is collapsed. Ungrouped remains a drop target when
 empty. The I/O group field is also available for keyboard and touch use. Group moves keep inclusion and port choices.
+New group below the Plans heading creates an empty named drop target. Empty groups persist; their cross removes
+the group and returns its plans to Ungrouped. Add plans opens a modal with search and existing membership shown.
+Right-click a network tab for Rename, New subnetwork, Close tab or Delete network. Shift+F10 opens the same menu.
+The header's Delete network control also asks for confirmation, explaining that plans stay and subnetworks move
+to the deleted network's parent. A failed deletion save keeps the network open.
 
 At each network, supply minus demand gives free resources or a shortage. These are configured rates, not measured
 inventories or a promise that supplying lines can operate without their own missing inputs. Power generation and

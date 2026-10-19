@@ -50,7 +50,7 @@ describe("network persistence and sync", () => {
   });
   it("persists moves without allowing repeated plan references", async () => {
     const store = useNetworkStore.getState();
-    await store.edit(() => [network("a"), network("b")]);
+    await store.edit(() => [{ ...network("a"), groups: ["Empty group"] }, network("b")]);
     const member = { designId: "line", name: "Oxygen", included: true };
     await store.addMember("a", member);
     await store.edit((entries) =>
@@ -68,9 +68,20 @@ describe("network persistence and sync", () => {
       useNetworkStore.getState().catalogue!.networks.map((entry) => entry.members.length),
     ).toEqual([0, 1]);
     await store.load("owner");
+    expect(useNetworkStore.getState().catalogue!.networks[0].groups).toEqual(["Empty group"]);
     expect(useNetworkStore.getState().catalogue!.networks[1].members).toEqual([
       { ...member, group: "Oxygen lines", portSelection: ["machine-output"] },
     ]);
+  });
+  it("keeps a network open if its deletion cannot be saved", async () => {
+    const store = useNetworkStore.getState();
+    await store.edit(() => [network("a")]);
+    store.open("a");
+    disk.set("owner", { ...useNetworkStore.getState().catalogue!, token: "another-tab" });
+    await store.remove("a");
+    expect(useNetworkStore.getState().activeId).toBe("a");
+    expect(useNetworkStore.getState().catalogue!.networks).toHaveLength(1);
+    expect(useNetworkStore.getState().error).toBeTruthy();
   });
   it("pulls remote data without scheduling a push of the pull", async () => {
     const fetcher = vi

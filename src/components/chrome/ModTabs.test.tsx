@@ -6,6 +6,7 @@ import type { DesignSummary } from "@/lib/designs/design-library";
 import { readLibraryTabState, openLibrary } from "@/lib/library/library-tab";
 import { onSfx } from "@/lib/sound/sfx";
 import { useDesignStore } from "@/store/design-store";
+import { useNetworkStore } from "@/store/network-store";
 import { ModTabs } from "./ModTabs";
 
 vi.mock("@/lib/compact-view", () => ({ isCompactViewport: () => false }));
@@ -33,6 +34,7 @@ const actions = {
 };
 
 beforeEach(() => {
+  useNetworkStore.setState({ activeId: undefined, openIds: [], catalogue: undefined });
   window.localStorage.clear();
   window.sessionStorage.clear();
   for (const fn of Object.values(actions)) fn.mockClear();
@@ -50,6 +52,26 @@ const props = { onPaste: vi.fn(), onShare: vi.fn() };
 const rows = () => [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((element) => element.textContent);
 
 describe("the plan tabs", () => {
+  it("opens network-specific options and confirms network deletion", () => {
+    const original = useNetworkStore.getState().remove;
+    const remove = vi.fn(async () => undefined);
+    useNetworkStore.setState({ activeId: "net", openIds: ["net"], remove, catalogue: {
+      account: "local", token: "t", revision: 0, dirty: false,
+      networks: [{ id: "net", name: "Main network", members: [], included: true, sharing: {} }],
+    } });
+    try {
+      render(<ModTabs {...props} />);
+      fireEvent.contextMenu(screen.getByText("▤ Main network"));
+      expect(screen.getByRole("menu", { name: "Network options for Main network" })).toBeTruthy();
+      expect(rows()).toEqual(["Rename", "New subnetwork", "Close tabkept in Networks", "Delete network"]);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete network" }));
+      expect(remove).not.toHaveBeenCalled();
+      expect(document.querySelector(".mm-title")?.textContent).toContain("Plans stay");
+      fireEvent.click(screen.getByRole("menuitem", { name: /Delete network/ }));
+      expect(remove).toHaveBeenCalledWith("net");
+      expect(actions.removeDesign).not.toHaveBeenCalled();
+    } finally { useNetworkStore.setState({ remove: original }); }
+  });
   it("shows one tab per open plan, the active one marked, and leaves the parked plan on the shelf", () => {
     render(<ModTabs {...props} />);
     const tabs = [...document.querySelectorAll(".mt-tab")];
