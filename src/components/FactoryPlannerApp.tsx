@@ -426,7 +426,7 @@ const BoardColumn = memo(function BoardColumn() {
         would throw away the camera, routed wires and solve.
       */}
       <div className="relative min-h-0">
-        <FactoryFlow />
+        <FactoryFlow covered={Boolean(covering) || showTasks} />
         {TASKS_ENABLED ? <TaskLinkIndexController /> : null}
         {TASKS_ENABLED ? <AddToTaskMenu /> : null}
         {showTasks ? (

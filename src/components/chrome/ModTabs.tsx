@@ -149,7 +149,7 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
   useEffect(() => {
     keepActiveInView();
     syncFade();
-  }, [activeDesignId, publicView?.id, designs.length, syncFade, keepActiveInView]);
+  }, [activeDesignId, publicView?.id, designs.length, networkId, networkTabs.length, syncFade, keepActiveInView]);
 
   /** The new order of the open tabs, with the parked plans left in their own places among the rest. */
   const commitOrder = useCallback(

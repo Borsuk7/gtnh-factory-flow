@@ -19,37 +19,40 @@ let worker: Worker | undefined;
 let queue = Promise.resolve();
 const cache = new Map<string, PlanFlows>();
 
-function calculate(project: FactoryProject): Promise<PlanFlows> {
+function runWorker(project: FactoryProject): Promise<PlanFlows> {
   return new Promise((resolve, reject) => {
-    const task = queue.then(
-      () =>
-        new Promise<void>((done) => {
-          const finish = (result?: PlanFlows, error?: string) => {
-            clearTimeout(timer);
-            if (error) {
-              worker?.terminate();
-              worker = undefined;
-              reject(new Error(error));
-            } else resolve(result!);
-            done();
-          };
-          const timer = setTimeout(
-            () => finish(undefined, "Calculation timed out. Retry this plan."),
-            180_000,
-          );
-          try {
-            worker ??= new Worker(new URL("./calculate.worker.ts", import.meta.url));
-            worker.onmessage = ({ data }: MessageEvent<{ result?: PlanFlows; error?: string }>) =>
-              finish(data.result, data.error);
-            worker.onerror = () => finish(undefined, "Calculation unavailable. Retry this plan.");
-            worker.postMessage(project);
-          } catch (error) {
-            finish(undefined, String(error));
-          }
-        }),
+    const finish = (result?: PlanFlows, error?: string) => {
+      clearTimeout(timer);
+      if (error) {
+        worker?.terminate();
+        worker = undefined;
+        reject(new Error(error));
+      } else resolve(result!);
+    };
+    const timer = setTimeout(
+      () => finish(undefined, "Calculation timed out. Retry this plan."),
+      180_000,
     );
-    queue = task.catch(reject);
+    try {
+      worker ??= new Worker(new URL("./calculate.worker.ts", import.meta.url));
+      worker.onmessage = ({ data }: MessageEvent<{ result?: PlanFlows; error?: string }>) =>
+        finish(data.result, data.error);
+      worker.onerror = () => finish(undefined, "Calculation unavailable. Retry this plan.");
+      worker.postMessage(project);
+    } catch (error) {
+      finish(undefined, String(error));
+    }
   });
+}
+
+function calculate(project: FactoryProject): Promise<PlanFlows> {
+  const task = queue.then(() => runWorker(project));
+  // A failed member must not prevent the remaining members from being calculated.
+  queue = task.then(
+    () => undefined,
+    () => undefined,
+  );
+  return task;
 }
 
 export function localDesignId(member: NetworkMember): string {

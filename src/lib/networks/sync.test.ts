@@ -180,6 +180,28 @@ describe("network persistence and sync", () => {
     expect(useNetworkStore.getState().conflict).toEqual([network("my-edit")]);
     expect(useNetworkStore.getState().catalogue!.networks).toEqual([network("other")]);
   });
+  it("still uploads the accepted browser-tab version when it has unsynced changes", async () => {
+    const before = useNetworkStore.getState().catalogue!;
+    disk.set("owner", {
+      ...before,
+      token: "other-tab",
+      dirty: true,
+      networks: [network("accepted-edit")],
+    });
+    await useNetworkStore.getState().edit(() => [network("discarded-edit")]);
+    expect(useNetworkStore.getState().conflict).toBeTruthy();
+    await useNetworkStore.getState().resolveConflict(false);
+    expect(useNetworkStore.getState().catalogue!.dirty).toBe(true);
+    const fetcher = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(response(0, []))
+      .mockResolvedValueOnce(response(1, [network("accepted-edit")]));
+    await syncNetworks();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetcher.mock.calls[1][1]!.body as string).networks).toEqual([
+      network("accepted-edit"),
+    ]);
+    expect(disk.get("owner")).toMatchObject({ dirty: false, revision: 1 });
+  });
   it("leaves unsynced edits intact on failure and ignores replies after an account switch", async () => {
     await useNetworkStore.getState().edit(() => [network("local")]);
     const fetcher = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("offline"));

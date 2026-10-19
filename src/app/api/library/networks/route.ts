@@ -20,6 +20,12 @@ const bodySchema = z.object({
   networks: catalogueSchema,
 });
 
+function networkStorageError(error: { code?: string; message?: string }, fallback: string): string {
+  if (["PGRST205", "42P01", "PGRST204", "42703"].includes(error.code ?? ""))
+    return "Network sync is not set up: run supabase/migrations/2026-10-19-plan-networks.sql in the Supabase SQL editor.";
+  return libraryStorageErrorMessage(error, fallback);
+}
+
 async function authenticate(request: Request) {
   if (!isCommunityConfigured())
     return NextResponse.json({ error: "Cloud storage is not configured." }, { status: 503 });
@@ -37,7 +43,7 @@ export async function GET(request: Request) {
     .maybeSingle();
   if (error)
     return NextResponse.json(
-      { error: libraryStorageErrorMessage(error, "Your networks could not be loaded.") },
+      { error: networkStorageError(error, "Your networks could not be loaded.") },
       { status: 500 },
     );
   return NextResponse.json(data ?? { revision: 0, networks: [] });
@@ -87,7 +93,7 @@ export async function PUT(request: Request) {
     );
   if (result.error)
     return NextResponse.json(
-      { error: libraryStorageErrorMessage(result.error, "Your networks could not be saved.") },
+      { error: networkStorageError(result.error, "Your networks could not be saved.") },
       { status: 500 },
     );
   return NextResponse.json(result.data);

@@ -25,14 +25,14 @@ The group dropdown lists this network's groups and Ungrouped, saves on selection
 Create groups with the sidebar's folder-plus control. Group, rate and bulk port controls share one wrapping toolbar.
 Changes save immediately; X, Escape or clicking the backdrop closes it.
 Counts follow explicit selections, Clear all and Use all ports; collapsing never changes membership or totals.
-Both follow the plan's display setting and never recalculate the solve. Its Plan group field assigns a plan to a
-named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
+The header and I/O picker share the app's rate-unit dial and never recalculate the solve. The picker's Plan group
+field assigns a plan to a named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
 rules, and travel with a plan on a network move. Use the plus beside Plans to add members and the plus beside
 Networks to create a subnetwork of the open network. The refresh icon retries figures and sync.
 Scroll up over the time-unit or Sharing selector to advance its value; scroll down to go back. Values stop at
 the ends. These controls follow the device's scroll-to-change-values preference and consume scrolling only when enabled.
-Drag a plan row onto a group to move it, even when the group is collapsed. Ungrouped remains a drop target when
-empty. The I/O group field is also available for keyboard and touch use. Group moves keep inclusion and port choices.
+Drag a plan row onto a group to move it, even when the group is collapsed. Empty Ungrouped appears as a drop target
+while dragging. The I/O group field is also available for keyboard and touch use. Group moves keep inclusion and port choices.
 The folder-plus beside the Plans heading creates an empty named drop target. Empty groups persist; their options
 menu renames the group and all its members, or deletes the group and returns its plans to Ungrouped. Plans use
 compact single-line rows, with full names on hover. Their options menu contains I/O and Remove from network;
@@ -42,11 +42,13 @@ Drag the sidebar divider to give plan names more space; arrow keys resize it and
 The width stays on this device. Compact screens stack the list below the ledger. The ledger scrolls independently,
 keeping its headings at the top and resource names on the left. Sharing choices keep short labels with tooltips
 that explain their direction across the parent boundary.
-Resource filters show All, Shortages, Available and, for subnets, Parent connections. Covered parent imports are
-not counted as shortages; unallocated parent shortages are. The shortage count opens the Shortages view. Searches
+Resource filters show All rows, Shortages with unmet or unallocated demand, Available with positive local surplus,
+and, for subnets, Parent connections with a nonzero requested import or offered export. Available in a subnet
+precedes consumption elsewhere in its parent. Covered parent imports are not counted as shortages; unallocated
+parent shortages are. The shortage count opens the Shortages view. Searches
 and filters with no matches explain why no rows are shown. The resource-name button fills its entire cell.
 Parent and power settings are under Network settings; root networks have no Include in parent totals checkbox.
-Empty Ungrouped sections stay hidden until a plan is dragged. Both pickers use their X close control.
+Both pickers use their X close control.
 The header reports local writes, pending cloud synchronization, active sync and updating figures without pop-up messages.
 Right-click a network tab for Rename, New subnetwork, Close tab or Delete network. Shift+F10 opens the same menu.
 The header's trash icon also asks for confirmation, explaining that plans stay and subnetworks move to the deleted
@@ -78,13 +80,22 @@ and incomplete totals. Deleting an owned plan removes its membership. Task board
 `src/lib/networks/model.ts` owns topology validation and aggregation. The catalogue is separate from FactoryProject,
 so ordinary exports, links and live operations remain unchanged. The `gtnh-plan-networks` IndexedDB database stores
 account catalogues and conflict recovery copies. Browser-tab writes compare a token in one read/write transaction.
+Networks are personal: sharing or exporting a member plan does not share its hierarchy, groups, sharing rules or
+port selections. Existing mod versions can keep exchanging and editing individual plans without an update, but
+do not display or edit website networks. Networks are not part of plan files, plan links or mod transfers.
+There is no network export/import control. Signed-out networks and conflict recovery copies live only in this
+browser's storage; clearing it removes those copies. Signed-in catalogues sync separately to the account.
 
 Authenticated GET/PUT `/api/library/networks` saves the whole topology under an account revision. PUT compares that
 revision atomically, including creation races. Empty catalogues remain revisioned so an old device cannot resurrect a
-deletion. Rejected writes retain the local candidate until the player chooses a version. Calculated results do not sync.
+deletion. Rejected writes retain the local candidate until the player chooses a version. Keep my changes selects
+the complete local account catalogue; Use saved networks selects the complete saved catalogue. Separate edits
+are not merged. Recovery copies stay in the same browser database and are not an independent backup.
+Calculated results do not sync.
 
-Apply `supabase/migrations/2026-10-19-plan-networks.sql` when provisioning the server database. Local development
-loads it automatically. Networks work locally while signed out; signing in adopts this browser's initial catalogue
+Apply `supabase/migrations/2026-10-19-plan-networks.sql` to new and existing server databases before enabling network sync.
+`npm run dev:local` (`LOCAL_DB=1`) loads migrations automatically. Ordinary `npm run dev` against Supabase does not.
+Networks work locally while signed out; signing in adopts this browser's initial catalogue
 when that account has no local catalogue yet. A conflicting existing remote catalogue requires a choice.
 
 Closed members are normalized and have recipes restored through the same pure helper as the canvas. They solve in a

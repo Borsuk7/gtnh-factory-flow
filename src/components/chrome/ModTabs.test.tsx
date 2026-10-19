@@ -52,6 +52,36 @@ const props = { onPaste: vi.fn(), onShare: vi.fn() };
 const rows = () => [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((element) => element.textContent);
 
 describe("the plan tabs", () => {
+  it("reveals newly opened and reactivated network tabs when the strip overflows", () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("mt-strip") ? 150 : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("mt-tab") ? 120 : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
+      return [...(this.parentElement?.children ?? [])].indexOf(this) * 122;
+    });
+    const networks = ["first", "second", "third"].map((id) => ({
+      id, name: id, included: true, sharing: {}, members: [],
+    }));
+    useNetworkStore.setState({ activeId: "first", openIds: ["first"], catalogue: {
+      account: "local", token: "t", revision: 0, dirty: false, networks,
+    } });
+    try {
+      render(<ModTabs {...props} />);
+      const strip = document.querySelector<HTMLElement>(".mt-strip")!;
+      expect(strip.scrollLeft).toBe(0);
+      act(() => useNetworkStore.setState({ activeId: "third", openIds: ["first", "second", "third"] }));
+      expect(strip.scrollLeft).toBe(214);
+      act(() => useNetworkStore.setState({ activeId: "first" }));
+      expect(strip.scrollLeft).toBe(0);
+      act(() => useNetworkStore.setState({ activeId: "third" }));
+      expect(strip.scrollLeft).toBe(214);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
   it("opens network-specific options and confirms network deletion", () => {
     const original = useNetworkStore.getState().remove;
     const remove = vi.fn(async () => undefined);

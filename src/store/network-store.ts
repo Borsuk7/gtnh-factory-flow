@@ -171,7 +171,8 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
     const next = {
       ...state.catalogue,
       networks: useLocal ? state.conflict : state.catalogue.networks,
-      dirty: useLocal,
+      // The accepted browser-tab version can still be waiting for its cloud save.
+      dirty: useLocal || state.catalogue.dirty,
       token: randomUUID(),
     };
     try {

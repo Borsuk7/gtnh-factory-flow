@@ -91,4 +91,20 @@ describe("account network catalogue", () => {
     expect((await PUT(request("PUT", 0, { revision: 2, networks: catalogue }))).status).toBe(409);
     expect(await (await GET(request("GET", 0))).json()).toEqual({ revision: 3, networks: [] });
   });
+  it("names the network migration when its table is missing", async () => {
+    await local.db.exec("alter table library_networks rename to library_networks_unavailable");
+    try {
+      for (const response of [
+        await GET(request("GET", 0)),
+        await PUT(request("PUT", 0, { revision: 3, networks: [] })),
+      ]) {
+        expect(response.status).toBe(500);
+        expect((await response.json()).error).toBe(
+          "Network sync is not set up: run supabase/migrations/2026-10-19-plan-networks.sql in the Supabase SQL editor.",
+        );
+      }
+    } finally {
+      await local.db.exec("alter table library_networks_unavailable rename to library_networks");
+    }
+  });
 });
