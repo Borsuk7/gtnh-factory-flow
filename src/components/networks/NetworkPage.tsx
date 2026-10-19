@@ -1,7 +1,7 @@
 "use client";
 
 import "./networks.css";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SelectHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRightLeft,
@@ -21,6 +21,7 @@ import {
   type MenuEntry,
 } from "@/components/chrome/ChromeMenu";
 import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
+import { wheelChangesValues } from "@/lib/device-settings";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
@@ -399,6 +400,22 @@ export function NetworkPage() {
             />
             Include in parent totals
           </label>
+          {network.parentId ? (
+            <div>
+              <label className="netview-check">
+                <input
+                  type="checkbox"
+                  checked={network.selfPowered ?? false}
+                  onChange={(event) => patch({ selfPowered: event.target.checked })}
+                  aria-describedby="network-self-powered-help"
+                />
+                Self-powered
+              </label>
+              <p className="netview-note" id="network-self-powered-help">
+                Keep this subnetwork’s power out of parent totals.
+              </p>
+            </div>
+          ) : null}
         </aside>
         <main className="netview-ledger">
           {network.members
@@ -635,14 +652,14 @@ export function NetworkPage() {
                               </td>
                               <td>{rate(row.toParent)}</td>
                               <td>
-                                <select
+                                <WheelSelect
                                   aria-label={`Sharing for ${row.label}`}
                                   value={network.sharing[row.key] ?? "internal"}
-                                  onChange={(event) =>
+                                  onValueChange={(value) =>
                                     patch({
                                       sharing: {
                                         ...network.sharing,
-                                        [row.key]: event.target.value as Sharing,
+                                        [row.key]: value as Sharing,
                                       },
                                     })
                                   }
@@ -651,7 +668,7 @@ export function NetworkPage() {
                                   <option value="import">Import</option>
                                   <option value="export">Export</option>
                                   <option value="both">Both</option>
-                                </select>
+                                </WheelSelect>
                               </td>
                             </>
                           ) : null}
@@ -911,18 +928,43 @@ function NetworkRateControl() {
   const unit = useFactoryStore((state) => state.rateUnit);
   const setUnit = useFactoryStore((state) => state.setRateUnit);
   return (
-    <select
+    <WheelSelect
       aria-label="Rate unit"
       title="Rate unit"
       value={unit === "eu" ? "second" : unit}
-      onChange={(event) => setUnit(event.target.value as TimeRateUnit)}
+      onValueChange={(value) => setUnit(value as TimeRateUnit)}
     >
       <option value="tick">/t</option>
       <option value="second">/s</option>
       <option value="minute">/min</option>
       <option value="hour">/hr</option>
-    </select>
+    </WheelSelect>
   );
+}
+
+function WheelSelect({
+  onValueChange,
+  ...props
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, "onChange"> & {
+  onValueChange: (value: string) => void;
+}) {
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    const select = ref.current;
+    if (!select) return;
+    const wheel = (event: WheelEvent) => {
+      if (!wheelChangesValues() || !event.deltaY || select.disabled || event.ctrlKey) return;
+      // A native, non-passive listener keeps a value change from also scrolling the ledger.
+      event.preventDefault();
+      event.stopPropagation();
+      const index = select.selectedIndex;
+      const next = Math.max(0, Math.min(select.options.length - 1, index + (event.deltaY < 0 ? 1 : -1)));
+      if (next !== index) onValueChange(select.options[next]!.value);
+    };
+    select.addEventListener("wheel", wheel, { passive: false });
+    return () => select.removeEventListener("wheel", wheel);
+  }, [onValueChange]);
+  return <select {...props} ref={ref} onChange={(event) => onValueChange(event.target.value)} />;
 }
 
 function OverflowMenu({ label, entries }: { label: string; entries: MenuEntry[] }) {

@@ -29,6 +29,29 @@ const plans = (entries: Record<string, PlanFlows>) =>
   new Map(Object.entries(entries).map(([id, value]) => [memberKey(member(id)), value]));
 
 describe("network material ledger", () => {
+  it("isolates self-powered subnets from every ancestor's power without changing resource sharing", () => {
+    const root = network("root");
+    const middle = network("middle", "root");
+    const child = {
+      ...network("child", "middle"),
+      selfPowered: true,
+      members: [member("line")],
+      sharing: { "fluid:oxygen": "export" as const },
+    };
+    middle.sharing["fluid:oxygen"] = "export";
+    const catalogue = catalogueSchema.parse([root, middle, child]);
+    expect(catalogue[2].selfPowered).toBe(true);
+    const flows = plans({ line: { ...oxygen(10, 4), power: { used: 32, made: 128 } } });
+    const result = aggregateNetworks(catalogue, flows);
+    expect(result.get("child")!.power).toEqual({ used: 32, made: 128 });
+    for (const id of ["middle", "root"]) {
+      expect(result.get(id)!.power).toEqual({ used: 0, made: 0 });
+      expect(result.get(id)!.resources[0].supply).toBe(6);
+    }
+    catalogue[2].selfPowered = false;
+    const connected = aggregateNetworks(catalogue, flows);
+    expect(connected.get("root")!.power).toEqual({ used: 32, made: 128 });
+  });
   it("counts only selected ports, retains whole-plan power, and flags missing selections", () => {
     const plan = oxygen(10, 5);
     plan.ports = [

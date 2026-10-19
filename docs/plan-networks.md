@@ -23,6 +23,8 @@ Both follow the plan's display setting and never recalculate the solve. Its Plan
 named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
 rules, and travel with a plan on a network move. Use the plus beside Plans to add members and the plus beside
 Networks to create a subnetwork of the open network. The refresh icon retries figures and sync.
+Scroll up over the time-unit or Sharing selector to advance its value; scroll down to go back. Values stop at
+the ends. These controls follow the device's scroll-to-change-values preference and consume scrolling only when enabled.
 Drag a plan row onto a group to move it, even when the group is collapsed. Ungrouped remains a drop target when
 empty. The I/O group field is also available for keyboard and touch use. Group moves keep inclusion and port choices.
 The folder-plus beside the Plans heading creates an empty named drop target. Empty groups persist; their options
@@ -38,6 +40,9 @@ keeps the network open.
 At each network, supply minus demand gives free resources or a shortage. These are configured rates, not measured
 inventories or a promise that supplying lines can operate without their own missing inputs. Power generation and
 usage use the same average figures as the plan overview and sum included descendants once.
+Mark a subnet Self-powered to keep both its power usage and generation out of parent totals. Its own power figures
+stay visible, and its resource sharing is unchanged. This is an explicit separate-supply choice, not a calculated
+claim that its generators meet demand. The choice persists and syncs with the network.
 
 Subnetworks balance locally first. Internal (the default) exposes nothing; Import exposes residual demand; Export
 exposes residual supply; Both exposes either. Every ancestor boundary needs its own permission. Parent totals only see

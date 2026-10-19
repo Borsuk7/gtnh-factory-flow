@@ -5,6 +5,7 @@ import { useNetworkStore } from "@/store/network-store";
 import { useFactoryStore } from "@/store/factory-store";
 import { memberKey, type PlanFlows } from "@/lib/networks/model";
 import { NetworkPage } from "./NetworkPage";
+import * as deviceSettings from "@/lib/device-settings";
 
 const mocks = vi.hoisted(() => ({ flows: new Map<string, PlanFlows>() }));
 vi.mock("@/lib/networks/calculation", () => ({
@@ -15,7 +16,64 @@ vi.mock("@/lib/networks/calculation", () => ({
 const originalEdit = useNetworkStore.getState().edit;
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   useNetworkStore.setState({ edit: originalEdit });
+});
+
+it("wheel-steps time and sharing, clamps at the ends and respects the scroll preference", () => {
+  const preference = vi.spyOn(deviceSettings, "wheelChangesValues").mockReturnValue(true);
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        { id: "parent", name: "Parent", included: true, members: [], sharing: {} },
+        { ...state.catalogue!.networks[0], parentId: "parent" },
+      ],
+    },
+  }));
+  const solve = useFactoryStore.getState().lastResult;
+  render(<NetworkPage />);
+  const time = screen.getByRole("combobox", { name: "Rate unit" });
+  expect(fireEvent.wheel(time, { deltaY: -100, cancelable: true })).toBe(false);
+  expect(useFactoryStore.getState().rateUnit).toBe("minute");
+  fireEvent.wheel(time, { deltaY: -100 });
+  fireEvent.wheel(time, { deltaY: -100 });
+  expect(useFactoryStore.getState().rateUnit).toBe("hour");
+  fireEvent.wheel(time, { deltaY: 100 });
+  expect(useFactoryStore.getState().rateUnit).toBe("minute");
+  const sharing = screen.getByRole("combobox", { name: "Sharing for Oxygen" });
+  fireEvent.wheel(sharing, { deltaY: -100 });
+  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe("import");
+  fireEvent.wheel(sharing, { deltaY: 100 });
+  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe("internal");
+  preference.mockReturnValue(false);
+  expect(fireEvent.wheel(time, { deltaY: -100, cancelable: true })).toBe(true);
+  fireEvent.wheel(sharing, { deltaY: -100 });
+  expect(useFactoryStore.getState().rateUnit).toBe("minute");
+  expect(useNetworkStore.getState().catalogue!.networks[1].sharing["fluid:oxygen"]).toBe("internal");
+  expect(useFactoryStore.getState().lastResult).toBe(solve);
+});
+
+it("offers self-powered only for a subnet and saves its explicit choice", () => {
+  const view = render(<NetworkPage />);
+  expect(screen.queryByRole("checkbox", { name: "Self-powered" })).toBeNull();
+  view.unmount();
+  useNetworkStore.setState((state) => ({
+    catalogue: {
+      ...state.catalogue!,
+      networks: [
+        { id: "parent", name: "Parent", included: true, members: [], sharing: {} },
+        { ...state.catalogue!.networks[0], parentId: "parent" },
+      ],
+    },
+  }));
+  render(<NetworkPage />);
+  const toggle = screen.getByRole("checkbox", { name: "Self-powered" });
+  expect((toggle as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(toggle);
+  expect(useNetworkStore.getState().catalogue!.networks[1].selfPowered).toBe(true);
+  fireEvent.click(toggle);
+  expect(useNetworkStore.getState().catalogue!.networks[1].selfPowered).toBe(false);
 });
 
 beforeEach(() => {

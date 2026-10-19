@@ -17,6 +17,7 @@ export const networkSchema = z.object({
   parentId: id.optional(),
   included: z.boolean(),
   members: z.array(memberSchema).max(500),
+  selfPowered: z.boolean().optional(),
   groups: z.array(z.string().trim().min(1).max(80)).max(200).optional(),
   sharing: z.record(z.string().max(512), sharingSchema),
 });
@@ -184,8 +185,11 @@ export function aggregateNetworks(
             { id: child.id, name: child.name, network: true },
           );
       }
-      answer.power.used += result.power.used;
-      answer.power.made += result.power.made;
+      // A separate power supply stays inside the child's boundary, like private materials.
+      if (!child.selfPowered) {
+        answer.power.used += result.power.used;
+        answer.power.made += result.power.made;
+      }
     }
     for (const row of rows.values()) {
       const tolerance = Math.max(1e-6, Math.max(row.supply, row.demand) * 1e-5);
