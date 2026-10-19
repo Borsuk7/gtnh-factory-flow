@@ -125,18 +125,23 @@ export function readUpTo(
  * The rings of Up to pools that blame each other (old Build's dead loop and clog lock: `death-spiral.ts`,
  * `clog-lock.ts`). A pool blames the Up to pools on the wire network of its `port` and `tied` ports: for a STARVED
  * pool those that make what it is short of, for a CLOGGED or UNUSED one those that take what it cannot get rid of.
- * A ring is a strongly connected part of that relation (a pool blaming itself counts) whose members all read STARVED
- * (DEAD_LOOP) or all CLOGGED or UNUSED (CLOG_LOCK). Members in pool order, rings by their first member's `node`. A pure
- * graph over the read-out and the model's networks: no model runs.
+ * A ring is a strongly connected part of that relation (a pool blaming itself counts) whose members all stand still and
+ * all read STARVED (DEAD_LOOP) or all UNUSED (CLOG_LOCK). Standing still is what makes it a ring's own doing: a ring that
+ * loses material every lap winds down to zero with nothing feeding it, so one that runs at all is fed from outside and
+ * held back by that feed, which its members' reasons already point at. Members in pool order, rings by their first
+ * member's `node`. A pure graph over the read-out and the model's networks: no model runs.
  */
 export function findLoops(ctx: SolveContext, read: ReadonlyMap<number, UpToReadout>): UpToLoop[] {
   const model = ctx.model;
   const loops: UpToLoop[] = [];
   for (const kind of ["DEAD_LOOP", "CLOG_LOCK"] as const) {
     const starving = kind === "DEAD_LOOP";
-    const isMember = (r: UpToReadout) =>
-      starving ? r.reason === "STARVED" : r.reason === "CLOGGED" || r.reason === "UNUSED";
-    const members = ctx.upToPools.filter((p) => isMember(read.get(p)!));
+    // UNUSED is CLOGGED standing still.
+    const isMember = (p: number) => {
+      const reason = read.get(p)!.reason;
+      return starving ? reason === "STARVED" && idle(ctx, p) : reason === "UNUSED";
+    };
+    const members = ctx.upToPools.filter(isMember);
     if (members.length === 0) continue;
     // What each member blames (its short inputs, or its full outputs), and the networks it makes on or takes from.
     const blames = members.map((p) => {
@@ -187,6 +192,13 @@ export function findLoops(ctx: SolveContext, read: ReadonlyMap<number, UpToReado
     }
   }
   return loops.sort((a, b) => compareIds(a.nodes[0]!, b.nodes[0]!));
+}
+
+/** Whether every machine of a pool stands still at the committed point (within the solve's dust). */
+function idle(ctx: SolveContext, pool: number): boolean {
+  const point = ctx.point!;
+  const dust = NUMERICS.dust * ctx.solutionScaleOf(point);
+  return ctx.model.pools[pool]!.machines.every((m) => point.extents[m]! <= dust);
 }
 
 /** A STARVED pool's short port (its `port` or a `tied` one), as a connected port: unwired ones have no network. */
@@ -591,10 +603,7 @@ function holdBackOf(
   if (disposal < capable - tol) {
     const at = shortPort(ctx, pool, held, outs, ins, disposal, "up to: one output free", budget);
     if (at === "spent") return null;
-    const point = ctx.point!;
-    const dust = NUMERICS.dust * ctx.solutionScaleOf(point);
-    const idle = ctx.model.pools[pool]!.machines.every((m) => point.extents[m]! <= dust);
-    return { reason: idle ? "UNUSED" : "CLOGGED", ...at };
+    return { reason: idle(ctx, pool) ? "UNUSED" : "CLOGGED", ...at };
   }
   if (capable < 1 - tol && ins.length > 0) {
     // Short at its inputs only when feeding them (its outputs free) does raise it.

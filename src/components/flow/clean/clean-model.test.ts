@@ -261,6 +261,32 @@ describe("the bar along the foot", () => {
     ]);
   });
 
+  it("says DEAD LOOP or CLOG LOCK in the ring's tone on a card in a ring", () => {
+    const dead = buildFootView(
+      upToCount,
+      { capacity: 24, reached: 0, reason: "STARVED", resourceKey: "item:Oxygen" },
+      ports,
+      undefined,
+      "dead",
+    )!;
+    expect([dead.tone, dead.word, dead.say, dead.facts.loop]).toEqual([
+      "starved",
+      "DEAD LOOP",
+      "short of Oxygen",
+      "dead",
+    ]);
+    // A clog lock's cards stand still (UNUSED), but the bar says what backs up, in CLOGGED's purple, not UNUSED's grey.
+    const clog = buildFootView(
+      upToCount,
+      { capacity: 24, reached: 0, reason: "UNUSED", resourceKey: "item:Sulfuric Acid" },
+      ports,
+      undefined,
+      "clog",
+    )!;
+    expect([clog.tone, clog.word, clog.facts.loop]).toEqual(["clogged", "CLOG LOCK", "clog"]);
+    expect(clog.say).toMatch(/Sulfuric Acid|an output backs up/);
+  });
+
   it("runs a bottleneck's bar on, striped, to what the line wants", () => {
     const neck = buildFootView(
       upToCount,

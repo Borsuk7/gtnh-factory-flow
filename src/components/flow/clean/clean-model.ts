@@ -59,7 +59,7 @@ import type { RecipeNodeData } from "../RecipeNode";
 import { CC, CC_GEOMETRY } from "./tokens";
 import { mixHex } from "./colors";
 import { UP_TO_COLOR } from "./up-to-reason";
-import { cardLoop, type LoopTone } from "./loops";
+import { cardLoop, LOOP_WORD, type LoopTone } from "./loops";
 import { glanceBar, type GlanceBar } from "./glance";
 import { isPinned, pinMachineKey, settingControls } from "./menus/settings-model";
 import { mcTextWidth, measureClean, useFontEpoch } from "./text-measure";
@@ -183,6 +183,8 @@ export interface CleanFootView {
   /** For the tip. */
   facts: {
     reason: UpToReason | null | "FORCED";
+    /** The ring the card is in, when it is in one. */
+    loop?: LoopTone;
     rule: PinRule;
     running: number;
     capacity: number;
@@ -634,6 +636,9 @@ const FOOT_TONE: Record<UpToReason, FootTone> = {
   LIMITED: "limited",
 };
 
+/** A ring's bar takes the ring's tone: a dead loop STARVED's amber, a clog lock CLOGGED's purple (never UNUSED's grey). */
+export const LOOP_FOOT_TONE: Record<LoopTone, FootTone> = { dead: "starved", clog: "clogged" };
+
 /** The first of `lines` that fits `room` px at the bar's size; none fits, nothing (the word and fraction still say it). */
 function fitLine(lines: string[], room: number): string {
   return lines.find((line) => measureClean(line, FOOT_SIZE) <= room) ?? "";
@@ -653,13 +658,15 @@ function resourceName(
 
 /**
  * The foot bar of a card, or nothing: an Up to card with its read-out, or an Exactly card with a forced input on one
- * of its rows. `ports` are the card's rows (every recipe's on a shared machine), `cardName` names a card by id.
+ * of its rows. `ports` are the card's rows (every recipe's on a shared machine), `cardName` names a card by id. A card
+ * in a ring (`loop`) says DEAD LOOP or CLOG LOCK in the ring's tone in place of its reason.
  */
 export function buildFootView(
   count: Pick<CleanCountView, "rule" | "set">,
   upTo: PlanUpTo | undefined,
   ports: { inputs: readonly CleanPortView[]; outputs: readonly CleanPortView[] },
   cardName: (id: string) => string | undefined = () => undefined,
+  loop?: LoopTone,
 ): CleanFootView | undefined {
   const fmt = formatSolvedMachines;
   if (count.rule === "upTo" && upTo) {
@@ -694,7 +701,7 @@ export function buildFootView(
       })
       .filter((name): name is string => name !== undefined);
     const upstream = (upTo.upstream ?? []).map((id) => cardName(id) ?? "a card");
-    const word = reason ?? "";
+    const word = loop ? LOOP_WORD[loop] : (reason ?? "");
     const room =
       FOOT_TEXT -
       (word ? measureClean(word, FOOT_SIZE) + FOOT_GAP : 0) -
@@ -711,7 +718,7 @@ export function buildFootView(
             ? resource
               ? [`short of ${resource}`, "short of an input"]
               : ["short of an input"]
-            : reason === "CLOGGED"
+            : reason === "CLOGGED" || loop === "clog"
               ? resource
                 ? [`${resource} has nowhere to go`, `nowhere for ${resource}`, "an output backs up"]
                 : ["an output backs up"]
@@ -723,7 +730,7 @@ export function buildFootView(
                   ? ["the plan holds it back", "held back"]
                   : [];
     return {
-      tone: reason ? FOOT_TONE[reason] : "plain",
+      tone: loop ? LOOP_FOOT_TONE[loop] : reason ? FOOT_TONE[reason] : "plain",
       word,
       say: fitLine(lines, room),
       frac,
@@ -731,6 +738,7 @@ export function buildFootView(
       ghost,
       facts: {
         reason,
+        loop,
         rule: "upTo",
         running: reached,
         capacity,
@@ -1052,8 +1060,13 @@ export function useCleanCardModel(
     rails.outputs.map((port) => buildPortView(projectNode.id, port, projectNode, forcedAt)),
     countState.upTo,
   );
-  const foot = buildFootView(count, countState.upTo, { inputs, outputs }, (id) =>
-    cardNameIn(liveProject, id),
+  const loop = cardLoop(plan?.loops, projectNode.id);
+  const foot = buildFootView(
+    count,
+    countState.upTo,
+    { inputs, outputs },
+    (id) => cardNameIn(liveProject, id),
+    loop,
   );
 
   const view: CleanCardView = {
@@ -1081,8 +1094,8 @@ export function useCleanCardModel(
     glanceArt: art ?? machineIcon?.iconPath,
     count,
     foot,
-    loop: cardLoop(plan?.loops, projectNode.id),
-    glance: glanceBar(countState.upTo),
+    loop,
+    glance: glanceBar(countState.upTo, loop),
     circuit: derived.circuit,
     chips: strip.chips,
     stripHeight: strip.height,

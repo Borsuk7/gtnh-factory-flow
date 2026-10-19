@@ -142,7 +142,7 @@ export function useCardFace(
     unset: count.unset,
     tone: problemOutlines ? stateFrameTone(count, plan, projectNode.id) : undefined,
     loop: cardLoop(plan?.loops, projectNode.id),
-    bar: glanceBar(count.upTo),
+    bar: glanceBar(count.upTo, cardLoop(plan?.loops, projectNode.id)),
     count: `×${formatSolvedMachines(count.value)}`,
     art: art ?? machineIcon?.iconPath,
     fallbackWidth: CC_GEOMETRY.cardWidth,

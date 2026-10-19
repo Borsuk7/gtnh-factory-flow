@@ -6,6 +6,7 @@ import { poolSideOf } from "../../model/storage-role";
 import { hasStorageTarget, storageTargetMode } from "../../model/storage-target";
 import { getRuntimeCalculationOutputs } from "../runtime-calculation";
 import { listPoolCellPairs } from "../pool-mode";
+import { convertLooseCellWires } from "../../model/cell-wires";
 import type {
   FactoryEdge,
   FactoryProject,
@@ -18,7 +19,7 @@ import type {
 export interface PoolConversionReport {
   /** Wires made (one per resource per pair of ends). */
   wires: number;
-  /** Cell/fluid bridges made as loose cell wires. */
+  /** Cell/fluid bridges made, each a fluid tank between its two ends. */
   bridgeWires: number;
   /** Drawers with a pool side that no wire could reach (nothing on the other side). */
   unreachedDrawers: number;
@@ -52,7 +53,7 @@ const handleOf = (side: "input" | "output", section: number, resource: Pick<Reso
  * and gates, so each resource's pool becomes one wire per feeder and taker
  * pair (the wires a player would draw, none of them routed), and drawers keep
  * their side: a source drawer feeds every taker, a drain takes from every
- * feeder. Cell and fluid bridges (`poolCellRatios`) become loose cell wires.
+ * feeder. Cell and fluid bridges (`poolCellRatios`) become fluid tanks.
  * Groups and resource rules have no counterpart and are dropped; everything
  * else (pins, drawer rules, counts) stays as the Solve plan it already was.
  *
@@ -201,7 +202,8 @@ export function wirePoolProject(project: FactoryProject): { project: FactoryProj
   }
   report.unreachedDrawers = drawerEnds.filter(({ storage }) => !reached.has(storage.id)).length;
 
-  // Cell and fluid bridges: a loose cell wire carries one form into a port of the other.
+  // Cell and fluid bridges: one form into a port of the other, marked with the Canner's litres; the tank that
+  // stands between the two is put in on the way out.
   for (const pair of listPoolCellPairs(project)) {
     const litres = project.poolCellRatios?.[pair.cellId];
     if (!litres || litres <= 0) continue;
@@ -242,8 +244,9 @@ export function wirePoolProject(project: FactoryProject): { project: FactoryProj
   void _rules;
   void _groups;
   void _ratios;
+  // A cell meets its fluid only in a fluid tank: each bridge gets one between its ends.
   return {
-    project: { ...rest, solveMode: true, nodes, storages: keptStorages, edges },
+    project: convertLooseCellWires({ ...rest, solveMode: true, nodes, storages: keptStorages, edges }).project,
     report,
   };
 }

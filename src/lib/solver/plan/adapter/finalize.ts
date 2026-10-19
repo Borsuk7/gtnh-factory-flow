@@ -34,7 +34,7 @@ export function finalizePlanResult(
   model: PlanModel,
   reading: PlanReading,
 ): ThroughputResult {
-  const { project, nodes, storages, projectStorages, bottlenecks, crossForm, options } = args;
+  const { project, nodes, storages, projectStorages, bottlenecks, options } = args;
   const helpers = args.helpers;
   if (!helpers) {
     throw new Error("Plan mode: the seam did not hand over the books' helpers.");
@@ -133,13 +133,6 @@ export function finalizePlanResult(
     calculateEffectiveBalances(project, nodes, edgeResults),
   ) as Record<ResourceKey, ResourceBalance>;
   const { externalInputs, unconsumedOutputs } = splitBalances(Object.values(resourceResults));
-
-  for (const hiddenId of crossForm.hiddenNodeIds) {
-    delete nodes[hiddenId];
-  }
-  for (const hiddenEdgeId of crossForm.hiddenEdgeIds) {
-    delete edgeResults[hiddenEdgeId];
-  }
 
   return {
     nodes,

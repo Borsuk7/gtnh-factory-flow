@@ -2,9 +2,17 @@
 
 import "./rail.css";
 
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { useFactoryStore } from "@/store/factory-store";
-import { buildNotices, type BoardNotice, type NoticeSeverity } from "./notices";
+import { startPromptClock } from "../../virtual/prompt-phase";
+import { buildNotices, byUrgency, type BoardNotice, type NoticeSeverity } from "./notices";
 import { framesReadably } from "./rail-actions";
 import { SparePopupHost } from "./SparePopup";
 import { RailTipHost } from "./rail-tip";
@@ -73,7 +81,8 @@ export function useBoardNotices(): BoardNotice[] {
           },
         ]
       : [];
-    return [...(flashed ? [flashed] : []), ...converted, ...solved];
+    // A flash answers what the player just did, so it stays on top; the rest go most pressing first.
+    return [...(flashed ? [flashed] : []), ...byUrgency([...converted, ...solved])];
   }, [conversion, dismissConversion, flashed, solved]);
 }
 
@@ -90,8 +99,19 @@ export function NoticeRow({
     const el = text.current;
     if (el) el.dataset.clipped = el.scrollWidth > el.clientWidth + 1 ? "" : "no";
   });
+  // An alarm blinks off the board's one clock (virtual/prompt-phase.ts), with its ring's card outlines.
+  const alarm = notice.tag !== undefined;
+  useEffect(() => {
+    if (alarm) startPromptClock();
+  }, [alarm]);
   return (
-    <div className="rail-notice" data-severity={notice.severity} role="status">
+    <div
+      className="rail-notice"
+      data-severity={notice.severity}
+      data-alarm={alarm ? (notice.loop ?? "") : undefined}
+      role={alarm ? "alert" : "status"}
+    >
+      {notice.tag ? <span className="rail-notice-tag">{notice.tag}</span> : null}
       <span ref={text} className="rail-notice-text">
         {notice.text}
       </span>

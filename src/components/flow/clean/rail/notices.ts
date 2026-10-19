@@ -4,7 +4,7 @@ import type { FactoryProject, ResourceKind, ThroughputResult } from "@/lib/model
 import { rateMultiplierForKind, rateSuffixForKind } from "@/lib/model/rate-unit";
 import { pinRuleOf } from "@/lib/model/pin-rule";
 import { UP_TO_WORD } from "../up-to-reason";
-import { loopSentence } from "../loops";
+import { loopSentence, loopTag, loopTone, type LoopTone } from "../loops";
 import type { Note, NoteArg, PlanNote, PlanShortfall } from "@/lib/solver/plan/types";
 import { splitResultNodeId } from "./rail-model";
 
@@ -26,6 +26,23 @@ export interface BoardNotice {
   focus: string[];
   /** A notice the player can put away (the plan conversion's): the row shows a Dismiss key. */
   dismiss?: () => void;
+  /** An alarm's name ("DEAD LOOP"): a chip before the sentence, blinking on the prompts' clock. */
+  tag?: string;
+  /** The ring an alarm is about: its row and chip take the ring's tone, as its cards' outlines do. */
+  loop?: LoopTone;
+}
+
+/** Where a notice goes in the list, lowest first: a failed solve, then alarms, then warnings, then the rest. */
+export function noticeRank(notice: Pick<BoardNotice, "severity" | "tag">): number {
+  if (notice.severity === "error") return notice.tag ? 1 : 0;
+  return notice.severity === "warn" ? 2 : 3;
+}
+
+/** Most pressing first; notices of one rank keep their order. */
+export function byUrgency<T extends Pick<BoardNotice, "severity" | "tag">>(
+  list: readonly T[],
+): T[] {
+  return [...list].sort((a, b) => noticeRank(a) - noticeRank(b));
 }
 
 function isNote(arg: NoteArg | undefined): arg is Note {
@@ -115,26 +132,17 @@ export function buildNotices(
     return recipeOf.get(node?.recipeId ?? "")?.machineType ?? "machine";
   };
 
-  // Old Build's rings: a dead loop's cards wait on each other, a clog lock's are stuck on a surplus. Show me frames
-  // the ring's cards.
-  const resourceName = (key: string): string => {
-    const at = key.indexOf(":");
-    const kind = key.slice(0, at);
-    const id = key.slice(at + 1);
-    for (const recipe of project.recipes) {
-      for (const slot of [...recipe.inputs, ...recipe.outputs]) {
-        if (slot.kind === kind && slot.id === id) return slot.displayName ?? id;
-      }
-    }
-    return id;
-  };
+  // Old Build's rings: a dead loop's cards starve each other, a clog lock's clog each other on a surplus. Alarms: tagged,
+  // in the ring's tone, blinking, right under a failed solve. Show me frames the ring's cards.
   for (const loop of extras.loops ?? []) {
     const cards = loop.cards.filter((id) => nodeIds.has(id));
     if (cards.length === 0) continue;
     out.push({
       id: `loop:${loop.kind}:${cards.join(",")}`,
-      severity: "warn",
-      text: loopSentence(loop, cards.map(cardName), loop.resourceKeys.map(resourceName)),
+      severity: "error",
+      tag: loopTag(loop),
+      loop: loopTone(loop),
+      text: loopSentence(loop, cards.length),
       focus: cards,
     });
   }
@@ -234,7 +242,7 @@ export function buildNotices(
       });
     }
   }
-  return dedupe(out);
+  return dedupe(byUrgency(out));
 }
 
 function dedupe(list: BoardNotice[]): BoardNotice[] {

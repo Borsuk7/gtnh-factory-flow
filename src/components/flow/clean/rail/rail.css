@@ -721,6 +721,36 @@ input.rail-box-edit {
 .rail-notice[data-severity="warn"] {
   --sev: #e0a63a;
 }
+/* An alarm (a dead loop, a clog lock): a row tinted in the ring's tone (the cards' outlines and wires: a dead loop
+   STARVED's amber, a clog lock CLOGGED's purple), its tag in a chip of that tone before the sentence. The chip and the
+   stripe dim in the grey half of the prompts' clock (virtual/prompt-phase.ts) with the ring's card outlines. Steady
+   under reduced motion (the clock stays in its first half). */
+.rail-notice[data-alarm] {
+  --sev: var(--alarm);
+  background: color-mix(in srgb, var(--alarm) 16%, rgba(24, 26, 31, 0.92));
+}
+.rail-notice[data-alarm="dead"] {
+  --alarm: #e0a63a;
+}
+.rail-notice[data-alarm="clog"] {
+  --alarm: #b49cf0;
+}
+.rail-notice-tag {
+  flex: none;
+  margin-right: 8px;
+  padding: 1px 5px;
+  background: var(--alarm);
+  color: #18151d;
+  font-size: 14px;
+  line-height: 16px;
+}
+:root[data-cc-blink] .rail-notice[data-alarm] {
+  --sev: color-mix(in srgb, var(--alarm) 35%, #181a1f);
+}
+:root[data-cc-blink] .rail-notice-tag {
+  background: color-mix(in srgb, var(--alarm) 35%, #181a1f);
+  color: var(--alarm);
+}
 .rail-notice-text {
   min-width: 0;
   overflow: hidden;

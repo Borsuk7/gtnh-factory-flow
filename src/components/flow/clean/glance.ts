@@ -7,6 +7,7 @@
 import type { CSSProperties } from "react";
 import type { PlanUpTo } from "@/lib/solver/plan/types";
 import type { FootTone } from "./clean-model";
+import { LOOP_WORD, type LoopTone } from "./loops";
 import { artRatio } from "@/lib/power/structure-art-ratios";
 
 /** The bar a zoomed-out face draws: how full (0 to 1), in which tone, and the reason's word (empty for none). */
@@ -27,9 +28,10 @@ const TONE: Record<NonNullable<PlanUpTo["reason"]>, FootTone> = {
 
 /**
  * An Up to card's bar at a glance, from its read-out: filled to what runs over the count (a bottleneck's over what
- * the line wants, as the card's own bar). None for a card that is not Up to.
+ * the line wants, as the card's own bar). None for a card that is not Up to. A card in a ring (`loop`) says DEAD LOOP
+ * or CLOG LOCK in the ring's tone, as its own bar does.
  */
-export function glanceBar(upTo: PlanUpTo | undefined): GlanceBar | undefined {
+export function glanceBar(upTo: PlanUpTo | undefined, loop?: LoopTone): GlanceBar | undefined {
   if (!upTo) return undefined;
   const capacity = upTo.capacity;
   const wants =
@@ -38,6 +40,7 @@ export function glanceBar(upTo: PlanUpTo | undefined): GlanceBar | undefined {
       : undefined;
   const end = wants ?? capacity;
   const fill = end > 0 ? Math.min(1, Math.max(0, upTo.reached / end)) : 0;
+  if (loop) return { tone: loop === "dead" ? "starved" : "clogged", fill, word: LOOP_WORD[loop] };
   return { tone: upTo.reason ? TONE[upTo.reason] : "plain", fill, word: upTo.reason ?? "" };
 }
 

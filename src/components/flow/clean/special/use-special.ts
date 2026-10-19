@@ -328,6 +328,7 @@ export function useSharedCardModel(data: RecipeNodeData, selected: boolean): Spe
       outputs: sections.flatMap((entry) => entry.outputs),
     },
     (id) => cardNameIn(liveProject, id),
+    base.view.loop,
   );
   const handlers = useMemo(
     () =>
@@ -360,7 +361,7 @@ export function useSharedCardModel(data: RecipeNodeData, selected: boolean): Spe
     count,
     foot,
     loop: base.view.loop,
-    glance: glanceBar(upTo),
+    glance: glanceBar(upTo, base.view.loop),
     chips: base.view.chips,
     stripHeight: base.view.stripHeight,
     warnings: [],

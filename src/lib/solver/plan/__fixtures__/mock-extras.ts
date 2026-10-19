@@ -805,19 +805,20 @@ export const mockLoops: MockPlan = build({
         portKey: inn("rc", "Slurry"),
         resourceKey: "item:Slurry",
       },
+      // A clog lock's cards stand still, each on what it cannot get rid of: UNUSED, as the solver reads them.
       split: {
         capacity: 2,
         reached: 0,
-        reason: "CLOGGED",
+        reason: "UNUSED",
         portKey: out("split", "Hydrogen"),
         resourceKey: "item:Hydrogen",
       },
       make: {
         capacity: 2,
         reached: 0,
-        reason: "STARVED",
-        portKey: inn("make", "Hydrogen"),
-        resourceKey: "item:Hydrogen",
+        reason: "UNUSED",
+        portKey: out("make", "Water"),
+        resourceKey: "item:Water",
       },
     },
     loops: [
@@ -830,8 +831,8 @@ export const mockLoops: MockPlan = build({
       {
         kind: "CLOG_LOCK",
         cards: ["split", "make"],
-        portKeys: [out("split", "Hydrogen")],
-        resourceKeys: ["item:Hydrogen"],
+        portKeys: [out("split", "Hydrogen"), out("make", "Water")],
+        resourceKeys: ["item:Hydrogen", "item:Water"],
       },
     ],
     forced: [],

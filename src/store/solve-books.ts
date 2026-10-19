@@ -29,15 +29,12 @@ import type { FactoryProject, ThroughputResult } from "@/lib/model/types";
 const SYNC_SOLVE_LIMIT = 120;
 
 /**
- * Size is not the whole story. Two more reasons to leave the main thread:
+ * Size is not the whole story. One more reason to leave the main thread:
  * this plan's last MAIN-THREAD solve took longer than SLOW_SOLVE_MS (three
  * frames: past it every edit stutters, and in Firefox a hang that long clips
- * the board's sounds, see board-sounds.ts), or the plan carries cross-form
- * wires past CROSS_FORM_SYNC_LIMIT (each wire's hidden Tank makes the LP
- * much harder), so that board's very first solve never freezes the tab.
+ * the board's sounds, see board-sounds.ts).
  */
 const SLOW_SOLVE_MS = 50;
-const CROSS_FORM_SYNC_LIMIT = 100;
 /**
  * SOLVE MODE is far heavier on the homegrown simplex: six dense solves over
  * every machine and wire at once, and pool mode (which rides on solve mode)
@@ -142,7 +139,6 @@ export function solveBooks(project: FactoryProject): ThroughputResult {
   const expectSlow =
     size > SYNC_SOLVE_LIMIT ||
     provenSlow ||
-    (size > CROSS_FORM_SYNC_LIMIT && project.edges.some((edge) => edge.crossForm)) ||
     ((project.solveMode === true || project.poolMode === true) && size > SOLVE_MODE_SYNC_LIMIT) ||
     // Plan mode runs integer programs (HiGHS, which only the worker loads): the worker whenever there is one.
     project.planMode === true;

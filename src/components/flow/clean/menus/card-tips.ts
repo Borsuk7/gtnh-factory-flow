@@ -264,6 +264,21 @@ export function footTip(nodeId: string, foot: CleanFootView): TipSpec {
           ? "Running flat out"
           : `All ${n(f.capacity)} running`
         : `${n(f.running)} of ${n(f.capacity)} running`;
+  // A ring: what it is short of or backs up with, and that the ring stops itself.
+  if (f.loop) {
+    const dead = f.loop === "dead";
+    if (f.resource)
+      rows.push({ label: dead ? "Short of" : "Backs up", value: f.resource, tone: "warn" });
+    for (const name of f.tied)
+      rows.push({ label: dead ? "Also short of" : "Also backs up", value: name, tone: "warn" });
+    notes.push({
+      text: dead
+        ? "This loop starves itself to a stop. Bring this input in from outside."
+        : "This loop clogs itself to a stop. A drawer for this output frees it.",
+      tone: "muted",
+    });
+    return { id: `${nodeId}|foot`, title, rows, notes };
+  }
   switch (f.reason) {
     case "FULL":
       notes.push({ text: "Nothing around it would use more.", tone: "muted" });

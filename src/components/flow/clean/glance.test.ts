@@ -23,6 +23,19 @@ describe("the zoomed-out bar", () => {
     expect(glanceBar(undefined)).toBeUndefined();
   });
 
+  it("says a ring's name in its tone on a card in a ring", () => {
+    expect(glanceBar({ capacity: 2, reached: 0, reason: "STARVED" }, "dead")).toEqual({
+      tone: "starved",
+      fill: 0,
+      word: "DEAD LOOP",
+    });
+    expect(glanceBar({ capacity: 2, reached: 0, reason: "UNUSED" }, "clog")).toEqual({
+      tone: "clogged",
+      fill: 0,
+      word: "CLOG LOCK",
+    });
+  });
+
   it("is two background layers over the picture, the word the layer's own text", () => {
     const face = glanceFace("url(/art.png)", { tone: "clogged", fill: 0.5, word: "CLOGGED" });
     expect(face["data-bar"]).toBe("");
@@ -41,7 +54,10 @@ describe("the zoomed-out bar", () => {
 
   it("carries a structure render's width over height, so a tall card keeps it whole", () => {
     const bar = { tone: "clogged" as const, fill: 0.5, word: "CLOGGED" };
-    const reactor = glanceFace("url(/power-art/large-chemical-reactor.png)", bar).style as Record<string, string>;
+    const reactor = glanceFace("url(/power-art/large-chemical-reactor.png)", bar).style as Record<
+      string,
+      string
+    >;
     expect(Number(reactor["--glance-art-ratio"])).toBeCloseTo(4 / 3, 2);
     // An icon is square: the stylesheet's default.
     const icon = glanceFace("url(/icons/x.png)", bar).style as Record<string, string>;

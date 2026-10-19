@@ -44,6 +44,26 @@ Where things are:
 - [x] A setting for the reason outlines: Settings, Board, "Problem outlines" (`problemOutlines`), on by default, about line "Draws a card's edge in its bar's colour." Off keeps the normal edge; the bar, the lit port and the loops' outline stay.
 - [x] The zoomed-out view starts at a zoom of 0.65 (back above 0.67; it was 0.42) and its face shows the Up to bar along the foot: fill and track in the reason's tone, a bottleneck filled against what the line wants, the reason word on the bar while it reads; the count moves up above the bar.
 - [ ] A setting for where the zoomed-out view starts: Settings, Board, "Zoomed-out view" (`zoomedOutAt`), a slider of zooms from 35% to 100% of a 1:1 interface in steps of 5, 65% by default, about line "Cards turn simple below this zoom." The board changes at once, leaving the view the same 0.02 above; the tour keeps its zoom above it.
+- [ ] A ring is found only when it stands still (`findLoops` in `readout.ts`; the mod's `UpToRead.findLoops`): every
+      member's machines within the solve's dust of zero, DEAD_LOOP all STARVED, CLOG_LOCK all UNUSED. Before, a ring
+      fed from outside and running at half its counts was called a dead loop (the new `fed ring` fixture in
+      `__fixtures__/up-to/plans.ts`, in `FIXTURES`, so re-export the parity corpus).
+- [ ] Dead loops and clog locks are alarms (the owner, 2026-10-18: "much more concerning", and the first try at it was
+      "way too long"), in the ring's own tone as its cards' outlines and wires (dead loop amber `#E0A63A`, clog lock
+      purple `#B49CF0`): the row tinted with it (16% over the notice fill), a chip before the sentence saying DEAD LOOP
+      or CLOG LOCK in that tone with dark words `#18151D`, chip and stripe dimming to 35% of the tone with words in the
+      tone in the grey half of the prompts' clock, with the ring's card outlines (steady under reduced motion). The
+      sentence is one short line: "These machines starve each other in a downward spiral." / "These machines clog each
+      other in a downward spiral." ("This machine starves itself ..." for one card; no names or resources, Show me and
+      the outlines say which). Notices go most pressing first (`byUrgency` in `rail/notices.ts`): a failed solve, then
+      alarms, then warnings, then the rest, each kind in its own order; a flash stays on top. The mod's notice rows
+      wrap, so its alarm must keep words whole at GUI scale 4 (put the sentence under the chip when it does not fit
+      beside it).
+- [ ] A card in a ring says so itself: its foot bar's word is DEAD LOOP or CLOG LOCK in place of the reason, in the
+      ring's tone (a clog lock's cards are UNUSED but take CLOGGED's purple, not grey), the line as STARVED's ("short of
+      Oxygen") or CLOGGED's ("Hydrogen has nowhere to go"); the zoomed-out bar says it too. The bar's tip: "Short of" or
+      "Backs up" and "This loop starves itself to a stop. Bring this input in from outside." / "This loop clogs itself
+      to a stop. A drawer for this output frees it."
 - [ ] A setting that stops the wheel changing values: Settings, Board, "Scroll changes values" (`scrollChangesValues`), a switch, on by default, about line "Scroll over a number or chip to change it." Off, no wheel steps a count, chip, rate box, rule key, drawer or overview line or a settings row; over the board the wheel zooms, and the overview rail, the item list and long menus still scroll.
 
 ## Overview

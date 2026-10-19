@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mockForced, mockUnneeded } from "@/lib/solver/plan/__fixtures__/mock-extras";
 import type { ThroughputResult } from "@/lib/model/types";
 import type { PlanNote, PlanSolveExtras } from "@/lib/solver/plan/types";
-import { buildNotices } from "./notices";
+import { buildNotices, byUrgency } from "./notices";
 
 const withExtras = (
   mock: typeof mockForced,
@@ -166,6 +166,24 @@ describe("the notices' sentences", () => {
       severity: "error",
       text: "The planner couldn't solve this plan (the details are in the log)",
     });
+  });
+
+  it("lists the most pressing first: a failed solve, then alarms, then warnings, then the rest", () => {
+    const result = withExtras(mockForced, {
+      failure: note("BALANCE_FAILED", note("SOLVER_UNSATISFIABLE", "infeasible")),
+      notes: [note("OVERSHOOTS_TARGET", "Furnace", "Iron Ingot", 3, 2, "furn")],
+      loops: [{ kind: "CLOG_LOCK", cards: ["furn"], portKeys: [], resourceKeys: [] }],
+    });
+    expect(buildNotices(mockForced.project, result).map((n) => [n.severity, n.tag])).toEqual([
+      ["error", undefined],
+      ["error", "CLOG LOCK"],
+      ["warn", undefined],
+    ]);
+    const info = { severity: "info" as const, text: "info" };
+    const warn = { severity: "warn" as const, text: "warn" };
+    const alarm = { severity: "error" as const, tag: "DEAD LOOP", text: "alarm" };
+    const failed = { severity: "error" as const, text: "failed" };
+    expect(byUrgency([info, warn, alarm, failed, warn])).toEqual([failed, alarm, warn, warn, info]);
   });
 
   it("says nothing for an empty board, a clean plan or an old-mode result", () => {

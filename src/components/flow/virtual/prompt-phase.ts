@@ -16,9 +16,12 @@ const PULSES = new Set(["cc-accept", "cc-glow"]);
 export const BLINK_ATTRIBUTE = "data-cc-blink";
 /** One whole blink (gold then grey), as `--cc-prompt` says in clean.css. */
 export const BLINK_MS = 1000;
-/** Everything that blinks off the clock: the prompts, and the outline of a card in a dead loop or a clog lock. */
+/**
+ * Everything that blinks off the clock: the prompts, the outline of a card in a dead loop or a clog lock, and that
+ * ring's notice (its cards may be off screen, unmounted).
+ */
 const PROMPTS =
-  ".cc-count[data-prompt], .cc-prb[data-prompt], .cd-box[data-prompt], .cc-card[data-loop]";
+  ".cc-count[data-prompt], .cc-prb[data-prompt], .cd-box[data-prompt], .cc-card[data-loop], .rail-notice[data-alarm]";
 
 let frame = 0;
 let clock: ReturnType<typeof setTimeout> | undefined;

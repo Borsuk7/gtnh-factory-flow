@@ -458,6 +458,19 @@ export const deadRing = (n: number, prefix = "r"): SolveInput => {
 };
 
 /**
+ * The dead ring of two fed from outside: e (Exactly 1) puts `feed` x0 a second into r0. With 0.25 the ring runs at half
+ * its counts, both starved, held back by the feed: it is no dead loop.
+ */
+export const fedRing = (feed: number): SolveInput => {
+  const ring = deadRing(2);
+  return {
+    ...ring,
+    machines: [...ring.machines, machine("e", [], [port(0, "x0", feed)], 1)],
+    edges: [...ring.edges, edge("rfeed", "e", 0, "r0", 0)],
+  };
+};
+
+/**
  * a (x and free ore -> y) and b (y -> 2 x), both Up to 1, in a ring: b makes twice the x a takes, with nowhere for the
  * rest to go, so neither runs: a clog lock (the fix is a drawer on b's x).
  */
@@ -528,6 +541,7 @@ export const FIXTURES: Record<string, () => SolveInput> = {
   "dead ring of one": () => deadRing(1),
   "dead ring of two": () => deadRing(2),
   "dead ring of three": () => deadRing(3),
+  "fed ring": () => fedRing(0.25),
   "clog ring": clogRing,
   "starved chain": starvedChain,
   "two rings": twoRings,

@@ -14,6 +14,9 @@ export function loopTone(loop: Pick<PlanUpToLoop, "kind">): LoopTone {
   return loop.kind === "DEAD_LOOP" ? "dead" : "clog";
 }
 
+/** What a ring is called: its notice's tag, and the word on each of its cards' foot bars in place of the reason. */
+export const LOOP_WORD: Record<LoopTone, string> = { dead: "DEAD LOOP", clog: "CLOG LOCK" };
+
 /** The ring a card is in (the first, when it is in several), as its tone. */
 export function cardLoop(
   loops: readonly PlanUpToLoop[] | undefined,
@@ -52,38 +55,18 @@ export function loopEdges(
   return out;
 }
 
-/** "A", "A and B", "A, B and C". */
-function list(words: readonly string[]): string {
-  if (words.length <= 1) return words[0] ?? "";
-  return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
-}
-
-/** The ring's cards by name, each name once; a ring of one kind of machine says how many. */
-function members(names: readonly string[]): { text: string; one: boolean } {
-  const distinct = [...new Set(names)];
-  if (names.length > 1 && distinct.length === 1)
-    return { text: `${names.length} ${distinct[0]} cards`, one: false };
-  return { text: list(distinct), one: names.length === 1 };
+/** What a ring is: the tag its notice wears in front of its sentence, in the ring's tone and blinking. */
+export function loopTag(loop: Pick<PlanUpToLoop, "kind">): string {
+  return LOOP_WORD[loopTone(loop)];
 }
 
 /**
- * The notice for a ring, in plain short sentences: a dead loop's cards wait on each other and nothing feeds them; a
- * clog lock's are stuck on what they cannot get rid of, and a drawer for it frees them.
+ * The notice for a ring after its tag, one short sentence: its cards starve (a dead loop) or clog (a clog lock) each
+ * other in a downward spiral, each holding the next back. Which cards is for Show me, their pulsing outlines and the
+ * lit wires to say; `cards` is how many.
  */
-export function loopSentence(
-  loop: Pick<PlanUpToLoop, "kind">,
-  names: readonly string[],
-  resources: readonly string[],
-): string {
-  const who = members(names);
-  if (loop.kind === "DEAD_LOOP") {
-    return who.one
-      ? `The ${who.text} waits on itself. Nothing feeds the loop.`
-      : `The ${who.text} wait on each other. Nothing feeds the loop.`;
-  }
-  const what = resources.length > 0 ? list(resources) : "what they make";
-  const drawer = resources.length > 1 ? "A drawer for each" : "A drawer for it";
-  return who.one
-    ? `The ${who.text} is stuck on ${what}. ${drawer} frees it.`
-    : `The ${who.text} are stuck on ${what}. ${drawer} frees them.`;
+export function loopSentence(loop: Pick<PlanUpToLoop, "kind">, cards: number): string {
+  const dead = loop.kind === "DEAD_LOOP";
+  if (cards === 1) return `This machine ${dead ? "starves" : "clogs"} itself in a downward spiral.`;
+  return `These machines ${dead ? "starve" : "clog"} each other in a downward spiral.`;
 }

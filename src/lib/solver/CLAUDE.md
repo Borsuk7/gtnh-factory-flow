@@ -39,8 +39,7 @@ nowhere or goes nowhere except through a source, a drawer or trash. Longer versi
   Solve (`solveMode`): you type product rates; counts are solved. Pool (`solveMode` +
   `poolMode`): no wires; one shared pool per resource.
 - Setup rules are gone: `getSetupRules` answers every plan the same
-  (`looseCellWires: true`, no free inputs or outputs). Tests needing an open boundary call
-  `closeBoundaries`.
+  (no free inputs or outputs). Tests needing an open boundary call `closeBoundaries`.
 - Pool (`pool-mode.ts`, `expandPool`): hidden drawers and wires are added before the
   solve so the ordinary rules apply unchanged. Feeders + takers = a buffer (strict under
   Match, so intermediates balance; overflow under Ignore), feeders only = product drain,
@@ -70,9 +69,8 @@ nowhere or goes nowhere except through a source, a drawer or trash. Longer versi
   sides with a Setup output share (`storage-ratios.ts` here and in model/). Pool ignores
   manual ratio splits.
 - Plan mode (`plan/`): a buffer wired only to cards is a BUFFER drawer (`DrawerIn.takers`), its rule a product's
-  on what passes through (`docs/buffer-drawers.md`); `adapter/buffers.ts` joins only buffers wired to another drawer or
-  by a cell wire. The solver change mirrors the mod's line for line; adding any feature to both:
-  `docs/cross-repo-features.md`.
+  on what passes through (`docs/buffer-drawers.md`); `adapter/buffers.ts` joins only buffers wired to another drawer.
+  The solver change mirrors the mod's line for line; adding any feature to both: `docs/cross-repo-features.md`.
 - Drain drawers cycle product / byproduct / trash. Trash is free disposal with its books
   voided (`applyTrashedOutputBalances`). Old trash-can nodes convert on load.
 - In Build, targets are display arithmetic; in Solve and Pool they are LP rows.
@@ -85,7 +83,8 @@ The verdict and ring-diagnosis code lives in `src/components/flow/` (`node-verdi
 - Shared machines: `expandSharedMachines` stands each extra section up as a hidden node;
   the ONLY coupling is a time row (`listSharedMachineGroups`): sections' acts sum to at
   most one. A section held by that row reads BUSY (`findBusySharer`).
-- Cell <-> fluid wires expand through a hidden free Tank (`expandCrossFormEdges`).
+- No wire crosses forms: a cell meets its fluid in a visible fluid tank card, a machine step like any other
+  (`model/cell-wires.ts` turns an older plan's loose cell wires into tanks before the solver sees them).
 - Ring diagnoses (`death-spiral.ts`, `clog-lock.ts`) stand down for an unfinished setup
   (a member with no power or a bare slot, `bare-slots.ts`). A card whose takers have all
   stopped reads CLOGGED naming them; a stopped taker's ask is never a deficit.
@@ -100,7 +99,7 @@ The verdict and ring-diagnosis code lives in `src/components/flow/` (`node-verdi
   breaks boards.
 - Dead-loop tells: capability 1 plus a clog cascade = wrongly zeroed; 0 = truly dead.
 - A hungry machine idle under a full buffer: dump the stage LP and check residuals first.
-- The hidden cross-form Tank is sized at 1000 machines; larger breaks the LP's range.
+- Pool's hidden cell-fluid Tank is sized at 1000 machines; larger breaks the LP's range.
 
 ## Machine math
 

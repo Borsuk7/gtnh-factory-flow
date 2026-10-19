@@ -11,7 +11,6 @@ import { isFreeRecipeInput, isOreDictionaryResource, isRecipeInputConsumed, make
 import { getPoolProject, isPoolStorageId } from "@/lib/solver/pool-mode";
 import { findDeathSpirals, type DeathSpiral } from "./death-spiral";
 import { findClogLocks, type ClogLock } from "./clog-lock";
-import { inputEdgeRate, inputEdgeResourceKey } from "./input-edge";
 import { findBareSlots } from "./bare-slots";
 import { isCustomRateRecipe } from "@/lib/model/custom-rate";
 import { collectTrashNodeIds } from "@/lib/model/trash";
@@ -231,7 +230,7 @@ function clamp01(value: number | undefined, fallback: number): number {
 export function honestEdgeAskPerSecond(
   edgeResult: EdgeThroughput | undefined,
   targetResult?: NodeThroughputResult,
-  edge?: Pick<ProjectEdge, "resourceKind" | "resourceId" | "targetHandle" | "crossForm">,
+  edge?: Pick<ProjectEdge, "resourceKind" | "resourceId" | "targetHandle">,
 ): number {
   if (!edgeResult) {
     return 0;
@@ -252,9 +251,9 @@ export function honestEdgeAskPerSecond(
     const limitsThisLine =
       edge === undefined ||
       targetResult.limitingInputKey === undefined ||
-      inputEdgeResourceKey(edge) === targetResult.limitingInputKey ||
+      makeResourceKey(edge.resourceKind, edge.resourceId) === targetResult.limitingInputKey ||
       targetResult.limitingInputTiedKeys?.includes(
-        inputEdgeResourceKey(edge),
+        makeResourceKey(edge.resourceKind, edge.resourceId),
       ) === true;
     if (!demandSet && capable < 1 - VERDICT_EPSILON && limitsThisLine) {
       return Math.max(nameplate, damped);
@@ -781,14 +780,14 @@ function honestInboundAvailablePerSecond(
   // nothing) cannot, so its line delivers nothing and the machine it starves
   // can name who stopped it.
   const sourceCanRamp = sourceIsStorage || isMachineAbleToRun(result?.nodes[edge.source]);
-  return inputEdgeRate(edge, honestEdgeAvailablePerSecond(
+  return honestEdgeAvailablePerSecond(
     result?.edges[edge.id],
     sourceIsStorage,
     sourceHasSoleOutlet && sourceCanRamp,
     sourceIsStorage
       ? bufferRelaySupplyPerSecond(project, result, edge.source, edge.id)
       : Number.POSITIVE_INFINITY,
-  ));
+  );
 }
 
 /**
@@ -1435,7 +1434,7 @@ function findBindingInput(
       continue;
     }
     const edges = incoming.filter(
-      (edge) => inputEdgeResourceKey(edge) === key,
+      (edge) => makeResourceKey(edge.resourceKind, edge.resourceId) === key,
     );
     // A bare input delivers nothing and binds hardest of all; it must not be
     // skipped, or the input actually stopping the machine is never named.
@@ -1541,7 +1540,7 @@ function findUpstreamCulprit(
       pick = edge;
       break;
     }
-    const transferred = inputEdgeRate(edge, edgeResult?.transferredPerSecond ?? 0);
+    const transferred = edgeResult?.transferredPerSecond ?? 0;
     if (transferred > pickTransferred) {
       pick = edge;
       pickTransferred = transferred;
@@ -1606,7 +1605,7 @@ function findUpstreamCulprit(
       sourceResult.outputs[key as keyof typeof sourceResult.outputs] ??
       Object.values(sourceResult.outputs).find((entry) => entry.resourceId === pick.resourceId);
     const machineCount = Math.max(1, sourceNode?.machineCount ?? 1);
-    const nameplate = inputEdgeRate(pick, sourceFlow?.amountPerSecond ?? 0);
+    const nameplate = sourceFlow?.amountPerSecond ?? 0;
     const perMachine = nameplate / machineCount;
     if (perMachine > RATE_EPSILON) {
       // Measured from the culprit's FULL BLAST: its free headroom counts
@@ -1859,7 +1858,7 @@ export function buildRailPorts(
       }
 
       const edges = sideEdges.filter(
-        (edge) => (isInput ? inputEdgeResourceKey(edge) : makeResourceKey(edge.resourceKind, edge.resourceId)) === key,
+        (edge) => makeResourceKey(edge.resourceKind, edge.resourceId) === key,
       );
       const connected = edges.length > 0;
       let transferred = 0;
@@ -1873,8 +1872,7 @@ export function buildRailPorts(
       const trashTargets = new Set<string>();
       for (const edge of edges) {
         const edgeResult = result?.edges[edge.id];
-        const sourceRate = edgeResult?.transferredPerSecond ?? 0;
-        const rate = isInput ? inputEdgeRate(edge, sourceRate) : sourceRate;
+        const rate = edgeResult?.transferredPerSecond ?? 0;
         transferred += rate;
         if (isInput) {
           available += honestInboundAvailablePerSecond(
@@ -2160,7 +2158,7 @@ export function buildLimitLadder(
       continue;
     }
     const edges = incoming.filter(
-      (edge) => inputEdgeResourceKey(edge) === key,
+      (edge) => makeResourceKey(edge.resourceKind, edge.resourceId) === key,
     );
     // A bare input is a 0% rung, not an absent one: nothing declares where it
     // comes from, so the machine stands on it until something does.

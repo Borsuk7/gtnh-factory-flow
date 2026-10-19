@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mockLoops } from "@/lib/solver/plan/__fixtures__/mock-extras";
 import { makePortKey } from "@/lib/solver/plan/port-key";
 import { buildNotices } from "./rail/notices";
-import { cardLoop, loopEdges, loopSentence, loopTone } from "./loops";
+import { cardLoop, loopEdges, loopSentence, loopTag, loopTone } from "./loops";
 
 const loops = mockLoops.result.plan!.loops!;
 
@@ -21,8 +21,9 @@ describe("a ring on the board", () => {
       "w-ab": "dead",
       "w-bc": "dead",
       "w-ca": "dead",
-      // The clog lock is stuck on hydrogen: its hydrogen wire, not its oxygen or water.
+      // The clog lock's cards are stuck on hydrogen and on water: those wires, not its oxygen.
       "w-h": "clog",
+      "w-w": "clog",
     });
     expect(loopEdges(mockLoops.project.edges, undefined).size).toBe(0);
   });
@@ -50,42 +51,34 @@ describe("a ring on the board", () => {
 });
 
 describe("a ring's notice", () => {
-  it("says it in plain short sentences", () => {
+  it("names what it is and says it is a downward spiral, in one short sentence", () => {
     const dead = { kind: "DEAD_LOOP" as const };
     const clog = { kind: "CLOG_LOCK" as const };
-    expect(loopSentence(dead, ["Electrolyzer", "Chemical Reactor", "Mixer"], [])).toBe(
-      "The Electrolyzer, Chemical Reactor and Mixer wait on each other. Nothing feeds the loop.",
-    );
-    expect(loopSentence(clog, ["Electrolyzer", "Mixer"], ["Hydrogen"])).toBe(
-      "The Electrolyzer and Mixer are stuck on Hydrogen. A drawer for it frees them.",
-    );
-    expect(loopSentence(clog, ["Electrolyzer", "Mixer"], ["Hydrogen", "Water"])).toBe(
-      "The Electrolyzer and Mixer are stuck on Hydrogen and Water. A drawer for each frees them.",
-    );
-    expect(loopSentence(dead, ["Mixer"], [])).toBe(
-      "The Mixer waits on itself. Nothing feeds the loop.",
-    );
-    expect(loopSentence(clog, ["Mixer"], ["Hydrogen"])).toBe(
-      "The Mixer is stuck on Hydrogen. A drawer for it frees it.",
-    );
-    expect(loopSentence(dead, ["Mixer", "Mixer"], [])).toBe(
-      "The 2 Mixer cards wait on each other. Nothing feeds the loop.",
-    );
+    expect(loopTag(dead)).toBe("DEAD LOOP");
+    expect(loopTag(clog)).toBe("CLOG LOCK");
+    expect(loopSentence(dead, 3)).toBe("These machines starve each other in a downward spiral.");
+    expect(loopSentence(clog, 2)).toBe("These machines clog each other in a downward spiral.");
+    expect(loopSentence(dead, 1)).toBe("This machine starves itself in a downward spiral.");
+    expect(loopSentence(clog, 1)).toBe("This machine clogs itself in a downward spiral.");
   });
 
-  it("is in the notice bar once per ring, with Show me on its cards", () => {
+  it("is an alarm in the notice bar once per ring, with Show me on its cards", () => {
     const notices = buildNotices(mockLoops.project, mockLoops.result).filter((n) =>
       n.id.startsWith("loop:"),
     );
-    expect(notices.map((n) => [n.severity, n.text, n.focus])).toEqual([
+    expect(notices.map((n) => [n.severity, n.tag, n.loop, n.text, n.focus])).toEqual([
       [
-        "warn",
-        "The Electrolyzer, Chemical Reactor and Mixer wait on each other. Nothing feeds the loop.",
+        "error",
+        "DEAD LOOP",
+        "dead",
+        "These machines starve each other in a downward spiral.",
         ["ra", "rb", "rc"],
       ],
       [
-        "warn",
-        "The Electrolyzer and Mixer are stuck on Hydrogen. A drawer for it frees them.",
+        "error",
+        "CLOG LOCK",
+        "clog",
+        "These machines clog each other in a downward spiral.",
         ["split", "make"],
       ],
     ]);

@@ -334,40 +334,6 @@ describe("buffers", () => {
   });
 });
 
-describe("loose cell wires", () => {
-  it("the hidden tank is a machine the core is told costs nothing", () => {
-    const cell = recipe("cells", [], [["Water Cell", 1]]);
-    const use = {
-      ...recipe("use", [], []),
-      inputs: [{ kind: "fluid" as const, id: "water", amount: 1000, displayName: "Water" }],
-    };
-    const p = project({
-      recipes: [cell, use],
-      nodes: [node("c", "cells", { solvePin: 1 }), node("u", "use")],
-      edges: [
-        {
-          id: "loose",
-          source: "c",
-          target: "u",
-          sourceHandle: handle("output", "Water Cell"),
-          targetHandle: "input:fluid:water",
-          resourceKind: "item",
-          resourceId: "Water Cell",
-          crossForm: { litresPerCell: 1000 },
-        },
-      ],
-    });
-    const { input, result } = run(p);
-    expect(input.machines.map((m) => m.id)).toEqual(["c", "crossform:loose", "u"]);
-    expect(input.weightless).toEqual(["crossform:loose"]);
-    expect(input.edges).toHaveLength(2);
-    // the tank is struck from the answer, the far half of the wire too
-    expect(result.nodes["crossform:loose"]).toBeUndefined();
-    expect(result.edges["loose:crossform"]).toBeUndefined();
-    expect(result.edges["loose"]).toBeDefined();
-  });
-});
-
 describe("oredict inputs", () => {
   it("a concrete item wired to an ore dictionary row finds the row", () => {
     const smelt = recipe("smelt", [["oredict:plank", 1]], [["out", 1]]);

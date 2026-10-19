@@ -186,6 +186,28 @@ it("bar tip: usage, the reason in full and where to act", () => {
   expect(forced.title).toBe("Exactly 24 running");
   expect(forced.rows).toEqual([{ label: "Forced in", value: "720 L/s Oxygen", tone: "warn" }]);
   expect(footTip("n", facts({ reason: "UNUSED", running: 0 })).title).toBe("None running");
+  const dead = footTip(
+    "n",
+    facts({ reason: "STARVED", loop: "dead", running: 0, resource: "Oxygen" }),
+  );
+  expect(dead.rows?.map((r) => `${r.label}: ${r.value}`)).toEqual([
+    "Usage: 0%",
+    "Short of: Oxygen",
+  ]);
+  expect(dead.notes?.[0]?.text).toBe(
+    "This loop starves itself to a stop. Bring this input in from outside.",
+  );
+  const clog = footTip(
+    "n",
+    facts({ reason: "UNUSED", loop: "clog", running: 0, resource: "Hydrogen" }),
+  );
+  expect(clog.rows?.map((r) => `${r.label}: ${r.value}`)).toEqual([
+    "Usage: 0%",
+    "Backs up: Hydrogen",
+  ]);
+  expect(clog.notes?.[0]?.text).toBe(
+    "This loop clogs itself to a stop. A drawer for this output frees it.",
+  );
 });
 
 it("strip chip tip: Set to, coil need, pinned note, gestures", () => {

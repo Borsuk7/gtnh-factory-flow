@@ -12,6 +12,7 @@ import { snapPositionToGrid, snapSizeUpToGrid } from "@/lib/board-grid";
 import { sectionNodeView, splitSectionHandleId } from "./shared-machine";
 import { repairWiredInputOverrides } from "./edge-input-overrides";
 import { openAsPlan, type PlanConversionNotice } from "@/lib/solver/plan/to-plan";
+import { convertLooseCellWires } from "./cell-wires";
 
 /**
  * Everything a project must go through on its way in, whether it arrives from
@@ -59,10 +60,42 @@ export function normalizeLoadedProjectWithNotice(
   notice?: PlanConversionNotice;
 } {
   if (options?.keepMode ?? legacyModes) {
+    // Cell wires stay too: they turn into tanks where the plan lands, which says so.
     return { project: normalizeLegacyProject(project) };
   }
-  const opened = openAsPlan(normalizeLegacyProject(project));
-  return { project: opened.project, notice: opened.notice };
+  // Cell wires first, so the legacy passes and the mode conversion see ordinary wires (a buffer beside one stays a
+  // buffer). A pool plan's cell and fluid pairs get their tanks in its own conversion (`wirePoolProject`).
+  const wired = convertLooseCellWires(project);
+  const opened = openAsPlan(normalizeLegacyProject(wired.project));
+  return { project: opened.project, notice: withCellWireNotice(opened.notice, wired.converted) };
+}
+
+/**
+ * A plan already in the one mode whose loose cell wires became tanks (a live plan landing through `applyLiveOps`),
+ * with the notice. The same object and no notice when it has none.
+ */
+export function convertCellWiresWithNotice(project: FactoryProject): {
+  project: FactoryProject;
+  notice?: PlanConversionNotice;
+} {
+  const cells = convertLooseCellWires(project);
+  return { project: cells.project, notice: withCellWireNotice(undefined, cells.converted) };
+}
+
+/** What the tanks a landing put in say: a line of their own, or one more line under a mode conversion's. */
+function withCellWireNotice(
+  notice: PlanConversionNotice | undefined,
+  tanks: number,
+): PlanConversionNotice | undefined {
+  if (tanks === 0) {
+    return notice;
+  }
+  const line =
+    tanks === 1 ? "1 cell wire now goes through a fluid tank." : `${tanks} cell wires now go through fluid tanks.`;
+  if (notice) {
+    return { ...notice, details: [...notice.details, line] };
+  }
+  return { origin: "plan", text: line, details: ["Cells no longer wire straight into fluid slots."] };
 }
 
 function normalizeLegacyProject(project: FactoryProject): FactoryProject {
@@ -345,9 +378,9 @@ function dropCrossFormConnections(project: FactoryProject): FactoryProject {
 
   const edges = project.edges.filter(
     (edge) =>
-      // A LOOSE CELL WIRE crosses the forms ON PURPOSE: its resource is one
-      // form, its target slot the other, and it carries a fetched Canner
-      // ratio. The legacy shape this pass hunts has no `crossForm`.
+      // A LOOSE CELL WIRE crosses the forms on purpose and carries its Canner
+      // ratio: it becomes a tank where the plan lands (cell-wires.ts), so it
+      // passes here. The legacy shape this pass hunts has no `crossForm`.
       edge.crossForm !== undefined ||
       (endpointHandles(edge.source, "source", edge.resourceKind, edge.sourceHandle) &&
         endpointHandles(edge.target, "target", edge.resourceKind, edge.targetHandle)),

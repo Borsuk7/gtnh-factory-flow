@@ -8,10 +8,11 @@ export type PlanOrigin = "build" | "solve" | "pool";
 /**
  * Said to the player once, when a conversion could not carry everything over.
  * A plain Build or Solve plan converts without a word; a Pool plan always
- * gets one, because its pools turned into wires.
+ * gets one, because its pools turned into wires. `plan`: a plan already in the
+ * one mode whose loose cell wires became fluid tanks (`model/project-normalize.ts`).
  */
 export interface PlanConversionNotice {
-  origin: PlanOrigin;
+  origin: PlanOrigin | "plan";
   text: string;
   /** Short lines for the parts that did not come over. */
   details: string[];
@@ -54,6 +55,7 @@ export function openAsPlan(project: FactoryProject): PlanOpening {
       details.push("Drawers of one resource on the same side were joined.");
     }
     if (wired.report.unreachedDrawers > 0) details.push("Some drawers have nothing to wire to.");
+    if (wired.report.bridgeWires > 0) details.push("Cells and their fluids meet in fluid tanks.");
     if (converted.report.droppedTargets.length > 0) details.push("A target that no card makes was dropped.");
     return {
       project: converted.project,

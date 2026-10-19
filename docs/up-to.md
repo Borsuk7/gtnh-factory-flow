@@ -138,10 +138,15 @@ Islands: each island's read-out is its own; `solvePlan` concatenates them, sorte
 Old Build's dead loop and clog lock (`death-spiral.ts`, `clog-lock.ts`), found once every pool's reason is known, a pure
 graph over the read-out and the model's networks (no LP, no budget). A pool blames the Up to pools on the wire network of
 its `port` and `tied` ports: a STARVED pool those that make what it is short of, a CLOGGED or UNUSED pool those that take
-what it cannot get rid of. A ring is a strongly connected part of that relation (a pool blaming itself counts):
+what it cannot get rid of. A ring is a strongly connected part of that relation (a pool blaming itself counts) whose
+members all stand still (every machine within the solve's dust of zero, as UNUSED is judged):
 
-- **DEAD_LOOP**: every member STARVED. A recycling loop nothing feeds; the fix is to feed it.
-- **CLOG_LOCK**: every member CLOGGED or UNUSED. Frozen by its own surplus; the fix is a drawer.
+- **DEAD_LOOP**: every member STARVED and standing still. A recycling loop nothing feeds; the fix is to feed it.
+- **CLOG_LOCK**: every member UNUSED (CLOGGED standing still). Frozen by its own surplus; the fix is a drawer.
+
+Standing still is the test, as in old Build: a ring that loses material every lap winds down to zero when nothing
+feeds it, so a ring that runs at all is fed from outside and held back by that feed, which its members' STARVED already
+says (the `fed ring` fixture: a ring fed a quarter of what it could take runs at half its counts and is no ring).
 
 Each is `UpToLoop { kind, nodes, ports }`: `nodes` the members' `node` in pool order, `ports` the members' blaming ports
 that lie on the ring's edges, member by member. Rings are sorted by their first member's `node` (`compareIds`), merged
