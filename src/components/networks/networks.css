@@ -61,7 +61,12 @@
   color: var(--mc-muted);
   font-size: 13px;
 }
+.netview-header > div:first-child {
+  flex: 1;
+  min-width: 200px;
+}
 .netview input.netview-title {
+  width: 100%;
   font-size: 24px;
   border-color: transparent;
   background: transparent;
@@ -90,10 +95,52 @@
   min-width: 0;
 }
 .netview-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin: 12px 0 8px;
   color: var(--mc-muted);
   font-size: 13px;
   text-transform: uppercase;
+}
+.netview .netview-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  min-height: 34px;
+  padding: 6px;
+}
+.netview-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 60%);
+}
+.netview.mx.netview-modal {
+  width: min(900px, calc(100 * var(--ui-vw) - 32px));
+  height: auto;
+  max-height: calc(100 * var(--ui-dvh) - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid var(--mc-ring);
+  box-shadow: 0 12px 48px rgb(0 0 0 / 55%);
+}
+.netview-modal-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.netview-modal .netview-port-list {
+  min-height: 0;
+  max-height: none;
 }
 .netview-tree {
   list-style: none;
@@ -127,6 +174,27 @@
   align-items: center;
   gap: 6px;
   margin: 5px 0;
+}
+.netview-plan-group {
+  margin: 10px 0;
+}
+.netview-plan-group summary {
+  cursor: pointer;
+  padding: 5px 0;
+  color: var(--mc-muted);
+}
+.netview-plan-group summary span {
+  float: right;
+}
+.netview-group-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.netview-group-field input {
+  flex: 1;
+  min-width: 140px;
 }
 .netview-member > .netview-link,
 .netview-member > span {

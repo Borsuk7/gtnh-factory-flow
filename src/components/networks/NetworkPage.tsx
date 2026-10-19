@@ -1,17 +1,21 @@
 "use client";
 
 import "./networks.css";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Plus, RefreshCw, X } from "lucide-react";
+import { useDialogA11y } from "@/lib/hooks/use-dialog-a11y";
 import { useNetworkStore } from "@/store/network-store";
 import { useDesignStore } from "@/store/design-store";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
-import { useRateDisplayUnits } from "@/store/factory-store";
+import { useFactoryStore, useRateDisplayUnits } from "@/store/factory-store";
 import { formatCompact } from "@/lib/model/resources";
 import {
   powerDisplayFromEuT,
   powerDisplaySuffix,
   rateMultiplierForKind,
   rateSuffixForKind,
+  type TimeRateUnit,
 } from "@/lib/model/rate-unit";
 import {
   aggregateNetworks,
@@ -24,7 +28,6 @@ import {
 } from "@/lib/networks/model";
 import { localDesignId, useNetworkCalculations } from "@/lib/networks/calculation";
 import { syncNetworks } from "@/lib/networks/sync";
-import { openLibrary } from "@/lib/library/library-tab";
 import { ResourceIcon } from "@/components/nei/ResourceIcon";
 import type { MaterialFlow } from "@/lib/networks/model";
 
@@ -192,73 +195,90 @@ export function NetworkPage() {
           />
         </div>
         <div className="netview-actions">
+          <NetworkRateControl />
           <button
-            onClick={() => {
-              useNetworkStore.getState().leave();
-              openLibrary({ kind: "networks" });
-            }}
-          >
-            Back to networks
-          </button>
-          <button
+            className="netview-icon-button"
+            aria-label="Refresh figures"
+            title="Refresh figures"
             onClick={() => {
               setRetry((value) => value + 1);
               void syncNetworks();
             }}
           >
-            Refresh figures
+            <RefreshCw size={18} aria-hidden="true" />
           </button>
-          <button onClick={() => setAdding(!adding)}>Add plans</button>
-          <button onClick={() => void create("New subnetwork", network.id)}>New subnetwork</button>
         </div>
       </header>
       <NetworkStatus />
       <div className="netview-layout">
         <aside className="netview-members" aria-label="Network members">
-          <div className="netview-section-title">Networks</div>
+          <div className="netview-section-title">
+            Networks
+            <button
+              className="netview-icon-button"
+              aria-label="New subnetwork"
+              title="New subnetwork"
+              onClick={() => void create("New subnetwork", network.id)}
+            >
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          </div>
           <NetworkTree networks={networks} />
-          <div className="netview-section-title">Plans in {network.name}</div>
-          {network.members.map((member) => (
-            <div className="netview-member" key={memberKey(member)}>
-              <label title="Include in totals">
-                <input
-                  type="checkbox"
-                  aria-label={`Include ${member.name}`}
-                  checked={member.included}
-                  onChange={(event) =>
+          <div className="netview-section-title">
+            Plans in {network.name}
+            <button
+              className="netview-icon-button"
+              aria-label="Add plans"
+              title="Add plans"
+              onClick={() => setAdding(!adding)}
+            >
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          </div>
+          <PlanGroups
+            members={network.members}
+            renderMember={(member) => (
+              <div className="netview-member" key={memberKey(member)}>
+                <label title="Include in totals">
+                  <input
+                    type="checkbox"
+                    aria-label={`Include ${member.name}`}
+                    checked={member.included}
+                    onChange={(event) =>
+                      patch({
+                        members: network.members.map((entry) =>
+                          memberKey(entry) === memberKey(member)
+                            ? { ...entry, included: event.target.checked }
+                            : entry,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+                <button className="netview-link" onClick={() => void openMember(member)}>
+                  {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
+                </button>
+                <button
+                  aria-label={`Inputs and outputs for ${member.name}`}
+                  onClick={() => setEditingPorts(memberKey(member))}
+                >
+                  I/O
+                </button>
+                <button
+                  aria-label={`Remove ${member.name}`}
+                  onClick={() =>
                     patch({
-                      members: network.members.map((entry) =>
-                        memberKey(entry) === memberKey(member)
-                          ? { ...entry, included: event.target.checked }
-                          : entry,
+                      members: network.members.filter(
+                        (entry) => memberKey(entry) !== memberKey(member),
                       ),
                     })
                   }
-                />
-              </label>
-              <button className="netview-link" onClick={() => void openMember(member)}>
-                {designs.find((entry) => entry.id === localDesignId(member))?.name ?? member.name}
-              </button>
-              <button
-                aria-label={`Inputs and outputs for ${member.name}`}
-                onClick={() => setEditingPorts(memberKey(member))}
-              >
-                I/O
-              </button>
-              <button
-                aria-label={`Remove ${member.name}`}
-                onClick={() =>
-                  patch({
-                    members: network.members.filter(
-                      (entry) => memberKey(entry) !== memberKey(member),
-                    ),
-                  })
-                }
-              >
-                ×
-              </button>
-            </div>
-          ))}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          />
           {!network.members.length ? <p>Add saved plans to start counting their flows.</p> : null}
           <label className="netview-field">
             Parent network
@@ -307,6 +327,18 @@ export function NetworkPage() {
                 key={editingPorts}
                 member={member}
                 flow={flows.get(memberKey(member))}
+                groups={[
+                  ...new Set(
+                    network.members.flatMap((entry) => (entry.group ? [entry.group] : [])),
+                  ),
+                ]}
+                onGroupChange={(group) =>
+                  patch({
+                    members: network.members.map((entry) =>
+                      memberKey(entry) === memberKey(member) ? { ...entry, group } : entry,
+                    ),
+                  })
+                }
                 onDone={() => setEditingPorts(undefined)}
                 onChange={(portSelection) =>
                   patch({
@@ -532,14 +564,19 @@ function ResourceRows({ children }: { children: React.ReactNode }) {
 function PortPicker({
   member,
   flow,
+  groups,
+  onGroupChange,
   onChange,
   onDone,
 }: {
   member: NetworkMember;
   flow?: PlanFlows;
+  groups: string[];
+  onGroupChange: (group: string | undefined) => void;
   onChange: (selection: string[] | undefined) => void;
   onDone: () => void;
 }) {
+  useRateDisplayUnits();
   const ports = flow?.ports ?? [];
   const keys = [...new Set(ports.map((port) => port.portKey))];
   const selected = new Set(member.portSelection ?? keys);
@@ -551,9 +588,31 @@ function PortPicker({
     onChange([...next]);
   };
   return (
-    <section className="netview-picker" aria-label={`Inputs and outputs for ${member.name}`}>
+    <NetworkModal title={`Inputs and outputs · ${member.name}`} onClose={onDone}>
+      <label className="netview-group-field">
+        Plan group
+        <input
+          aria-label="Plan group"
+          placeholder="Ungrouped"
+          list="network-plan-groups"
+          defaultValue={member.group ?? ""}
+          maxLength={80}
+          onBlur={(event) => {
+            const group = event.target.value.trim() || undefined;
+            if (group !== member.group) onGroupChange(group);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+        <datalist id="network-plan-groups">
+          {groups.map((group) => (
+            <option key={group} value={group} />
+          ))}
+        </datalist>
+      </label>
       <div className="netview-actions">
-        <strong>Inputs and outputs · {member.name}</strong>
+        <NetworkRateControl />
         <button onClick={() => onChange(undefined)}>Use all ports</button>
         <button onClick={() => onChange([])}>Clear all</button>
         <button onClick={onDone}>Done</button>
@@ -597,7 +656,92 @@ function PortPicker({
             </label>
           ))}
       </div>
-    </section>
+    </NetworkModal>
+  );
+}
+
+function PlanGroups({
+  members,
+  renderMember,
+}: {
+  members: NetworkMember[];
+  renderMember: (member: NetworkMember) => React.ReactNode;
+}) {
+  const groups = [
+    ...new Set(members.flatMap((member) => (member.group ? [member.group] : []))),
+  ].sort((a, b) => a.localeCompare(b));
+  if (!groups.length) return <>{members.map(renderMember)}</>;
+  const ungrouped = members.filter((member) => !member.group);
+  return (
+    <>
+      {[...groups, ...(ungrouped.length ? [undefined] : [])].map((group) => {
+        const plans = members.filter((member) => member.group === group);
+        return (
+          <details className="netview-plan-group" key={group ?? ""} open>
+            <summary>
+              {group ?? "Ungrouped"} <span>{plans.length}</span>
+            </summary>
+            {plans.map(renderMember)}
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
+function NetworkRateControl() {
+  const unit = useFactoryStore((state) => state.rateUnit);
+  const setUnit = useFactoryStore((state) => state.setRateUnit);
+  return (
+    <select
+      aria-label="Rate unit"
+      title="Rate unit"
+      value={unit === "eu" ? "second" : unit}
+      onChange={(event) => setUnit(event.target.value as TimeRateUnit)}
+    >
+      <option value="tick">/t</option>
+      <option value="second">/s</option>
+      <option value="minute">/min</option>
+      <option value="hour">/hr</option>
+    </select>
+  );
+}
+
+function NetworkModal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDialogA11y(ref, { onClose });
+  return createPortal(
+    <div
+      className="netview-modal-backdrop"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={ref}
+        className="netview mx netview-modal ui-zoom"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="netview-modal-title">
+          <strong>{title}</strong>
+          <button className="netview-icon-button" aria-label="Close" onClick={onClose}>
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -18,6 +18,12 @@ wires contribute no boundary flow, even when selected. Shared buffer surplus and
 entries because their net rates cannot be assigned to a single machine port. Power always covers the included plan.
 These choices only filter the ledger; they never change recipes, rates, or the solve.
 
+The I/O picker is a modal with the same time-unit dial as the network header: per tick, second, minute or hour.
+Both follow the plan's display setting and never recalculate the solve. Its Plan group field assigns a plan to a
+named, collapsible list group, or clears it back to Ungrouped. Groups organize members only, have no resource-sharing
+rules, and travel with a plan on a network move. Use the plus beside Plans to add members and the plus beside
+Networks to create a subnetwork of the open network. The refresh icon retries figures and sync.
+
 At each network, supply minus demand gives free resources or a shortage. These are configured rates, not measured
 inventories or a promise that supplying lines can operate without their own missing inputs. Power generation and
 usage use the same average figures as the plan overview and sum included descendants once.

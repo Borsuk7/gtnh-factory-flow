@@ -8,6 +8,7 @@ export const memberSchema = z.object({
   ownerId: id.optional(),
   name: z.string().max(80),
   included: z.boolean(),
+  group: z.string().trim().min(1).max(80).optional(),
   portSelection: z.array(z.string().min(1).max(2048)).max(10000).optional(),
 });
 export const networkSchema = z.object({
