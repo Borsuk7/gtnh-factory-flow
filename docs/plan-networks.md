@@ -102,6 +102,8 @@ Closed members are normalized and have recipes restored through the same pure he
 separate sequential worker queue and never land on the canvas or write back to saved plans. A bounded content cache
 includes plan contents and dataset dependencies. Current canvas results can be reused. Missing data and failed or
 outdated results are explicit; partial totals are marked incomplete. Display dials only reformat figures.
+Complete game-exported recipe bodies and generated cell-wire tank recipes remain usable when the dataset has no
+match. Dataset recipes still require restoration so a missing runtime table cannot silently change their figures.
 
 Tests: `src/lib/networks/*.test.ts`, `src/app/api/library/networks/route.test.ts`, and tab/library tests. Real-app checks
 cover closed members, contribution rows, toggles, moves, parent sharing, reload, account sync and compact layout.

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { FactoryProject } from "@/lib/model/types";
 import { normalizeLoadedProject } from "@/lib/model/project-normalize";
+import { recipeSchema } from "@/lib/model/schemas";
+import { CELL_WIRE_TANK_RECIPE_PREFIX } from "@/lib/model/cell-wires";
 import { readDesign } from "@/lib/designs/design-storage";
 import { DEFAULT_DATASET_MANIFEST_URL } from "@/lib/datasets";
 import { parseFactoryProjectJson } from "@/lib/import-export";
@@ -146,14 +148,28 @@ export function useNetworkCalculations(retry: number): ReadonlyMap<string, PlanF
           let project = normalizeLoadedProject(record.project);
           const asked = project.recipes.filter(isDatasetRecipe);
           if (asked.length) {
-            if (!version) throw new Error("Recipe dataset unavailable");
-            const { refreshed, migration } = await resolveProjectRecipes(
-              manifestUrl ?? DEFAULT_DATASET_MANIFEST_URL,
-              version,
-              asked,
-            );
+            // Game recipes carry their own bodies and need not exist in the website dataset.
+            // Dataset recipes still require restoration so slim exports never silently use fallback math.
+            const hasStandaloneBody = (recipe: (typeof asked)[number]) =>
+              (recipe.id.startsWith("gtnhplanner:") ||
+                recipe.id.startsWith(CELL_WIRE_TANK_RECIPE_PREFIX)) &&
+              recipeSchema.safeParse(recipe).success;
+            if (!version && asked.some((recipe) => !hasStandaloneBody(recipe)))
+              throw new Error("Recipe dataset unavailable");
+            const { refreshed, migration } = version
+              ? await resolveProjectRecipes(
+                  manifestUrl ?? DEFAULT_DATASET_MANIFEST_URL,
+                  version,
+                  asked,
+                )
+              : { refreshed: [], migration: {} as Record<string, string> };
             const found = new Set(refreshed.map((recipe) => recipe.id));
-            if (asked.some((recipe) => !found.has(migration[recipe.id] ?? recipe.id)))
+            if (
+              asked.some(
+                (recipe) =>
+                  !found.has(migration[recipe.id] ?? recipe.id) && !hasStandaloneBody(recipe),
+              )
+            )
               throw new Error(
                 "Recipes could not be restored. Retry when the dataset is available.",
               );

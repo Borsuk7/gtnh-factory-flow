@@ -3,8 +3,56 @@ import { calculateThroughput } from "@/lib/solver";
 import { drawer, node, project, recipe, wire } from "@/lib/solver/plan/adapter/test-kit";
 import { planFlows } from "./plan-flows";
 import { selectedMaterials } from "./model";
+import { normalizeLoadedProject } from "@/lib/model/project-normalize";
 
 describe("solved plan boundaries", () => {
+  it("keeps cell and fluid transfers internal after upstream converts an old wire to a tank", () => {
+    const cell = "gregtech:gt.metaitem.01@30001";
+    const make = recipe("fill", [], [[cell, 2]], "Bender");
+    const use = recipe("drink", [], [["sponge", 1]], "Bender");
+    use.inputs = [{ kind: "fluid", id: "water", amount: 1000 }];
+    const stored = project({
+      recipes: [make, use],
+      nodes: [node("maker", "fill", { solvePin: 1 }), node("taker", "drink")],
+      storages: [drawer("out", "sponge")],
+      edges: [
+        {
+          id: "old-cell-wire",
+          source: "maker",
+          target: "taker",
+          sourceHandle: `output:item:${encodeURIComponent(cell)}`,
+          targetHandle: "input:fluid:water",
+          resourceKind: "item",
+          resourceId: cell,
+          crossForm: { litresPerCell: 1000 },
+        },
+        wire("out", "taker", "out", "sponge", {}, { toDrawer: true }),
+      ],
+    });
+    const migrated = normalizeLoadedProject(stored);
+    expect(migrated.nodes).toHaveLength(3);
+    expect(stored.nodes).toHaveLength(2);
+    expect(migrated.edges.some((edge) => edge.crossForm)).toBe(false);
+    const flows = planFlows(migrated, calculateThroughput(migrated));
+    expect(flows.error).toBeUndefined();
+    expect(flows.materials).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ resourceId: "sponge", supply: 2, demand: 0 }),
+        expect.objectContaining({ resourceId: "ic2:itemcellempty", supply: 2, demand: 0 }),
+      ]),
+    );
+    expect(
+      flows.materials.some((row) => row.resourceId === cell || row.resourceId === "water"),
+    ).toBe(false);
+    expect(
+      selectedMaterials(
+        flows,
+        flows.ports!.map((port) => port.portKey),
+      ),
+    ).toEqual(expect.arrayContaining(flows.materials.map((row) => expect.objectContaining(row))));
+    const reopened = normalizeLoadedProject(migrated);
+    expect(planFlows(reopened, calculateThroughput(reopened)).materials).toEqual(flows.materials);
+  });
   it("keeps recipe artwork with closed-plan flows and machine ports", () => {
     const make = recipe("make", [], [["product", 1]]);
     make.outputs[0].iconPath = "/icons/product.png";
