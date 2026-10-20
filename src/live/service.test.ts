@@ -1062,6 +1062,24 @@ describe("the live service", { timeout: 30_000 }, () => {
     expect(ann.closeCode).toBe(1013);
   });
 
+  it("answers a join the database cannot open as rate, never as not_found or forbidden", async () => {
+    // A client removes its copy of a shared plan on not_found or forbidden.
+    const store = supabasePlanStore();
+    const down = () => Promise.reject(new Error("database down"));
+    const { doc } = await makeDesign();
+    const { port } = await startService({ store: { ...store, lease: down } });
+    const ann = await TestClient.open(port, { who: "ann" });
+    await ann.hello();
+    ann.send({ t: "join", doc });
+    expect(await ann.next("error")).toMatchObject({ doc, code: "rate" });
+
+    const { port: second } = await startService({ store: { ...store, role: down } });
+    const bob = await TestClient.open(second, { who: "bob" });
+    await bob.hello();
+    bob.send({ t: "join", doc });
+    expect(await bob.next("error")).toMatchObject({ doc, code: "rate" });
+  });
+
   it("stores only what the plan schema keeps, and refuses names that reach a prototype", async () => {
     const { port } = await startService();
     const { designId, doc } = await makeDesign();
