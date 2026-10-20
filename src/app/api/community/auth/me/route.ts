@@ -9,9 +9,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ user: null });
   }
 
-  const user = await getSessionUser(request);
-  return NextResponse.json(
-    { user: user ? { username: user.username, isAdmin: user.is_admin } : null },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  try {
+    const user = await getSessionUser(request);
+    return NextResponse.json(
+      { user: user ? { username: user.username, isAdmin: user.is_admin } : null },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (error) {
+    // Not "signed out": the client asks again rather than showing Sign in.
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Account lookup failed." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 }

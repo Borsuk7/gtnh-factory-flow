@@ -88,11 +88,12 @@ The frames are the contract's (version 1). What the service adds or decides:
 - **Refusals name the batch.** An `error` about a batch carries its `cid`, so the client can drop it
   (`LiveClientState.refuse`). Codes: `bad_op` (shape or schema), `too_big` (a frame over 256 KB in UTF-8 bytes, more
   than 1,000 ops, or a plan over the 3 MB upload limit), `rate`, `forbidden` (not shared with you, or not joined),
-  `not_found`, `auth` (no valid session: the socket closes with 4001), `version` (hello first, `v: 1`).
+  `not_found`, `auth` (no valid session: the socket closes with 4001; a failed account lookup closes with 1013 and the client tries again), `version` (hello first, `v: 1`).
 - **`rate` means not now, not never.** A batch refused as `rate` was not applied and should go again shortly (the
   website resends it after a second): over 30 batches a second, over the account's batch-work budget (250 ms of
   checking and applying a second, 1 s banked), or the room's journal backlog while the database is down. A join
-  refused as `rate` (too many plans open, the service full) should be asked again after a few seconds.
+  refused as `rate` (too many plans open, the service full, or the database not answering the open or the membership
+  check) should be asked again after a few seconds.
 - **Sizes.** Frames are measured in UTF-8 bytes before they are parsed: only an `ops` frame may be over 16 KB, and a
   frame over the 256 KB batch limit is refused by the `cid` read off its first or last kilobyte. A frame over 512 KB
   closes the socket (1009) before it is read whole, so a client must never send one: split edits into batches under

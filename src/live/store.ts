@@ -25,7 +25,7 @@ export type LeaseOutcome =
   | "lost";
 
 export interface PlanStore {
-  /** The account behind a verified session, or undefined when it is gone. */
+  /** The account behind a verified session, or undefined when it is gone; throws when the database does not answer. */
   account(userId: string): Promise<{ id: string; username: string } | undefined>;
   /** What the account may do with the design: "owner", "editor" or null. */
   role(userId: string, ownerId: string, designId: string): Promise<DesignRole | null>;

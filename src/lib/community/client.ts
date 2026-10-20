@@ -163,12 +163,16 @@ export async function deleteCommunityPlan(planId: string): Promise<void> {
 // Accounts: username + password, session lives in an httpOnly cookie.
 // ---------------------------------------------------------------------------
 
+/** The signed-in user, or undefined; throws when the server could not tell. */
 export async function fetchCurrentUser(): Promise<CommunityUser | undefined> {
   const response = await fetch("/api/community/auth/me");
   const body = (await response.json().catch(() => undefined)) as
     | { user: CommunityUser | null }
     | undefined;
-  return body?.user ?? undefined;
+  if (!response.ok || !body) {
+    throw new Error(`Account check failed (${response.status})`);
+  }
+  return body.user ?? undefined;
 }
 
 export async function registerCommunityUser(

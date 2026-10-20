@@ -897,7 +897,14 @@ export class LiveService {
       }
       // Not open: the database says whether it may be, before anything is
       // opened for it. An open room answers from its own members below.
-      const role = await this.options.store.role(conn.userId, key.ownerId, key.designId);
+      let role: Awaited<ReturnType<PlanStore["role"]>>;
+      try {
+        role = await this.options.store.role(conn.userId, key.ownerId, key.designId);
+      } catch (error) {
+        this.log(`${doc}: membership check failed: ${String(error)}`);
+        this.error(conn, "rate", "The plan could not be opened. Try again shortly.", { doc });
+        return;
+      }
       if (!role) {
         this.error(conn, "forbidden", "This plan is not shared with you.", { doc });
         return;
@@ -910,7 +917,9 @@ export class LiveService {
         opened = await this.room(doc);
       } catch (error) {
         this.log(`${doc}: open failed: ${String(error)}`);
-        this.error(conn, "not_found", "The plan could not be opened. Try again.", { doc });
+        // Not not_found: a client removes its copy of a shared plan on that.
+        // The database did not answer, so the client asks again shortly.
+        this.error(conn, "rate", "The plan could not be opened. Try again shortly.", { doc });
         return;
       }
       if (!opened) {

@@ -67,7 +67,8 @@ Every save goes through `persistCanvas` in design-store.ts:
   at once when the tab hides). Only a LOCAL change schedules a push, judged by
   `libraryChangeSignature`, never by array identity; a run never schedules the next one.
 - A design the server refused is not resent until its stamp moves. Names are clipped to
-  80 characters. Hidden tabs skip the poll.
+  80 characters. Hidden tabs skip the poll. Visible tabs poll every 2 min (up to 16 min
+  after failed runs); focusing a tab syncs at most once in 30 s.
 
 ## Recipe browser state
 
