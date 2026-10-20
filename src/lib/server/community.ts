@@ -30,21 +30,104 @@ let cachedClient: SupabaseClient | undefined;
  */
 export const COMMUNITY_DB_TIMEOUT_MS = 20_000;
 
+/** What a player reads when the database cannot be reached. */
+export const COMMUNITY_DB_DOWN_MESSAGE = "The community database is not responding. Try again in a few minutes.";
+
+const DB_DOWN_HEADER = "x-community-db-down";
+
+/** A PostgREST-shaped error answer, which every client reads as `{ message }`. */
+function dbDownResponse(status: number): Response {
+  return Response.json(
+    { message: COMMUNITY_DB_DOWN_MESSAGE, code: "", details: `HTTP ${status}`, hint: "" },
+    { status, headers: { [DB_DOWN_HEADER]: "1" } },
+  );
+}
+
+/**
+ * After this many database requests in a row fail as down, the next ones fail
+ * at once, without being sent, for `DB_BREAKER_OPEN_MS`; then one goes through
+ * to try. A stalled instance only recovers once demand drops (its disk budget
+ * refills below baseline), and every tab keeps asking.
+ */
+export const DB_BREAKER_FAILURES = 5;
+export const DB_BREAKER_OPEN_MS = 15_000;
+let dbFailuresInARow = 0;
+let dbBreakerOpenUntil = 0;
+
+/** For tests: a closed breaker. */
+export function resetDbBreaker(): void {
+  dbFailuresInARow = 0;
+  dbBreakerOpenUntil = 0;
+}
+
+/** The database client's fetch: `fetchWithDbTimeout` behind the breaker. */
+async function fetchFromDb(
+  input: Parameters<typeof fetch>[0],
+  init: Parameters<typeof fetch>[1],
+  send: typeof fetch = fetch,
+): Promise<Response> {
+  if (Date.now() < dbBreakerOpenUntil) {
+    // 504: postgrest-js retries a 503, which would only meet the breaker again.
+    return dbDownResponse(504);
+  }
+  const response = await fetchWithDbTimeout(input, init, COMMUNITY_DB_TIMEOUT_MS, send);
+  if (response.headers.get(DB_DOWN_HEADER)) {
+    dbFailuresInARow += 1;
+    if (dbFailuresInARow >= DB_BREAKER_FAILURES) {
+      dbBreakerOpenUntil = Date.now() + DB_BREAKER_OPEN_MS;
+    }
+  } else {
+    dbFailuresInARow = 0;
+  }
+  return response;
+}
+
 /**
  * The client's fetch (database, storage), abandoned after `timeoutMs`,
- * body included. It aborts with a plain AbortError on purpose: postgrest-js
- * RETRIES a GET that fails any other way three more times with backoff, so
- * `AbortSignal.timeout`'s TimeoutError would multiply the limit about fourfold.
+ * body included. A timeout before the answer arrives becomes a 504, not a
+ * rejection: postgrest-js RETRIES a GET that rejects (other than with an
+ * AbortError) three more times with backoff, and words a rejection as its
+ * error's name and message. Supabase sits behind Cloudflare, so a stalled
+ * instance answers with Cloudflare's HTML error page (522, 524, sent as
+ * text/plain), which the clients would pass on whole as the error message:
+ * any 5xx that is not JSON becomes the same plain answer, keeping its status
+ * so postgrest-js still retries a 520. A 4xx is left alone (PostgREST reads
+ * an empty 404 as no rows).
  */
-export function fetchWithDbTimeout(
+export async function fetchWithDbTimeout(
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1],
   timeoutMs = COMMUNITY_DB_TIMEOUT_MS,
+  send: typeof fetch = fetch,
 ): Promise<Response> {
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeoutMs).unref?.();
   const signal = init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal;
-  return fetch(input, { ...init, signal });
+  let response: Response;
+  try {
+    response = await send(input, { ...init, signal });
+  } catch (error) {
+    if (controller.signal.aborted && !init?.signal?.aborted) {
+      return dbDownResponse(504);
+    }
+    throw error;
+  }
+  if (response.status < 500) {
+    return response;
+  }
+  if (!response.headers.get("content-type")?.includes("json")) {
+    await response.body?.cancel().catch(() => undefined);
+    return dbDownResponse(response.status);
+  }
+  // PostgREST up but Postgres not (PGRST000-003: no connection, no schema
+  // cache, no pool slot) says so in its own words: "Could not query the
+  // database for the schema cache. Retrying."
+  const body = (await response.clone().json().catch(() => undefined)) as { code?: unknown } | undefined;
+  if (typeof body?.code === "string" && /^PGRST00[0-3]$/.test(body.code)) {
+    await response.body?.cancel().catch(() => undefined);
+    return dbDownResponse(response.status);
+  }
+  return response;
 }
 
 export function isCommunityConfigured(): boolean {
@@ -58,7 +141,11 @@ export function getCommunityDb(): SupabaseClient {
     assertLocalDbAllowed();
     cachedClient = createClient(localDbUrl(), LOCAL_DB_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { fetch: (input, init) => localDbFetch(input, init, fetchWithDbTimeout) },
+      // The same limit and the same plain answers as the hosted project.
+      global: {
+        fetch: (input, init) =>
+          fetchFromDb(input, init, (i, n) => localDbFetch(i, n, fetch)),
+      },
     });
   }
   if (!cachedClient) {
@@ -72,7 +159,7 @@ export function getCommunityDb(): SupabaseClient {
 
     cachedClient = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { fetch: fetchWithDbTimeout },
+      global: { fetch: (input, init) => fetchFromDb(input, init) },
     });
   }
 
@@ -159,21 +246,53 @@ export interface SessionUser {
   is_admin: boolean;
 }
 
-/** Verifies the session cookie and loads the user, or returns undefined. */
+/**
+ * Verifies the session cookie and loads the user, or returns undefined.
+ * Throws when the database does not answer (see `loadSessionUser`).
+ */
 export async function getSessionUser(request: Request): Promise<SessionUser | undefined> {
   const token = readSessionCookie(request.headers.get("cookie"));
   const session = token ? verifySessionToken(token) : undefined;
   return session ? loadSessionUser(session.userId) : undefined;
 }
 
-/** The account behind a verified session, or undefined when it is gone. */
+/**
+ * The account behind a verified session, or undefined when it is gone. A
+ * lookup that fails throws: read as "signed out", it shows a signed-in player
+ * the sign-in button, and the live service would close their socket as a
+ * refused sign-in, which the client never retries.
+ */
 export async function loadSessionUser(userId: string): Promise<SessionUser | undefined> {
-  const { data } = await getCommunityDb()
+  const cached = sessionUsers.get(userId);
+  if (cached && Date.now() - cached.at < SESSION_USER_CACHE_MS) {
+    return cached.user;
+  }
+  const { data, error } = await getCommunityDb()
     .from("community_users")
     .select("id,username,is_admin")
     .eq("id", userId)
-    .single<SessionUser>();
+    .maybeSingle<SessionUser>();
+  if (error) {
+    throw new Error(error.message || "Account lookup failed.");
+  }
+  if (sessionUsers.size >= SESSION_USER_CACHE_MAX) {
+    sessionUsers.clear();
+  }
+  sessionUsers.set(userId, { at: Date.now(), user: data ?? undefined });
   return data ?? undefined;
+}
+
+/**
+ * Accounts by id, kept a minute: nearly every request names its account, and
+ * the database is small. A rename or an admin change shows within the minute.
+ */
+const SESSION_USER_CACHE_MS = 60_000;
+const SESSION_USER_CACHE_MAX = 5000;
+const sessionUsers = new Map<string, { at: number; user: SessionUser | undefined }>();
+
+/** For tests: forget the cached accounts. */
+export function forgetSessionUsers(): void {
+  sessionUsers.clear();
 }
 
 export function isAdminRequest(request: Request): boolean {

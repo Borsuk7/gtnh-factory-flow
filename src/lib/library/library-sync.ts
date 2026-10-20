@@ -102,7 +102,16 @@ export const useLibrarySyncStore = create<LibrarySyncStatus>(() => ({ state: "of
 
 const PUSH_DEBOUNCE_MS = 5000;
 const PUSH_MAX_WAIT_MS = 30000;
-const POLL_MS = 30000;
+/**
+ * Every visible tab asks for its library this often, and the database is
+ * small: at 30 s the polls alone were most of its traffic. Shared plans do
+ * not wait on this; the live service announces them.
+ */
+const POLL_MS = 120_000;
+/** After failed runs the poll waits 2, 4, then 8 times as long. */
+const POLL_BACKOFF_MAX = 8;
+/** Focusing the tab syncs at once, but not again within this. */
+const FOCUS_SYNC_GAP_MS = 30_000;
 
 /* ------------------------------------------------------------------ */
 /* The pure part. */
@@ -237,6 +246,8 @@ export function libraryChangeSignature(
 
 let running: Promise<void> | undefined;
 let runAgain = false;
+let lastRunAt = 0;
+let failedRuns = 0;
 let pushTimer: number | undefined;
 /** The latest moment a queued push may still wait until. */
 let pushDeadline: number | undefined;
@@ -321,6 +332,7 @@ function flushScheduledSync() {
 }
 
 async function runOnce(): Promise<void> {
+  lastRunAt = Date.now();
   setStatus({ state: "syncing" });
   try {
     await drainDeletions();
@@ -359,9 +371,11 @@ async function runOnce(): Promise<void> {
       refused: undefined,
       lastSyncedAt: new Date().toISOString(),
     });
+    failedRuns = 0;
   } catch (error) {
     // A repaired schema, restored connection or renewed session must recover
     // without requiring the player to reload a page holding unsaved work.
+    failedRuns += 1;
     setStatus({
       state: "error",
       refused: undefined,
@@ -650,7 +664,8 @@ export function startLibrarySync(): () => void {
     // A tab in the background has nothing to show; coming back into view
     // syncs at once (below), so it skips the poll meanwhile.
     pollTimer = window.setInterval(() => {
-      if (document.visibilityState !== "hidden") {
+      const wait = POLL_MS * Math.min(POLL_BACKOFF_MAX, 2 ** failedRuns) - POLL_MS / 10;
+      if (document.visibilityState !== "hidden" && Date.now() - lastRunAt >= wait) {
         void syncLibraryNow();
       }
     }, POLL_MS);
@@ -695,7 +710,9 @@ export function startLibrarySync(): () => void {
 
   const onVisible = () => {
     if (document.visibilityState === "visible") {
-      void syncLibraryNow();
+      if (Date.now() - lastRunAt >= FOCUS_SYNC_GAP_MS) {
+        void syncLibraryNow();
+      }
     } else if (pushTimer !== undefined) {
       // Leaving the tab: send what is waiting rather than hold it back.
       flushScheduledSync();

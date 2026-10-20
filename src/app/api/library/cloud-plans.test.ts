@@ -1,9 +1,9 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { openLocalDatabase, type LocalDatabase } from "@/lib/server/local-db/database";
 import { useInProcessLocalDb } from "@/lib/server/local-db/client";
-import { getCommunityDb, makeSessionToken } from "@/lib/server/community";
+import { forgetSessionUsers, getCommunityDb, makeSessionToken, resetDbBreaker } from "@/lib/server/community";
 import { resetMemoryTokens } from "@/lib/server/memory-rate";
 import { PROJECT_SCHEMA_VERSION } from "@/lib/model/types";
 import * as library from "./route";
@@ -11,6 +11,7 @@ import * as design from "./designs/[designId]/route";
 import * as members from "./designs/[designId]/members/route";
 import * as member from "./designs/[designId]/members/[userId]/route";
 import * as search from "../accounts/search/route";
+import * as meRoute from "../community/auth/me/route";
 
 /**
  * Cloud plans over REST, against the local database: sharing a design with
@@ -424,5 +425,65 @@ describe("cloud plans over REST", () => {
     expect(await refused.json()).toEqual({
       error: "You can share with 30 people an hour. Try again later.",
     });
+  });
+});
+
+describe("when the database fails a read", () => {
+  /** The local database, failing every request whose URL names `table` as a stalled Supabase does. */
+  function failing(table: string) {
+    forgetSessionUsers();
+    resetDbBreaker();
+    useInProcessLocalDb((req) =>
+      req.url.includes(`/rest/v1/${table}`)
+        ? Promise.resolve(new Response("<!DOCTYPE html>522", { status: 522, headers: { "content-type": "text/plain" } }))
+        : local.handle(req),
+    );
+  }
+
+  afterEach(() => {
+    useInProcessLocalDb(local.handle);
+    resetDbBreaker();
+  });
+
+  it("fails the library rather than answer it without the plans shared with you", async () => {
+    // The client removes every shared copy a library answer leaves out.
+    const designId = "design-outage-1";
+    await design.PUT(
+      request("PUT", `/api/library/designs/${designId}`, "carol", upsertBody("Glass", "2026-10-19T11:00:00.000Z")),
+      params({ designId }),
+    );
+    await member.PUT(
+      request("PUT", `/api/library/designs/${designId}/members/${users.dan!.id}`, "carol"),
+      params({ designId, userId: users.dan!.id }),
+    );
+    const healthy = await (await library.GET(request("GET", "/api/library", "dan"))).json();
+    expect(healthy.shared).toEqual([expect.objectContaining({ id: designId })]);
+
+    failing("library_design_members");
+    const answer = await library.GET(request("GET", "/api/library", "dan"));
+    expect(answer.status).toBe(500);
+    expect((await answer.json()).shared).toBeUndefined();
+  });
+
+  it("says it cannot tell who is signed in, never that nobody is", async () => {
+    failing("community_users");
+    await expect(library.GET(request("GET", "/api/library", "dan"))).rejects.toThrow(
+      "The community database is not responding",
+    );
+    const me = await meRoute.GET(request("GET", "/api/community/auth/me", "dan"));
+    expect(me.status).toBe(503);
+    expect(await me.json()).toEqual({
+      error: "The community database is not responding. Try again in a few minutes.",
+    });
+
+    useInProcessLocalDb(local.handle);
+    const back = await meRoute.GET(request("GET", "/api/community/auth/me", "dan"));
+    expect(await back.json()).toEqual({ user: { username: "dan", isAdmin: false } });
+    const gone = await meRoute.GET(
+      new Request("http://localhost/api/community/auth/me", {
+        headers: { cookie: `gtnh_session=${makeSessionToken("00000000-0000-4000-8000-000000000000")}` },
+      }),
+    );
+    expect(await gone.json()).toEqual({ user: null });
   });
 });

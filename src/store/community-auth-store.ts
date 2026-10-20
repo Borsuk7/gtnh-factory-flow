@@ -18,6 +18,9 @@ interface CommunityAuthStore {
   signOut: () => Promise<void>;
 }
 
+/** How long to wait before asking again who is signed in, after the server could not say. */
+export const HYDRATE_RETRY_MS = 30_000;
+
 export const useCommunityAuthStore = create<CommunityAuthStore>((set, get) => ({
   user: undefined,
   hasHydrated: false,
@@ -30,6 +33,10 @@ export const useCommunityAuthStore = create<CommunityAuthStore>((set, get) => ({
     set({ isHydrating: true });
     try {
       set({ user: await fetchCurrentUser(), hasHydrated: true });
+    } catch {
+      // The server could not say who this is (its database is down, or the
+      // network is): not signed out, so ask again until it can.
+      setTimeout(() => void get().hydrate(), HYDRATE_RETRY_MS);
     } finally {
       set({ isHydrating: false });
     }

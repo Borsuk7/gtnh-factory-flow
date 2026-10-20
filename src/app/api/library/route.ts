@@ -68,7 +68,11 @@ export async function GET(request: Request) {
       .or(`owner_id.eq.${sessionUser.id},member_id.eq.${sessionUser.id}`)
       .order("added_at", { ascending: true }),
   ]);
-  const error = designs.error ?? folders.error;
+  // A database without the members table yet answers as before. Any other
+  // failed read fails the whole answer: the client removes every shared copy
+  // the answer leaves out, so a partial list would delete them.
+  const membersMissing = memberships.error?.code === "PGRST205" || memberships.error?.code === "42P01";
+  const error = designs.error ?? folders.error ?? (membersMissing ? null : memberships.error);
   if (error) {
     return NextResponse.json(
       { error: libraryStorageErrorMessage(error, "Your plans could not be loaded.") },
@@ -76,8 +80,7 @@ export async function GET(request: Request) {
     );
   }
 
-  // A database without the members table yet answers as before.
-  const memberRows = memberships.error ? [] : ((memberships.data ?? []) as MemberRow[]);
+  const memberRows = membersMissing ? [] : ((memberships.data ?? []) as MemberRow[]);
   const ownRows = memberRows.filter((row) => row.owner_id === sessionUser.id);
   const sharedPairs = memberRows.filter(
     (row) => row.member_id === sessionUser.id && row.owner_id !== sessionUser.id,
@@ -104,7 +107,14 @@ export async function GET(request: Request) {
         .in("design_id", ids)
         .order("added_at", { ascending: true }),
     ]);
-    sharedDesigns = ((sharedRead.data ?? []) as Array<DesignRow & { user_id: string }>).filter(
+    const sharedError = sharedRead.error ?? membersRead.error;
+    if (sharedError) {
+      return NextResponse.json(
+        { error: libraryStorageErrorMessage(sharedError, "Your plans could not be loaded.") },
+        { status: 500 },
+      );
+    }
+    sharedDesigns =((sharedRead.data ?? []) as Array<DesignRow & { user_id: string }>).filter(
       (row) => wanted.has(pairKey(row.user_id, row.id)),
     );
     sharedMembers = ((membersRead.data ?? []) as MemberRow[]).filter((row) =>
