@@ -1,8 +1,7 @@
 # Up to: a machine count that is what you have
 
 Written 2026-10-18. The website first, the mod (`gtnh-planner-mod`, `data/flowchart/balancer/`) right after, in
-lockstep: every rule here has a Java twin and the two must give the same answer. The card's look is
-`mockups/up-to-card/` (pass 3, `index.html`; its README has the owner's decisions).
+lockstep: every rule here has a Java twin and the two must give the same answer.
 
 ## The rule
 
@@ -170,7 +169,7 @@ card ids), each ring to `PlanUpToLoop`, and every shortfall to `PlanShortfall` w
 `NodeThroughputResult.utilization` is reached / capacity for an Up to card; `status` is `bottleneck` for BOTTLENECK,
 `underutilized` below the count.
 
-The card (pass 3): under the machine what runs, big and white ("×18.2"), and what you set, small, as the overview's
+Under the machine, what runs is big and white ("×18.2") and what you set is small, as the overview's
 machine lines say it: the rule word, always, and the set box ("Up to [24]", "Exactly [24]", "Any [Set]" with no
 count, the Set blinking while nothing sets that part of the plan). Click the box to type (a count typed on Any is Up
 to, as in the overview), the wheel steps it, click the rule word for Any, Up to, Exactly. A cleared count (an empty

@@ -346,7 +346,7 @@
 }
 
 /*
- * Every port is a tile of one shape (mockups/up-to-card, pass 3): 38 px tall with a pixel above and below, so a row
+ * Every port is a tile of one shape: 38 px tall with a pixel above and below, so a row
  * keeps the board's two cells and its middle (where its wire docks) stays where it was; a bevel of three inset lines.
  * A free end of the plan only changes the tile's colours, never its shape.
  */

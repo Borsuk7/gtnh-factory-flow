@@ -169,7 +169,7 @@ export type FootTone =
   | "plain";
 
 /**
- * The bar along an Up to card's foot (docs/up-to.md, mockups/up-to-card pass 3): its fill is reached over the count,
+ * The bar along an Up to card's foot (docs/up-to.md): its fill is reached over the count,
  * one word in the reason's colour, one plain line, and the fraction the bar shows. A bottleneck's bar runs on striped
  * to what the line wants. An Exactly card fed by a forced input says FORCED IN. Every string final.
  */

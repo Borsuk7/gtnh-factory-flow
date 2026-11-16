@@ -1,7 +1,7 @@
 // FIX-B: opens a plan file through the + menu's "Open plan file..." and drops one on the board.
 import fs from "node:fs";
 import { fresh, OUT } from "./lib.mjs";
-const file = process.argv[2] ?? "examples/biodiesel-demo.json";
+const file = process.argv[2] ?? "fixtures/biodiesel-demo.json";
 const { browser, page, logs } = await fresh();
 const before = await page.locator(".mt-tab").count();
 await page.getByLabel("New plan", { exact: true }).first().click();

@@ -1,4 +1,4 @@
-import biodieselDemoJson from "../../examples/biodiesel-demo.json";
+import biodieselDemoJson from "../../fixtures/biodiesel-demo.json";
 import { factoryProjectSchema } from "@/lib/model/schemas";
 import type { FactoryProject } from "@/lib/model/types";
 

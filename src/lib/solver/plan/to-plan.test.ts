@@ -32,7 +32,7 @@ const read = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta
 
 const EXAMPLES: Array<{ name: string; load: () => FactoryProject }> = [
   { name: "biodiesel-demo (src/examples)", load: () => loadBiodieselDemoProject() },
-  { name: "biodiesel-demo (examples/*.json)", load: () => read("../../../../examples/biodiesel-demo.json") },
+  { name: "biodiesel-demo (fixtures/*.json)", load: () => read("../../../../fixtures/biodiesel-demo.json") },
   { name: "alumina-line-shared-reactor", load: () => read("../../../components/flow/__fixtures__/alumina-line-shared-reactor.json") },
   { name: "titanium-line-chembath", load: () => read("../../../components/flow/__fixtures__/titanium-line-chembath.json") },
   { name: "titanium-line-chembath.slim", load: () => read("../../../components/flow/__fixtures__/titanium-line-chembath.json.slim.json") },
@@ -111,7 +111,7 @@ const counts = (result: ThroughputResult, project: FactoryProject) =>
  */
 const OLD_SOLVE_ANSWERS_ZERO = new Set([
   "biodiesel-demo (src/examples)",
-  "biodiesel-demo (examples/*.json)",
+  "biodiesel-demo (fixtures/*.json)",
   "titanium-line-chembath",
   "titanium-line-chembath.slim",
 ]);
