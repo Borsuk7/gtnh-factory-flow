@@ -39,11 +39,8 @@ Scratch harnesses are `*.local.test.ts` (excluded from the suite); run one with
 
 ## Working rules
 
-- `main` is the only working branch; never start another. Commit and push finished work
-  unless told otherwise. Never reset or revert changes you did not make. Unmerged
-  experiments survive as `archive/*` tags.
-- Push only to `origin` (`jackwrichards/gtnh-factory-flow`). `upstream` (Samiracle64, the
-  original fork, long diverged) and `kewaii` are not push targets.
+- Commit and push finished work unless told otherwise. Never reset or revert changes you
+  did not make. Unmerged experiments survive as `archive/*` tags.
 - CI runs typecheck, the full suite and a Chromium/Firefox icon-sizing check on every PR
   and push to main. No tolerated failures. A test that pins player-facing copy changes in
   the same commit as the copy.
