@@ -1,8 +1,8 @@
 # AGENTS.md
 
-GTNH Factory Flow: a production-chain planner for GregTech: New Horizons, live at
-https://gtnhplanner.com. Next.js App Router, TypeScript strict, Tailwind, React Flow,
-Zustand, Zod, Vitest. The repo is public.
+GTNH Factory Flow is a production-chain planner for GregTech: New Horizons.
+Next.js App Router, TypeScript strict, Tailwind, React Flow, Zustand, Zod, Vitest.
+The repo is public.
 
 This file is the always-loaded core. Each area keeps its own rules in a `CLAUDE.md`
 beside its code, which Claude Code loads when you open files there. Read the area file
@@ -39,8 +39,8 @@ Scratch harnesses are `*.local.test.ts` (excluded from the suite); run one with
 
 ## Working rules
 
-- Commit and push finished work unless told otherwise. Never reset or revert changes you
-  did not make. Unmerged experiments survive as `archive/*` tags.
+- Commit finished work unless told otherwise. Push only when explicitly asked. Never reset
+  or revert changes you did not make. Unmerged experiments survive as `archive/*` tags.
 - CI runs typecheck, the full suite and a Chromium/Firefox icon-sizing check on every PR
   and push to main. No tolerated failures. A test that pins player-facing copy changes in
   the same commit as the copy.
@@ -63,9 +63,9 @@ Scratch harnesses are `*.local.test.ts` (excluded from the suite); run one with
   nothing. The GitHub deploy and dataset workflows are decoys (no runner); never dispatch
   them. The deploy command lives outside the repo (the origin IP is not public).
 - `APP_VERSION` in `src/lib/version.ts` is bumped once per deploy: minor if the release
-  carries features, patch if only fixes. First check https://gtnhplanner.com/api/version:
-  behind `version.ts` means the last bump has not shipped, so fold new work into the top
-  changelog entry; equal means bump and open a new entry.
+  carries features, patch if only fixes. First check `/api/version` on the current deployment.
+  If it is behind `version.ts`, fold new work into the top changelog entry. If it matches,
+  bump the version and open a new entry.
 - Every release has an entry in `src/lib/changelog.ts`: concrete bullets about what
   changed for players. Players open it from the header's version chip (unread dot, stamp
   `changelog-read.v1`); nothing opens by itself. Shift-click the chip for the dev menu.

@@ -1,7 +1,6 @@
 # GTNH Factory Flow
 
-A production-chain planner for GregTech: New Horizons, live at
-[gtnhplanner.com](https://gtnhplanner.com).
+A production-chain planner for GregTech: New Horizons. Hosted URL pending.
 
 Search the real GTNH recipe set, place recipes as machine cards on a board, wire outputs
 to inputs, and the solver works out rates, machine counts, power, bottlenecks and
@@ -19,15 +18,15 @@ npm run typecheck
 npm run test
 ```
 
-The app needs a recipe dataset. Either proxy the live one:
+The app needs a recipe dataset. To proxy a hosted dataset, replace the example URL with
+your dataset backend's URL.
 
 ```bash
-GTNH_DATASET_BACKEND_URL=https://gtnhplanner.com npm run dev
+GTNH_DATASET_BACKEND_URL=https://datasets.example.com npm run dev
 ```
 
-or place a dataset and its `datasets.manifest.json` under `public/datasets/gtnh/`
-(ignored by git). Community features
-need Supabase; see [docs/COMMUNITY.md](docs/COMMUNITY.md).
+For local data, place a dataset and its `datasets.manifest.json` under `public/datasets/gtnh/`
+(ignored by git). Community features need Supabase. See [docs/COMMUNITY.md](docs/COMMUNITY.md).
 
 ## How it fits together
 
@@ -46,7 +45,8 @@ Working notes for contributors and AI agents are in [AGENTS.md](AGENTS.md) and t
 Code is MIT licensed. GTNH, Minecraft, mod assets, generated datasets and icons are not
 included and remain under their owners' licenses.
 
-This project started as a fork of
-[Samiracle64/gtnh-factory-flow](https://github.com/Samiracle64/gtnh-factory-flow) and has
-since diverged into an independent codebase. The original work is MIT licensed and its
-copyright is retained in `LICENSE`.
+This repository is a fork of
+[jackwrichards/gtnh-factory-flow](https://github.com/jackwrichards/gtnh-factory-flow),
+which was forked from the original
+[Samiracle64/gtnh-factory-flow](https://github.com/Samiracle64/gtnh-factory-flow).
+The original work is MIT licensed and its copyright is retained in `LICENSE`.
