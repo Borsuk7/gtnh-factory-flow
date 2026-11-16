@@ -22,7 +22,7 @@ changes. See [repository instructions](../AGENTS.md) for contributor and agent r
 
 ## Operations
 
-- [Community hub setup and account rules](COMMUNITY.md)
+- [Community hub setup and account rules](community.md)
 - [Live editing architecture and local setup](live.md)
 - [Recipe dataset pipeline](../tools/dataset-pipeline/AGENTS.md)
 

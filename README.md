@@ -25,7 +25,7 @@ GTNH_DATASET_BACKEND_URL=https://datasets.example.com npm run dev
 ```
 
 For local data, place a dataset and its `datasets.manifest.json` under `public/datasets/gtnh/`
-(ignored by git). Community features need Supabase. See [docs/COMMUNITY.md](docs/COMMUNITY.md).
+(ignored by git). Community features need Supabase. See [docs/community.md](docs/community.md).
 
 ## How it fits together
 
