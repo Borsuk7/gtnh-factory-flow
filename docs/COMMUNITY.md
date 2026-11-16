@@ -5,14 +5,15 @@ others built, vote, and open any shared plan directly in the editor.
 
 ## Architecture
 
-- **Frontend**: `/community` (browser) and the Share button in the editor.
+- **Frontend**: the Library and Share menu inside the planner. Legacy `/community`
+  links redirect to the planner and carry the plan ID when one is present.
 - **API**: Next.js routes under `src/app/api/community/**`. All validation,
   stat derivation, vote deduplication, and rate limiting happen here.
 - **Storage**: Supabase Postgres, accessed exclusively with the service-role
   key from the API routes. Row level security is enabled with no public
   policies, so the anon key (which we never ship) can read nothing.
-- **Identity**: anonymous. Votes and rate limits key on
-  `sha256(salt + client IP + device id)`; raw IPs are never stored.
+- **Identity**: posting, voting, and commenting use signed-in accounts. Rate
+  limits also use hashed client addresses.
 - **Trust model**: the server re-validates every uploaded plan against
   `factoryProjectSchema` and recomputes all stat-card numbers (power, machine
   count, highest tier, needs/outputs) with the real solver — clients cannot
@@ -33,23 +34,22 @@ endpoints return 503 and the hub page shows an error banner.
 
 ## Behavior notes
 
-- Uploads: max 3 MB JSON, name ≤ 80 chars, description ≤ 2000 chars,
-  10 uploads per hour per actor. Empty plans are rejected.
-- Votes: one per plan per actor; re-sending the same vote retracts it.
+- Uploads: max 3 MB JSON, name ≤ 80 chars, description ≤ 2000 chars.
+  Limits apply per account, per address, and across the site. Empty plans are rejected.
+- Votes: one per plan per signed-in account. Sending the same vote again retracts it.
   Counters are recomputed from the votes table on every vote, so they
   self-heal under races.
 - Views: counted when a plan's preview/detail is opened, not per list render.
 - Downloads: counted via the download endpoint (JSON download and
   "Open in editor" both use it).
-- Thumbnails: JPEG data URLs (≤ 400 KB) captured client-side from the canvas
-  at share time and stored inline in the row; the capture shrinks itself until
-  it fits. Cards without a photo fall back to the plan's top output sprite.
+- Previews: PNG captures of the board (up to 4 MB) are uploaded separately to the
+  `plan-previews` storage bucket. Cards without a photo can fall back to resource icons.
 - Accounts: dead-simple username + password (`community_users`). Passwords are
   scrypt-hashed; sessions are HMAC-signed httpOnly cookies (180 days), signed
   with `COMMUNITY_HASH_SALT`. No email, no password reset. Sharing requires an
   account; posts carry `user_id`/`author_name`, and only the signed-in owner
-  can update ("Post as → Update …" in the share dialog) or take down a post.
-  Votes remain anonymous (IP+device hash).
+  can update a post ("Post as → Update …" in the share dialog). The owner or a
+  moderator can take it down.
 - Moderation: set `COMMUNITY_ADMIN_TOKEN` and send it as the `x-admin-token`
   header on `DELETE /api/community/plans/<id>` to take down any post, or
   delete rows directly in the Supabase dashboard.

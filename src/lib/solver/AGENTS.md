@@ -2,12 +2,19 @@
 
 Doctrine: if it would fail in the game, it fails in the planner; otherwise everything
 runs. A fed machine with somewhere to put its output never idles. Nothing comes from
-nowhere or goes nowhere except through a source, a drawer or trash. Longer version:
-`docs/solver-equations.md`.
+nowhere or goes nowhere except through a source, a drawer or trash.
 
-## Two LPs
+## Current plan solver
 
-`throughput.ts` is the entry. Build and Solve/Pool answer different questions:
+`calculateThroughput` in `throughput.ts` computes machine rates and sends plan-mode graphs
+to `planSolve` in `plan/index.ts`. The adapter builds the core input and maps the result
+back to rates, shortfalls, and verdicts. Loaded Build, Solve, and Pool plans enter plan mode
+through `openAsPlan`. Consult the [solver reference](../../../docs/solver-equations.md) when
+working on the formulation, or [Up to](../../../docs/up-to.md) for count rules and diagnostics.
+
+## Legacy LPs and shared solver rules
+
+The retained Build and Solve/Pool paths answer different questions:
 
 - BUILD (counts are given): every act, edge flow and total comes from `equations-core.ts`
   (behind `EQUATION_BOOKS`). Stage chain, each optimum locked before the next: max total
@@ -39,7 +46,7 @@ nowhere or goes nowhere except through a source, a drawer or trash. Longer versi
 - Exams: `equations-doctrine.test.ts`, `simplex.test.ts`. The tick simulator
   (`src/lib/solver-lab/simulate.ts`) is the independent "what the game does" oracle.
 
-## Modes
+## Legacy modes
 
 - Build (both flags off): you set machines, counts, wires; the board reports.
   Solve (`solveMode`): you type product rates; counts are solved. Pool (`solveMode` +
@@ -110,4 +117,4 @@ The verdict and ring-diagnosis code lives in `src/components/flow/` (`node-verdi
 ## Machine math
 
 `overclock.ts` and `hatch-input.ts` live here; the rules are in
-`src/lib/machines/CLAUDE.md`. Steam litres: `getNodeSteamReport` in `power-report.ts`.
+`src/lib/machines/AGENTS.md`. Steam litres: `getNodeSteamReport` in `power-report.ts`.

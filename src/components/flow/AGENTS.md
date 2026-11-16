@@ -5,6 +5,8 @@
 board, `grid-edge-router.ts` the wire router. Auto-arrange lives in
 `src/lib/board-arrange*.ts`, the grid constants in `src/lib/board-grid.ts`.
 
+For the board's cards, annotations, interactions, or overview, see the [clean board guide](clean/AGENTS.md).
+
 ## Performance invariants
 
 The board must stay smooth with 100+ cards on weak PCs.
@@ -64,7 +66,7 @@ The board must stay smooth with 100+ cards on weak PCs.
   each under a one-cell rule: share % and verdict word on the left, move up/down and
   remove keys on the right, no name. The picture spans them all.
   The machine menu lists the intersection of the sections' handlers
-  (`getSharedMachineHandlers`; model rules in `src/lib/model/CLAUDE.md`).
+  (`getSharedMachineHandlers`; model rules in `src/lib/model/AGENTS.md`).
 
 ## Drawers (StorageNode)
 
@@ -200,7 +202,7 @@ The board must stay smooth with 100+ cards on weak PCs.
   node wrapper transforms.
 - Card pictures: structure renders in `public/power-art` beat dataset icons, and can be
   edited in place (dataset icons are immutable).
-- Sounds (`src/lib/sound/`, the mod's files and rules; its `CLAUDE.md` has the table): edits
+- Sounds (`src/lib/sound/`, the mod's files and rules; its `AGENTS.md` has the table): edits
   sound from the plan diff, the hand from page events; an action with its own sound claims
   the edit (`playEditSfx`); plan arrivals call `quietBoardSoundsFor`; judge "the plan
   changed" by `projectSoundFingerprint`, never object identity.
@@ -208,8 +210,8 @@ The board must stay smooth with 100+ cards on weak PCs.
 ## Virtual cards (virtual/)
 
 A plan of a thousand cards is a thousand React Flow wrappers but only the cards on or near the screen have
-contents. Read `virtual/card-virtualizer.ts` first (pure, tested); budgets and numbers are in
-`docs/design/backport/spec-performance.md` (10.4 and the WP7b section).
+contents. The budgets live in `virtual/card-virtualizer.ts` and its tests. For historical
+measurements, see the [performance review](../../../docs/history/performance-review.md).
 
 - Three phases a plain recipe card (`useVirtualPhase`): 2 its contents are mounted (the camera's rectangle grown
   by half a screen, the nearest 150, plus the selected, hovered, focused and everything while `data-cv-hold` is on

@@ -4,26 +4,23 @@ GTNH Factory Flow is a production-chain planner for GregTech: New Horizons.
 Next.js App Router, TypeScript strict, Tailwind, React Flow, Zustand, Zod, Vitest.
 The repo is public.
 
-This file is the always-loaded core. Each area keeps its own rules in a `CLAUDE.md`
-beside its code, which Claude Code loads when you open files there. Read the area file
-before changing that area; it names the tests that pin its behaviour.
+These rules apply across the repository. Read the relevant area `AGENTS.md` before
+changing that area. Load references from the [docs index](docs/README.md) only when they
+are relevant to the task. Update the relevant docs when a change affects what they describe.
 
 | Area | Notes |
 |---|---|
-| Board: cards, drawers, boards, wires, routing, arrange, board perf | `src/components/flow/CLAUDE.md` |
-| App UI: interface scale, compact mode, recipe search, inspector, sounds | `src/components/CLAUDE.md` |
-| Pool worksheet | `src/components/pool/CLAUDE.md` |
-| Solver: LP books, Build/Solve/Pool, drawers, shared machines, verdicts | `src/lib/solver/CLAUDE.md` |
-| Machine math: overclocks, parallels, curated machine table, special machines | `src/lib/machines/CLAUDE.md` |
-| Domain model: resources, cells vs fluids, oredict context, sections, boards | `src/lib/model/CLAUDE.md` |
-| Power generation | `src/lib/power/CLAUDE.md` |
-| Designs, tabs, saving, account sync, plan import/export, public view | `src/store/CLAUDE.md` |
-| Server, recipe API, Supabase, cloud plans, local database | `src/lib/server/CLAUDE.md` |
-| Live service: live plan editing over WebSockets | `src/live/CLAUDE.md`, `docs/live.md` |
-| Dataset pipeline: export, normalize, rebuild, publish | `tools/dataset-pipeline/CLAUDE.md` |
-
-Longer references, read on demand: `docs/solver-equations.md` (solver doctrine),
-`docs/power-planner-math.md` (the decoded power workbook), `docs/COMMUNITY.md`.
+| Board: cards, drawers, boards, wires, routing, arrange, board performance | [Board guide](src/components/flow/AGENTS.md) |
+| App UI: interface scale, compact mode, recipe search, inspector, sounds | [UI guide](src/components/AGENTS.md) |
+| Legacy Pool worksheet | [Worksheet guide](src/components/pool/AGENTS.md) |
+| Solver: plan mode, legacy modes, drawers, shared machines, verdicts | [Solver guide](src/lib/solver/AGENTS.md) |
+| Machine math: overclocks, parallels, curated machine table, special machines | [Machine guide](src/lib/machines/AGENTS.md) |
+| Domain model: resources, cells vs fluids, oredict context, sections, boards | [Model guide](src/lib/model/AGENTS.md) |
+| Power generation | [Power guide](src/lib/power/AGENTS.md) |
+| Designs, tabs, saving, account sync, plan import/export, public view | [Store guide](src/store/AGENTS.md) |
+| Server, recipe API, Supabase, cloud plans, local database | [Server guide](src/lib/server/AGENTS.md) |
+| Live service: live plan editing over WebSockets | [Live service guide](src/live/AGENTS.md) |
+| Dataset pipeline: export, normalize, rebuild, publish | [Dataset guide](tools/dataset-pipeline/AGENTS.md) |
 
 ## Commands
 
@@ -59,32 +56,22 @@ Scratch harnesses are `*.local.test.ts` (excluded from the suite); run one with
 
 ## Releases and deploys
 
-- Deploy only when explicitly told to, once per instruction. Pushing `main` deploys
-  nothing. The GitHub deploy and dataset workflows are decoys (no runner); never dispatch
-  them. The deploy command lives outside the repo (the origin IP is not public).
-- `APP_VERSION` in `src/lib/version.ts` is bumped once per deploy: minor if the release
-  carries features, patch if only fixes. First check `/api/version` on the current deployment.
-  If it is behind `version.ts`, fold new work into the top changelog entry. If it matches,
-  bump the version and open a new entry.
+- Deploy only when explicitly asked, once per request. Use the confirmed deployment procedure
+  for this fork. The inherited GitHub deploy and dataset workflows must stay undispatched.
+- Bump `APP_VERSION` in `src/lib/version.ts` once per deploy. Features get a minor bump and
+  fixes get a patch bump. When a deployment exists, check its `/api/version` first. If it is
+  behind `version.ts`, fold new work into the pending changelog entry. If it matches, bump
+  the version and open a new entry.
 - Every release has an entry in `src/lib/changelog.ts`: concrete bullets about what
   changed for players. Players open it from the header's version chip (unread dot, stamp
   `changelog-read.v1`); nothing opens by itself. Shift-click the chip for the dev menu.
 - After a deploy, check `/api/version`; after a dataset publish, check the live manifest
   and the published gzip, not just local output.
 
-## Production
-
-- One DigitalOcean droplet: Caddy -> Next.js :3000, systemd unit `gtnh-flow`, releases in
-  `/opt/releases`, datasets in `/opt/shared/gtnh-datasets`, behind Cloudflare. Diagnose with
-  `journalctl -u gtnh-flow` and Caddy's JSON log `/var/lib/caddy/access.log`.
-- The server prewarms datasets on start when `GTNH_PREWARM_ON_STARTUP=1`
-  (`src/instrumentation.ts`). A slow first API call means prewarm or deploy regressed;
-  don't make the client wait longer.
-- Only GTNH 2.9 datasets are supported.
-
 ## Invariants across the app
 
-- Raw exporter data is normalized by the pipeline before UI or solver code sees it.
+- Only GTNH 2.9 datasets are supported. Raw exporter data is normalized by the pipeline
+  before UI or solver code sees it.
   Prefer exported NEI/runtime data over hand-written tables and broad fallbacks.
 - Board performance is a requirement: no DOM measurement per edge or per frame, nothing
   O(nodes x edges) per frame, hover never rebuilds the board.

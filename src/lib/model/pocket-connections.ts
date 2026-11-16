@@ -22,7 +22,7 @@ import { getOverclockedRecipeStats } from "../solver/overclock";
  * overrides applied, the selected machine handler folded in, and tiered
  * output multipliers taken into account. Handle ids, port lists and
  * compatibility checks must all read THIS recipe, never the raw one
- * (see src/lib/model/CLAUDE.md, oredict and concrete items).
+ * (see src/lib/model/AGENTS.md, oredict and concrete items).
  */
 export function getEffectiveNodeRecipe(recipe: Recipe, node: FactoryNode): Recipe {
   const nodeRecipe = applyRecipeInputOverrides(recipe, node);

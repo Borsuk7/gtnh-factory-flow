@@ -1,5 +1,9 @@
 # Rollout: cloud plans and live editing
 
+Historical record of the original site's rollout. Its domains, paths, services, and
+commands describe that environment. See [live editing](../live.md) for the current
+application's configuration.
+
 ## Go: the master plan (2026-10-16)
 
 The switch makes the new site (staging, `live-backport`, 4.0.0) the one at `gtnhplanner.com`, publishes the mod's
@@ -23,7 +27,7 @@ two, so staging cannot try the RC-2 data while the old site runs beta-2. `/opt/d
 ### Phase A. Before the day (nothing players can see)
 
 1. **RC-2 recipe data.** Export from the RC-2 pack with the oracle mod and rebuild as `local-2.9.0-rc-2`
-   (`tools/dataset-pipeline/CLAUDE.md`). A fresh export re-mints about 37,000 crafting, furnace, bee, crop and essentia
+   (`tools/dataset-pipeline/AGENTS.md`). A fresh export re-mints about 37,000 crafting, furnace, bee, crop and essentia
    recipe ids: carry the beta-2 ids over (match recipes by content key, as `graft-sparge.js` does) so saved plans keep
    their recipes. Run `normalize-fluid-icon-alpha.mjs --rename`. Regenerate the mod's machine data and goldens from
    it (`tools/audits/export-mod-machine-data.mjs`) and re-run the mod's tests.
@@ -540,3 +544,17 @@ Once the switch has held:
 | `NEXT_PUBLIC_LIVE_URL` | site, build time | `/live` (empty: no live features) |
 | `NODE_ENV` | site, live | `production` |
 | `PORT` | staging site | `3002` |
+
+## Inherited dataset rebuild and publish
+
+The original setup kept a git-less snapshot under `~/gtnh-factory-flow` in WSL Ubuntu.
+The snapshot needed updated scripts before a rebuild. Raw exports lived under
+`.pipeline/raw-export/<id>/oracle-export.json` with `rendered-icons/` beside them.
+`~/run-both.sh` and `~/rebuild-cokeoven.sh` built into `~/gtnh-export/datasets/gtnh/<id>`.
+`~/copy-datasets.sh` copied the result to the Windows checkout. `~/graft-sparge.js`
+matched recipes by content key when adding export fields, `~/cmp-field.js` compared
+shards, and `~/rebuild-rc2.sh` carried beta-2 recipe IDs into RC-2.
+
+The original publish procedure staged gzips, shards, and the oracle report, moved them
+into `/opt/shared/gtnh-datasets/<id>/`, rebuilt the manifest, and restarted `gtnh-flow`.
+See the [dataset guide](../../tools/dataset-pipeline/AGENTS.md) for current pipeline rules.

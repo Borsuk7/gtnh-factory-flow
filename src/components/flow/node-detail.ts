@@ -18,7 +18,7 @@
  * never `display`, so every element keeps its layout box: the router measures
  * node bounds and slot anchors through those boxes, and a card that changed
  * shape with zoom would reroute the board every time you scrolled the wheel —
- * exactly the viewport-dependent routing CLAUDE.md forbids.
+ * exactly the viewport-dependent routing AGENTS.md forbids.
  */
 
 import { DEFAULT_ZOOMED_OUT_AT, readDeviceSettings } from "@/lib/device-settings";
@@ -33,7 +33,7 @@ export type NodeDetailLevel = typeof NODE_DETAIL_FULL | typeof NODE_DETAIL_GLANC
  * Below this the board drops to the glance view unless the player moved it: well before a card's names get hard to
  * read (0.65 of a 1:1 interface; the default interface's 1.17 puts it near a 0.76 board zoom), since the glance face
  * says what matters from further out (the machine, its count, the Up to bar). The mod follows
- * (docs/up-to-mod-port.md).
+ * (docs/history/up-to-mod-port.md).
  */
 export const NODE_GLANCE_ENTER_ZOOM = DEFAULT_ZOOMED_OUT_AT;
 /** The anti-flicker dead zone: the board leaves the glance view this far above where it entered it. */

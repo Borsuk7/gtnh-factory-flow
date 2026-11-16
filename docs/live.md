@@ -162,7 +162,7 @@ same `game.server` hash as one of the asker's own game connections **and** whose
 
 The website joins the room of the design on the canvas when it is a cloud plan: one of ours the account holds
 (`<my id>:<design id>`), or this device's copy of a plan shared with us. One socket per browser tab
-(`src/store/live-session.ts`); the rules the stores keep are in `src/store/CLAUDE.md` (Live plans).
+(`src/store/live-session.ts`); the rules the stores keep are in `src/store/AGENTS.md` (Live plans).
 
 - Every edit the store makes outside a quiet change is shaped (`live-shape.ts`: `metadata`, `name`, `view`,
   `poolCellRatios` and GregTech runtime tables left out), diffed, and sent as one batch; others' batches land as the
@@ -245,15 +245,16 @@ $C --user bob --password bobpass1 --game world-1 join <doc>    # prints frames; 
 $C --user ann --password annpass1 send <doc> '[{"o":"meta","f":{"primaryView":"tasks"}}]'
 ```
 
-## Production
+## Deployment configuration
 
 `npm run build:live` bundles the service to `dist-live/live.mjs` (esbuild; packages stay in `node_modules`), run with
-`node dist-live/live.mjs` as the systemd unit `gtnh-live` on 127.0.0.1:3001. `next build` and `next start` are
-unchanged. Environment: `COMMUNITY_HASH_SALT`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `LIVE_PORT`,
+`node dist-live/live.mjs` alongside Next.js. The service defaults to `127.0.0.1:3001`.
+Environment: `COMMUNITY_HASH_SALT`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `LIVE_PORT`,
 `LIVE_HOST`, `LIVE_JOURNAL_DIR`, `LIVE_INTERNAL_TOKEN`, `LIVE_ALLOWED_ORIGINS`, `LIVE_MAX_ROOMS` (optional, default 500),
 `NODE_ENV=production`. `LOCAL_DB=1` with `NODE_ENV=production` stops both the website and the service at startup. The website
 needs `LIVE_INTERNAL_URL` and `LIVE_INTERNAL_TOKEN` at run time and `NEXT_PUBLIC_LIVE_URL` at build time (unset:
-no live features). The rollout, staging first, is `docs/live-rollout.md`.
+no live features). See the [original rollout](history/live-rollout.md) when investigating
+the inherited deployment history.
 
 ## Tests
 

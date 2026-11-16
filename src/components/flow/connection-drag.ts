@@ -8,7 +8,7 @@
  *
  * The flag is read imperatively inside event handlers, never subscribed to:
  * a value every node and edge subscribes to rebuilds the whole board twice
- * per gesture, the cost src/components/flow/CLAUDE.md's hover rules exist to avoid. Purely
+ * per gesture, the cost src/components/flow/AGENTS.md's hover rules exist to avoid. Purely
  * visual suppression rides on the `factory-flow-board--wiring` class, so CSS
  * does that half for free.
  */

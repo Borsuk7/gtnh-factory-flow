@@ -7,7 +7,7 @@ import { virtualizationEnabled } from "./virtual/card-virtualizer";
  * CARDS OFF SCREEN COST NOTHING TO STYLE, LAYOUT OR PAINT.
  *
  * React Flow culling is off (routes must not depend on mount state, see
- * CLAUDE.md invariant 1), so every card of a plan is in the DOM and, without
+ * AGENTS.md invariant 1), so every card of a plan is in the DOM and, without
  * this, the browser styles, lays out, layerizes and hit-tests all of them on
  * every frame: a 1,000-card plan is 190,000 elements and a zoom frame took
  * 1.2 s. `content-visibility: auto` lets the browser skip the contents of

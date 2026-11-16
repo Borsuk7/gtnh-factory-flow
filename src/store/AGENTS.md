@@ -73,7 +73,7 @@ Every save goes through `persistCanvas` in design-store.ts:
 ## Recipe browser state
 
 `browseResource`, `browseBack` / `browseForward`, `recipeBrowserMachinePin`,
-`beginRecipeRefactor` live in factory-store; the rules are in `src/components/CLAUDE.md`.
+`beginRecipeRefactor` live in factory-store; the rules are in `src/components/AGENTS.md`.
 
 ## One mode
 

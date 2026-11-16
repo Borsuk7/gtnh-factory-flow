@@ -1,10 +1,9 @@
-# Up to: what the mod still needs from the website
+# Up to mod port checklist
 
-Started 2026-10-18. The website is the product while the owner refines Up to with it (`docs/up-to.md` is the design);
-the mod follows once the owner is happy. This file lists every change the website has that the mod does not, so the
-mod's alignment pass is one list. Tick an item when the mod has it and it has been checked side by side.
+Historical checklist started on 2026-10-18. The status below describes the worktrees
+used for that port. See [Up to](../up-to.md) for the feature design.
 
-Where things are:
+Worktrees at the time:
 
 - Website: worktree `C:\Users\jack\ff-upto`, branch `up-to-card` (local, not pushed), version 4.1.0.
 - Mod: worktree `C:\Users\jack\gp-ut-data`, branch `up-to-mod` (local, not pushed). It already has the pin data, the

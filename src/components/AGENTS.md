@@ -1,6 +1,7 @@
 # App UI (src/components)
 
-The board has its own notes in `flow/CLAUDE.md`, the Pool worksheet in `pool/CLAUDE.md`.
+See the [board guide](flow/AGENTS.md), [legacy Pool worksheet guide](pool/AGENTS.md), or
+[sound guide](../lib/sound/AGENTS.md) when working in those areas.
 
 ## Interface scale: two pixel spaces
 
@@ -36,7 +37,7 @@ The board has its own notes in `flow/CLAUDE.md`, the Pool worksheet in `pool/CLA
 
 - `RecipeBrowser.tsx` owns the query state. `browseResource` / `clearResourceBrowser` are
   the only doors in and out. A query is clauses (`recipe-query.ts`) plus ANY / ALL / ONLY
-  per side; the server does the set algebra (`src/lib/server/CLAUDE.md`).
+  per side; the server does the set algebra (`src/lib/server/AGENTS.md`).
 - It is NEI's recipe window in the panel's skin (`nei/nei-recipe.css`, NEI GTNH's GuiRecipe in website units): a tab
   per machine on the window's top edge (Generators first when any answer), paged by its own < > when they overflow; the
   machine's name and the page between NEI's arrows; the magnifier opens the name filter in the page row; the machines
@@ -122,7 +123,7 @@ The board has its own notes in `flow/CLAUDE.md`, the Pool worksheet in `pool/CLA
   set only under it (globals.css); never hard-code them on a component.
 - `DesignTabs` effects that grab refs must depend on `isHydrated`.
 - Sounds are the in-game planner's own files played by its rules (`src/lib/sound/`, its
-  `CLAUDE.md` has what plays where). Firefox flushes audio at the end of a task, so the
+  `AGENTS.md` has what plays where). Firefox flushes audio at the end of a task, so the
   player schedules from a task of its own there.
 - The Welcome tab (`welcome/`, state in `src/lib/welcome/welcome-tab.ts`) keeps its
   backdrop paused while hidden.
@@ -130,7 +131,7 @@ The board has its own notes in `flow/CLAUDE.md`, the Pool worksheet in `pool/CLA
 ## Live plans in the UI (live/, tasks/)
 
 Everything here renders only with `isLiveConfigured()`; without it the app looks exactly as before. Store rules are
-in `src/store/CLAUDE.md` (Live plans, Task boards).
+in `src/store/AGENTS.md` (Live plans, Task boards).
 
 - The mod's top bar (`chrome/ModBar.tsx`) holds the ACCOUNT's things only, in this order: the plan tabs and +, the live
   state as a dot and the faces of who else is here (`LivePresence`: one square per account, initials in their colour; a
@@ -163,7 +164,7 @@ in `src/store/CLAUDE.md` (Live plans, Task boards).
   label's width, the faces are two and a +N). The board toolbar's groups wrap their keys, so a narrow board never cuts one off.
 - Share dialog: the owner is listed first; the owner adds people by name (search asks once typing pauses, 250 ms,
   and drops the answer to an older query) and removes them; someone it is shared with sees everyone and can leave.
-  Plans are in the account from the moment they exist (`src/store/CLAUDE.md`), so it never waits on a save. Changes arrive
+  Plans are in the account from the moment they exist (`src/store/AGENTS.md`), so it never waits on a save. Changes arrive
   through the live room too (`members`).
 - The Library's Shared with me (a third shelf of `chrome/ModLibrary.tsx`, always there when signed in, "Nothing shared
   with you yet" when empty; a rail entry of the compact `LibraryPage`) lists plans others shared with you (from the

@@ -1146,7 +1146,7 @@ img {
 /* While a wire is being dragged, every card shows whether the drop would
    work: green yes, red no. The connect handlers write the verdict straight
    onto the node wrapper, because a board-wide drag effect must never go
-   through React (see src/components/flow/CLAUDE.md). The drag's own cards and annotation
+   through React (see src/components/flow/AGENTS.md). The drag's own cards and annotation
    backdrops get data-drop-fit="none". */
 .factory-flow-board .react-flow__node[data-drop-fit="yes"]::after,
 .factory-flow-board .react-flow__node[data-drop-fit="no"]::after {

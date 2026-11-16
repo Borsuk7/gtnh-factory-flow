@@ -4,10 +4,9 @@ A production-chain planner for GregTech: New Horizons. Hosted URL pending.
 
 Search the real GTNH recipe set, place recipes as machine cards on a board, wire outputs
 to inputs, and the solver works out rates, machine counts, power, bottlenecks and
-surplus for the whole plan. Three modes hand the planner more of the work: **Build** (you
-set machines and counts), **Solve** (you set target rates, it counts machines) and
-**Pool** (it wires and imports too). Plans save in the browser, share as links, and can
-be posted to the community hub.
+surplus for the whole plan. On a plan board, you can set machine counts and target rates
+or let the solver size a line. Plans save in the browser, share as links, and can be posted
+to the community hub.
 
 ## Run
 
@@ -37,8 +36,8 @@ For local data, place a dataset and its `datasets.manifest.json` under `public/d
   behaviour checked against the mod source) and an LP-based solver.
 - `src/components/`, `src/store/`: the Next.js + React Flow UI and Zustand stores.
 
-Working notes for contributors and AI agents are in [AGENTS.md](AGENTS.md) and the
-`CLAUDE.md` file in each area's folder.
+Start with [AGENTS.md](AGENTS.md) for contributor and agent instructions. Use the
+[documentation index](docs/README.md) when you need a guide or technical reference.
 
 ## License and credits
 

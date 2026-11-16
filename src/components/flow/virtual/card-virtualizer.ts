@@ -3,7 +3,7 @@
  *
  * Every card of a plan keeps its React Flow node wrapper and a fixed-size shell, but the card's contents (the
  * clean card is 48-65 elements) are mounted only for the cards on or near the screen: at 1,000 cards that is 190k
- * elements down to the 15k the performance budget allows (docs/design/backport/spec-performance.md, 6 and 10.4).
+ * elements down to the 15k the performance budget allows (virtual cards in src/components/flow/AGENTS.md).
  *
  * This file is the pure part: a spatial index over the published card boxes (flow space, never the DOM), the set
  * of mounted cards, and the rules for who is in it.

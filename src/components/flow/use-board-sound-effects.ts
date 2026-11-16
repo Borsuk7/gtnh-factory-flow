@@ -8,7 +8,7 @@ import { editClaimedNear, installSfxUnlock, playSfx, recentSfx, sfxTick } from "
 import { useFactoryStore } from "@/store/factory-store";
 
 /**
- * Plays the board's sounds, the mod's files by the mod's rules (`src/lib/sound/CLAUDE.md` has the table):
+ * Plays the board's sounds, the mod's files by the mod's rules (`src/lib/sound/AGENTS.md` has the table):
  *
  * - every edit by WATCHING the plan (`soundForDiff`): a card landing, a wire latching as what it carries, a drawer made,
  *   a pin, a tier, a setting. An edit that sounded for itself (undo, clone, a chip with its own voice) claims it

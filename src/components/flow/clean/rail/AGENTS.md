@@ -24,7 +24,7 @@ modes keep it.
 - `NoticeBar.tsx`: `PlanNoticeSwitch` is mounted in the board's notice corner and shows the plan-mode bar
   (`PlanBoardOverlays`: notices, `SparePopupHost`, `RailTipHost`) or the classic notices. `flashNotice` puts a
   transient sentence on top for 7 s.
-- `rail-tip.tsx` is the rail's own 800 ms rest-wait tooltip; swap it for the board's shared one (WP6) when that lands.
+- `rail-tip.tsx` owns the rail's 800 ms tooltip delay.
 - Fonts live on spans and divs, never on a `<button>` (globals.css forces `font: inherit` on buttons); every control
   is a `div role=button`. State hangs on data attributes.
 - Type is Monocraft at 10 px (`RAIL_FONT`), measured with `measureClean`; rate boxes are 44 and keys 16 (controls 62, the mod's 26% of the rail). A machine line drops its unit when it does not fit, as the mod does; names ellipsize. The rail is 234 CSS px in shell units (screen px = x the UI scale, 273.8 at the default 1.17): measure with `offsetWidth`.

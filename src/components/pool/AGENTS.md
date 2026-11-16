@@ -1,6 +1,7 @@
-# Pool worksheet (src/components/pool)
+# Legacy Pool worksheet (src/components/pool)
 
-The worksheet IS Pool mode's interface, not a fourth mode. It covers the mounted canvas
+The app converts imported Pool plans to plan mode. These rules apply to the retained
+Pool worksheet implementation and its tests. The worksheet covers the mounted canvas
 (positions, wires and camera survive untouched) and borrows the inspector's width.
 It reads the same solve books and `buildMachineList` figures as the board.
 
@@ -25,4 +26,4 @@ It reads the same solve books and `buildMachineList` figures as the board.
 - Wheel over settings and hatch controls uses a non-passive capture listener so the
   page does not scroll.
 - Production groups: the Balance toggle pressed (the default) = Match, off = Ignore
-  (pinned in `PoolWorksheet.test.tsx`). Scope semantics are in `src/lib/solver/CLAUDE.md`.
+  (pinned in `PoolWorksheet.test.tsx`). Scope semantics are in `src/lib/solver/AGENTS.md`.

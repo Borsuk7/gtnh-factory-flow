@@ -1,9 +1,10 @@
 # Live service (src/live)
 
 The WebSocket server for live plans: a separate Node process beside Next.js (`next start` cannot hold sockets).
-Architecture, protocol notes and REST: `docs/live.md`. Production rollout: `docs/live-rollout.md`. The contract with
-the game is `docs/design/cloud-live.md` in the game's repository: frames and ops must stay as it says, and a change to
-`src/lib/live/ops.ts` or `live-vectors.json` changes the game's engine too.
+Consult [live editing](../../docs/live.md) when working on the architecture, protocol, REST API,
+or deployment configuration. The contract with the game is `docs/design/cloud-live.md` in
+the mod repository. Frames and ops must follow the contract. Changes to `src/lib/live/ops.ts`
+or `live-vectors.json` affect the game's engine too.
 
 - One process, one live service per database. Rooms (`room.ts`) per doc key `<ownerId>:<designId>`; everything that
   changes a room runs through its queue, so batches apply in arrival order and a snapshot never sees half a batch.

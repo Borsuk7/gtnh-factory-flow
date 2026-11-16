@@ -870,7 +870,7 @@ boardEdges.routeOf = (edgeId) => directRouteCache.get(edgeId)?.route.points;
  *
  * The scorer's congestion set and the hop pass both need "the other lines
  * near this one". Walking the whole route cache per edge is O(edges²) per
- * render, which CLAUDE.md calls a bug; a uniform grid answers against
+ * render, which AGENTS.md calls a bug; a uniform grid answers against
  * only the segments in reach. Cells are big relative to a wire and small
  * relative to the board, so a query touches a few cells.
  */
@@ -1867,7 +1867,7 @@ const measuredNodeBoundsCache = new Map<string, MeasuredBounds | undefined>();
 // Obstacle geometry for route avoidance, published by the board from React
 // Flow's node state (positions plus measured sizes), never scanned from the
 // DOM: with `onlyRenderVisibleElements` the DOM holds only on-screen nodes, so
-// routes would depend on the viewport, which CLAUDE.md forbids.
+// routes would depend on the viewport, which AGENTS.md forbids.
 let publishedBoardBounds: Array<{ id: string; bounds: MeasuredBounds }> | undefined;
 /**
  * Open board frames, published separately from the card set: a frame is a
@@ -3091,7 +3091,7 @@ export function FactoryFlow() {
         const next = applyNodeChanges(changes, currentNodes) as BoardFlowNode[];
         // Only when the selection moved. This runs on every frame of a drag, and
         // walking every card each frame is the kind of per-frame O(nodes) work
-        // CLAUDE.md rules out.
+        // AGENTS.md rules out.
         return changes.some((change) => change.type === "select")
           ? withTouchDragRule(next, isCompact)
           : next;
@@ -5655,7 +5655,7 @@ export function FactoryFlow() {
   /**
    * What each held card may not be dragged onto, worked out once at drag
    * start and applied every frame (see handleNodesChange). Rebuilding it per
-   * frame is O(nodes) per-frame work CLAUDE.md rules out, and nothing
+   * frame is O(nodes) per-frame work AGENTS.md rules out, and nothing
    * it depends on changes mid-drag.
    */
   const dragConstraintsRef = useRef<
@@ -9003,7 +9003,7 @@ function ResourceEdgeComponent({
   // between old and new lines for a beat after a re-solve (a plain polyline;
   // hop bumps land with the final frame). Capped by wire count: a board-wide
   // morph re-renders every edge per frame, the O(edges)-per-frame bill
-  // CLAUDE.md forbids, so big boards snap. A switch between the
+  // AGENTS.md forbids, so big boards snap. A switch between the
   // port-row fallback and a real route also snaps rather than sliding the
   // wire out of a dock it never uses.
   const wasSolvedRef = useRef(true);
@@ -10682,7 +10682,7 @@ function getMeasuredAvoidanceSweep() {
 
   // Two lookup structures built once per epoch, so "which nodes are near me"
   // never walks the whole board per edge (O(nodes x edges) per render, which
-  // CLAUDE.md forbids).
+  // AGENTS.md forbids).
   const byId = new Map<string, MeasuredBounds>();
   const grid = new Map<number, Array<{ id: string; bounds: MeasuredBounds }>>();
   for (const entry of normalized) {
@@ -12443,7 +12443,7 @@ function findNodeDropTargetOnSide(
  * Board-wide drag feedback: every card wears the answer to "would this drop
  * work?" as a data attribute, and rules in globals.css paint the wash. Never
  * through React: re-rendering every node per drag frame blows the frame
- * budget (see CLAUDE.md). `onlyUnpainted` is the per-frame pass for
+ * budget (see AGENTS.md). `onlyUnpainted` is the per-frame pass for
  * cards mounted mid-drag.
  */
 function paintNodeDropFit(

@@ -1,8 +1,9 @@
 # The Power Planner's Math (decoded)
 
-The community "GTNH Power Planner" spreadsheet - title cell reads
-"GregTech New Horizons - Power Planner, Version(s) 2.9, Made by Fox" - is the
-source of truth for the planner's power sector (see `power-sector.md`). This
+The community "GTNH Power Planner" spreadsheet ("GregTech New Horizons - Power
+Planner, Version(s) 2.9, Made by Fox") supplies the reference formulas. Game
+source takes precedence where the formulas differ. See the
+[power guide](../src/lib/power/AGENTS.md) when changing the implementation. This
 file is the workbook reverse-engineered: every sheet's model reconstructed
 from its formulas, 2026-08-30, from Jack's copy at
 `C:\Users\jack\Downloads\Copy of GTNH Power Planner 2.9.xlsx`.

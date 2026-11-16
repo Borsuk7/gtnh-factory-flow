@@ -2,7 +2,7 @@
  * The board's sounds: the mod's own rendered files (`public/sounds/`, copied
  * from the mod's `assets/gtnhplanner/sounds/`, never edited) played by the
  * mod's rules (`ui/sound/Sfx.java`). What plays on which action is the table
- * in `./CLAUDE.md`.
+ * in `./AGENTS.md`.
  *
  * Rules, as the mod has them:
  * - One volume for everything: `BASE` (the mod's level matched to the game's

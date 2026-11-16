@@ -1,5 +1,5 @@
 /**
- * Corpus loader for the plan-mode solver tests (spec-solver.md section 6).
+ * Corpus loader for the plan-mode solver tests. See corpus/README.md for the file format.
  *
  * Reads `corpus/inputs/<name>.json` (the mod's `SolveInputJson` dumps) into a `SolveInput`, `corpus/goldens/<name>.json`
  * into a digest, and builds the two tiled cases (`platline-x4`, `platline-x10`) the way the mod's `SolverCorpus.tile`

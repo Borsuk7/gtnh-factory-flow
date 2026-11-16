@@ -3,7 +3,7 @@
  * sound is now one of the mod's rendered files through `./sound/sfx.ts`; this
  * file maps each kind those callers name to the mod sound for that action and
  * keeps the Sounds setting's old helpers working. New code calls `sfx.ts`
- * directly. The mapping is the table in `./sound/CLAUDE.md`.
+ * directly. The mapping is the table in `./sound/AGENTS.md`.
  */
 
 import {

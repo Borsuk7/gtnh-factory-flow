@@ -18,7 +18,7 @@
  *
  * Everything here is a pure function of its inputs: flow-space geometry in,
  * polylines out. No DOM, no React, no viewport - the same inputs give the
- * same routes at every zoom, which is the routing invariant src/components/flow/CLAUDE.md
+ * same routes at every zoom, which is the routing invariant src/components/flow/AGENTS.md
  * demands. The host feeds it published geometry and caches the result by
  * content fingerprint.
  */

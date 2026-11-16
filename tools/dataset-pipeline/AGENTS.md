@@ -6,24 +6,17 @@ recipe map, NEI layout, catalyst, multiblock config and rendered icon. Node scri
 `normalize-oracle-export.mjs`, `machine-configs.mjs`, `build-resource-index.mjs`,
 `build-recipe-index.mjs` (recipe index, lookup index, 250-recipe shards).
 
-## Rebuild and publish (by hand, in WSL)
+## Rebuild and publish
 
-The GitHub "GTNH dataset pipeline" workflow is a decoy (no runner). Never dispatch it.
+Use the current environment's dataset paths and confirmed publishing procedure. The
+inherited GitHub dataset workflow must stay undispatched. The original WSL and droplet
+commands are in the [rollout archive](../../docs/history/live-rollout.md#inherited-dataset-rebuild-and-publish).
 
-1. `~/gtnh-factory-flow` in WSL Ubuntu is a git-less SNAPSHOT: copy changed pipeline
-   scripts into it first or the rebuild runs old code.
-2. Raw exports live at `~/gtnh-factory-flow/.pipeline/raw-export/<id>/oracle-export.json`
-   with `rendered-icons/` beside them; reuse them while the pack version stands. Never
-   export with `GTNH_RENDER_STACK_ICONS=false`: the export stamps icon filenames, and a
-   run without them broke live search.
-3. `~/run-both.sh` (fuller: `~/rebuild-cokeoven.sh`) normalizes, indexes and gzips into
-   `~/gtnh-export/datasets/gtnh/<id>`. Only 2.9 is supported; 2.8.4 is retired.
-4. `~/copy-datasets.sh` copies results into the Windows repo's `public/datasets/gtnh`.
-5. Publish: scp the changed gzips, shards and oracle-report to the droplet's
-   `/opt/shared/gtnh-datasets/<id>/` (stage first; move staging dirs out of the datasets
-   root before `rebuild-manifest.mjs`), then `systemctl restart gtnh-flow`. Before the
-   swap, compare icon counts and icon tables against live. Verify the live manifest and
-   the published gzip afterwards.
+- Reuse the raw GTNH 2.9 export and its `rendered-icons/` while the pack version is the same.
+  Keep stack icon rendering enabled so exported icon filenames resolve.
+- Load locally built datasets from `public/datasets/gtnh/`. For an authorized publish,
+  keep staging dirs outside the manifest's dataset root. Compare icon counts and tables
+  before the swap. Verify the served manifest and gzip afterward.
 
 Rebuilds must run `normalize-fluid-icon-alpha.mjs` (with `--rename`) after the index
 builds and before publishing, or faint fluids ship invisible. Texture URLs are cache-immutable: fix pixels under a NEW filename (`--rename`),
@@ -31,16 +24,15 @@ and patch whole basenames only.
 
 A fresh export is NOT deterministic: crafting, furnace, bee, crop and essentia recipes
 reorder, re-minting ~37,000 ids. When an export only ADDS fields, graft them onto the
-published export (`~/graft-sparge.js`, matching recipes by content key) and confirm with
-a shard diff (`~/cmp-field.js`). The 2.9 export in WSL is such a graft.
+published export by matching recipes by content key. Confirm with a shard diff.
 
 A new pack (or any fresh export) keeps the previous dataset's recipe ids with
 `scripts/carry-recipe-ids.mjs <previous recipes.json.gz> <new recipes.json> [report]`, run
 after normalize and before the indexes: same map (GT++'s `gtpp.recipe.*` read as RC-2's
 `gt.recipe.*`), slots, amounts, chances, ticks and EU keep the old id (its old dataset
 prefix included); bees, crops, veins, mobs and underground fluids keep theirs by identity.
-`local-2.9.0-rc-2` carries beta-2's ids this way (`~/rebuild-rc2.sh` in WSL; the report is
-`oracle/recipe-id-carry.json`).
+`local-2.9.0-rc-2` carries beta-2's ids this way. See `oracle/recipe-id-carry.json` in the
+export for the carry report.
 
 ## Import principles
 

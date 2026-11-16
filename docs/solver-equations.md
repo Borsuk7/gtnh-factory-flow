@@ -5,9 +5,23 @@ serves: **nothing from nowhere, nothing into nowhere, except where the player
 put a source, a drawer, or a trash can. If it would fail in game, it fails in
 the planner.**
 
-## Why a rebuild
+## Current plan solver
 
-The current solver finds the answer by iteration: every machine starts at
+The editor uses plan mode. On load, [`openAsPlan`](../src/lib/solver/plan/to-plan.ts)
+converts older Build, Solve, and Pool plans. [`calculateThroughput`](../src/lib/solver/throughput.ts)
+computes machine rates and dispatches to [`planSolve`](../src/lib/solver/plan/index.ts).
+The adapter builds the solver input from the graph and turns the core result back into
+card, drawer, and wire rates plus diagnostics. See [Up to](up-to.md) and
+[buffer drawers](buffer-drawers.md) when working on count or drawer constraints.
+
+## Earlier equations design
+
+The remaining sections record the design for replacing the original iterative solver.
+They explain the legacy equations and acceptance cases.
+
+### Why a rebuild
+
+The original solver found the answer by iteration: every machine started at
 full blast and steps down to what its neighbours justify, round after round.
 Iteration has one intrinsic flaw the game does not: mid-iteration, a machine
 cannot tell "my neighbour is genuinely limited" from "my neighbour's number
@@ -24,7 +38,7 @@ linear constraints with a preference on top. Solve it directly and there are
 no rounds, no transients, nothing to latch, and no dream world - conservation
 is an equation, not a goal we chase.
 
-## Prior art: PlanNH (studied 2026-08-19, clone at C:\Users\jack\PlanNH)
+### Prior art: PlanNH
 
 PlanNH (sbancuz's in-game flowchart planner) already does this, with ojAlgo
 as the LP/MILP engine. What their `data/flowchart/balancer/` package settles
@@ -55,7 +69,7 @@ and minimized). Ours is a *descriptive* solver of a built board: machine
 counts are fixed inputs, and the outside world exists only where the player
 declared it. Their machinery, our constraint set.
 
-## The formulation, in our vocabulary
+### The formulation, in our vocabulary
 
 Variables (all continuous, all deterministically ordered by node/edge id):
 
@@ -131,7 +145,7 @@ opt-out that pins the fill at zero and surfaces the imbalance on the machine.
 Targets are floors a maximizing board usually clears anyway, kept only for
 compatibility with the existing dial.
 
-## What the current solver becomes
+### Proposed role for the iterative solver
 
 Not deleted - demoted to the diagnosis layer, which is what players love it
 for and what it is actually good at: capable/could-run figures, "one wire
@@ -144,7 +158,7 @@ Longer term, the diagnosis figures themselves can become what-if solves
 (relax one constraint, re-solve, report the delta), at which point the
 iterative machinery retires entirely. Not required for shipping.
 
-## Engine
+### Engine
 
 Prototype: a small dense simplex written in TS (boards are tiny - hundreds of
 variables), Bland's rule for cycling safety, PlanNH-style row scaling,
@@ -154,7 +168,7 @@ constraint. If numerics bite on real boards, swap the engine for a WASM LP
 not the engine, is the asset. Integer counts (the planning mode) will need
 the WASM engine or a tiny branch-and-bound; decide when we get there.
 
-## Migration plan
+### Migration plan
 
 1. **The truth machine first**: a tick simulator (virtual machines, finite
    virtual chests, run until rates settle) as a TEST ORACLE. It answers
@@ -172,7 +186,7 @@ the WASM engine or a tiny branch-and-bound; decide when we get there.
    machine counts, "what do I build for X/s"), which this foundation makes
    nearly free.
 
-## Acceptance matrix (every entry hand-verified or simulator-verified)
+### Acceptance matrix (every entry hand-verified or simulator-verified)
 
 | Board | Expected |
 | --- | --- |

@@ -18,7 +18,7 @@ import { inkFor } from "./node-colors";
  * - NOTHING RE-RENDERS. Colours are written straight onto each mounted node
  *   element as two custom properties, and CSS in globals.css paints the
  *   glance layer from them. A per-card React subscription would reconcile
- *   every card per hovered node; src/components/flow/CLAUDE.md's rule is that hover must
+ *   every card per hovered node; src/components/flow/AGENTS.md's rule is that hover must
  *   not rebuild the board. The one React subscriber is the legend.
  * - The map waits for the pointer to SETTLE, so sweeping across a dozen
  *   cards paints once, not a dozen times.
@@ -192,7 +192,7 @@ const listeners = new Set<() => void>();
  * The board wears "a map is up" as an attribute, and the wires read it in
  * CSS to fade back (at this zoom they hide the colours). An attribute plus a
  * CSS rule, not edge props, because hover must not re-render the board
- * (src/components/flow/CLAUDE.md). The same trick, and the same warning about
+ * (src/components/flow/AGENTS.md). The same trick, and the same warning about
  * `className`, as node-detail.ts.
  */
 export const HOP_MAP_ATTRIBUTE = "data-hop-map";

@@ -34,7 +34,7 @@ export interface PanelHandleProps {
 /**
  * The thin strip on a side column's board-side edge that drags it wider or narrower (double-click for the default;
  * arrow keys when it has the focus). The pointer is in REAL px and the widths in SHELL px, so a move is divided by the
- * interface size (src/components/CLAUDE.md). A drag only reports widths: the workspace writes them straight onto its
+ * interface size (src/components/AGENTS.md). A drag only reports widths: the workspace writes them straight onto its
  * grid and saves the last, so nothing re-renders while the pointer moves and the board is not rebuilt.
  */
 export function PanelHandle({ label, edge, getWidth, getLimits, onStart, onDrag, onCommit, onReset, onEnd }: PanelHandleProps) {
