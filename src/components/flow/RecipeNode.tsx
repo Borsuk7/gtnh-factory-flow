@@ -749,18 +749,9 @@ function RecipeNodeComponent({ data, selected, controlsOnly = false, renderEdito
         }
       : verdict;
   const powerStalled = powerReport !== undefined && powerReport.state !== "ok";
-  // The picture window's art: the workbook render for a multiblock, the
-  // machine item for a singleblock. A crop card on the Industrial Farm wears
-  // the farm's render like a generator wears its own.
-  const cropStructureArt =
-    selectedMachineHandler.id === CROP_HARVESTER_INDUSTRIAL_FARM_ID
-      ? "/power-art/industrial-farm.png"
-      : undefined;
+  // Machines with a structure render use it. The rest use the controller icon.
   const powerArt =
     (powerInfo ? getPowerStructureArt(powerInfo.sourceId) : undefined) ??
-    cropStructureArt ??
-    // A processing multiblock with a render of its own wears the same window
-    // as a generator; the rest keep the controller icon.
     getMachineStructureArt(selectedMachineHandler.id);
   const powerMachineIcon = powerInfo ? getPowerMachineIcon(powerInfo.sourceId) : undefined;
 

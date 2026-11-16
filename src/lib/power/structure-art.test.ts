@@ -20,12 +20,6 @@ const listedIds = [
     .matchAll(/^\s*"([a-z0-9-]+)",$/gm),
 ].map((match) => match[1]);
 
-/** Renders reached from somewhere other than structure-art.ts. */
-const CLAIMED_ELSEWHERE = new Set([
-  // RecipeNode gives the Industrial Farm's crop handler this one directly.
-  "industrial-farm",
-]);
-
 describe("the multiblock structure renders", () => {
   it("lists no id without a render on disk", () => {
     const missing = listedIds.filter((id) => !fs.existsSync(path.join(ART_DIR, `${id}.png`)));
@@ -38,7 +32,7 @@ describe("the multiblock structure renders", () => {
       .readdirSync(ART_DIR)
       .filter((file) => file.endsWith(".png"))
       .map((file) => file.replace(/\.png$/, ""))
-      .filter((id) => !listed.has(id) && !CLAIMED_ELSEWHERE.has(id));
+      .filter((id) => !listed.has(id));
     expect(orphans).toEqual([]);
   });
 

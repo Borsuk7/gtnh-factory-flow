@@ -50,7 +50,7 @@ jobs:
           }
 
           set_env_var BASE_PATH /umami
-          set_env_var FAVICON_URL https://gtnh.samiracle.fr/site-icon.png
+          set_env_var FAVICON_URL /umami/favicon-32x32.png
           set_env_var UMAMI_BUILD_CONTEXT "$umami_root/source"
 
           umami_source="$umami_root/source"
@@ -71,9 +71,9 @@ jobs:
           sed -i "s/--allow-build='@prisma\/engines'/--allow-build='@prisma\/engines' --allow-build='prisma'/g" "$umami_source/Dockerfile"
           sed -i "/COPY --from=builder --chown=nextjs:nodejs \\/app\\/.next\\/standalone .\\//a RUN pnpm --allow-build='@prisma/engines' --allow-build='prisma' add npm-run-all dotenv chalk semver prisma@7.3.0 @prisma/client@7.3.0 @prisma/adapter-pg@7.3.0" "$umami_source/Dockerfile"
           cp src/app/favicon.ico "$umami_source/public/favicon.ico"
-          cp public/site-icon.png "$umami_source/public/favicon-16x16.png"
-          cp public/site-icon.png "$umami_source/public/favicon-32x32.png"
-          cp public/site-icon.png "$umami_source/public/apple-touch-icon.png"
+          cp public/icon-512.png "$umami_source/public/favicon-16x16.png"
+          cp public/icon-512.png "$umami_source/public/favicon-32x32.png"
+          cp public/icon-512.png "$umami_source/public/apple-touch-icon.png"
           python3 - <<'PY'
           import os
           from pathlib import Path

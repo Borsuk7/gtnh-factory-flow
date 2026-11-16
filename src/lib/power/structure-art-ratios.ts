@@ -25,7 +25,6 @@ export const STRUCTURE_ART_RATIOS: Readonly<Record<string, number>> = {
   "industrial-centrifuge": 1,
   "industrial-chemical-bath": 1,
   "industrial-coke-oven": 1.778,
-  "industrial-farm": 1.499,
   "industrial-maceration-stack": 1,
   "industrial-mixing-machine": 1,
   "industrial-sledgehammer": 1,

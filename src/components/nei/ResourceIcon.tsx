@@ -10,7 +10,7 @@ import {
 } from "@/lib/nei/alternative-cycle";
 import { Zap } from "lucide-react";
 import type { ResourceAmount, ResourceIconAtlasRef, ResourceKind } from "@/lib/model/types";
-import { NEI_TEXTURES } from "@/lib/nei-renderer/theme/textures";
+import { thaumcraftAspectIcon } from "@/lib/nei-renderer/theme/textures";
 import {
   formatNumberWithThousands,
   resourceLabel,
@@ -844,7 +844,7 @@ function getFallbackIconPath(resource: Pick<ResourceAmount, "kind" | "id">): str
     return undefined;
   }
 
-  return NEI_TEXTURES.resolveThaumcraftAspectIconPath(resource.id);
+  return thaumcraftAspectIcon(resource.id);
 }
 
 function AtlasIconImage({

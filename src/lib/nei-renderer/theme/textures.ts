@@ -52,7 +52,7 @@ const KNOWN_THAUMCRAFT_ASPECTS = new Set([
   "volatus",
 ]);
 
-export function normalizeThaumcraftAspectId(aspectIdOrTag: string): string {
+function normalizeThaumcraftAspectId(aspectIdOrTag: string): string {
   const normalized = aspectIdOrTag.trim().toLowerCase().replace(/\\/g, "/");
   const fileName = normalized.split("/").at(-1) ?? normalized;
   const withoutExtension = fileName.endsWith(".png") ? fileName.slice(0, -4) : fileName;
@@ -69,27 +69,3 @@ export function thaumcraftAspectIcon(aspectIdOrTag: string): string {
     ? `${THAUMCRAFT_ASPECT_ICON_ROOT}/${tag}.png`
     : THAUMCRAFT_UNKNOWN_ASPECT;
 }
-
-export function resolveThaumcraftAspectIconPath(
-  aspectIdOrTag: string,
-  explicitIconPath?: string,
-): string {
-  return explicitIconPath || thaumcraftAspectIcon(aspectIdOrTag);
-}
-
-export const NEI_TEXTURES = {
-  gregtechRecipeBackground: "/nei/gregtech/gui/background/nei_single_recipe.png",
-  itemSlot: "/nei/modularui/gui/slot/item.png",
-  fluidSlot: "/nei/modularui/gui/slot/fluid.png",
-  aspectSlot: "/nei/modularui/gui/slot/aspect.png",
-  thaumcraftUnknownAspect: THAUMCRAFT_UNKNOWN_ASPECT,
-  thaumcraftResearchOverlay: "/nei/thaumcraft/gui/gui_researchbook_overlay.png",
-  thaumcraftAspectIcon,
-  resolveThaumcraftAspectIconPath,
-  normalizeThaumcraftAspectId,
-  progressBar: (texture: string) => `/nei/gregtech/gui/progressbar/${texture}.png`,
-  slot: (kind: string) =>
-    kind === "aspect"
-      ? "/nei/modularui/gui/slot/aspect.png"
-      : `/nei/modularui/gui/slot/${kind}.png`,
-};
