@@ -4,13 +4,15 @@ import "./chrome.css";
 import "./library.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Ellipsis, Folder, Star } from "lucide-react";
 import { requestShareDialog } from "@/lib/setups-tab";
 import { openDesigns, type DesignSummary } from "@/lib/designs/design-library";
 import { readDesign } from "@/lib/designs/design-storage";
 import { libraryRows } from "./library-rows";
 import { copyPlanCode } from "./share-actions";
 import { agoText, lastOpenOf } from "@/lib/library/last-open";
-import { leaveLibrary, setLibraryView, useLibraryTab } from "@/lib/library/library-tab";
+import { leaveLibrary, setLibraryView, useLibraryTab, type LibraryView } from "@/lib/library/library-tab";
+import { activateOnKey } from "@/lib/hooks/button-keys";
 import { GT_VOLTAGE_TIERS } from "@/lib/model/tiers";
 import { leaveWelcomeTab } from "@/lib/welcome/welcome-tab";
 import { playBoardSound } from "@/lib/board-sounds";
@@ -165,7 +167,7 @@ export function ModLibrary() {
       </div>
       <div className="ml-body">
         {shelf === "mine" ? (
-          <MyPlans query={mineQuery} />
+          <MyPlans query={mineQuery} view={library.view} />
         ) : shelf === "shared" ? (
           <div className="ml-public ml-shared" data-shared-shelf="">
             <SharedWithMe />
@@ -228,16 +230,27 @@ function DropKey({ label, open, tip, onOpen }: { label: string; open: boolean; t
 
 // ---- My plans --------------------------------------------------------------
 
-function MyPlans({ query }: { query: string }) {
+type MyPlansMenu =
+  | { kind: "collections"; anchor: ChromeAnchor }
+  | { kind: "tile" | "delete" | "move"; id: string; anchor: ChromeAnchor };
+
+function MyPlans({ query, view }: { query: string; view: LibraryView }) {
   const everyDesign = useDesignStore((state) => state.designs);
   const allDesigns = useMemo(() => everyDesign.filter((design) => !design.cloud), [everyDesign]);
+  const folders = useDesignStore((state) => state.folders);
   const activeDesignId = useDesignStore((state) => state.activeDesignId);
   const addDesign = useDesignStore((state) => state.addDesign);
   const switchToDesign = useDesignStore((state) => state.switchToDesign);
   const renameDesign = useDesignStore((state) => state.renameDesign);
   const removeDesign = useDesignStore((state) => state.removeDesign);
+  const toggleFavorite = useDesignStore((state) => state.toggleFavorite);
+  const moveDesignToFolder = useDesignStore((state) => state.moveDesignToFolder);
+  const createFolder = useDesignStore((state) => state.createFolder);
   const linkedPostId = useFactoryStore((state) => state.project.metadata?.communityPlanId);
-  const [menu, setMenu] = useState<{ kind: "tile" | "delete"; id: string; name: string; anchor: ChromeAnchor }>();
+  const [menu, setMenu] = useState<MyPlansMenu>();
+  const [collectionName, setCollectionName] = useState<string>();
+  const [creating, setCreating] = useState(false);
+  const [problem, setProblem] = useState<string>();
   const [renaming, setRenaming] = useState<string>();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -245,14 +258,38 @@ function MyPlans({ query }: { query: string }) {
     return () => window.clearInterval(timer);
   }, []);
 
+  const selectedFolder = view.kind === "folder" ? folders.find((folder) => folder.id === view.folderId) : undefined;
+  const folderId = selectedFolder?.id;
+  const favoritesOnly = view.kind === "favorites";
+  const showingAll = !folderId && !favoritesOnly;
   const needle = query.trim().toLowerCase();
   const shown = useMemo(() => {
     const open = new Set(openDesigns(allDesigns).map((design) => design.id));
     return allDesigns
+      .filter((design) => (!favoritesOnly || design.favorite) && (!folderId || design.folderId === folderId))
       .filter((design) => !needle || design.name.toLowerCase().includes(needle))
       .map((design) => ({ design, open: open.has(design.id), at: lastOpenOf(design.id, design.updatedAt) }))
       .sort((a, b) => b.at - a.at);
-  }, [allDesigns, needle]);
+  }, [allDesigns, favoritesOnly, folderId, needle]);
+
+  const addCollection = async (name: string) => {
+    setCreating(true);
+    setProblem(undefined);
+    try {
+      const folder = await createFolder(name);
+      setLibraryView({ kind: "folder", folderId: folder.id });
+      setCollectionName(undefined);
+    } catch {
+      setProblem("Could not create the collection.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const savePlanOrganization = (save: Promise<void>) => {
+    setProblem(undefined);
+    void save.catch(() => setProblem("Could not save the plan change."));
+  };
 
   const open = async (id: string) => {
     leaveWelcomeTab();
@@ -269,7 +306,35 @@ function MyPlans({ query }: { query: string }) {
     }
   };
 
-  const entries = (m: NonNullable<typeof menu>): MenuEntry[] => {
+  const menuDesign = menu && menu.kind !== "collections" ? allDesigns.find((design) => design.id === menu.id) : undefined;
+  const entries = (m: MyPlansMenu): MenuEntry[] => {
+    if (m.kind === "collections") {
+      return [
+        ...folders.map((folder) => ({
+          label: folder.name,
+          current: folder.id === folderId,
+          onSelect: () => setLibraryView({ kind: "folder", folderId: folder.id }),
+        })),
+        {
+          label: "New collection",
+          plus: true,
+          ruleAbove: folders.length > 0,
+          onSelect: () => { setProblem(undefined); setCollectionName(""); },
+        },
+      ];
+    }
+    if (!menuDesign) return [];
+    if (m.kind === "move") {
+      const move = (id: string | undefined) => savePlanOrganization(moveDesignToFolder(m.id, id));
+      return [
+        { label: "No collection", current: !menuDesign.folderId, onSelect: () => move(undefined) },
+        ...folders.map((folder) => ({
+          label: folder.name,
+          current: menuDesign.folderId === folder.id,
+          onSelect: () => move(folder.id),
+        })),
+      ];
+    }
     if (m.kind === "delete") {
       return [
         { label: "Delete it", tone: "red", onSelect: () => void removeDesign(m.id) },
@@ -279,60 +344,133 @@ function MyPlans({ query }: { query: string }) {
     return [
       { label: "Open", onSelect: () => void open(m.id) },
       { label: "Rename", onSelect: () => setRenaming(m.id) },
+      {
+        label: menuDesign.favorite ? "Remove from Favorites" : "Add to Favorites",
+        onSelect: () => savePlanOrganization(toggleFavorite(m.id)),
+      },
+      {
+        label: "Move to collection",
+        disabled: folders.length === 0,
+        tip: folders.length === 0 ? "Create a collection first" : undefined,
+        onSelect: () => setMenu({ ...m, kind: "move" }),
+      },
       { label: "Copy plan code", detail: "to paste or share", onSelect: () => void copyCode(m.id) },
       ...libraryRows(
-        Boolean(m.id === activeDesignId ? linkedPostId : allDesigns.find((design) => design.id === m.id)?.communityPlanId),
+        Boolean(m.id === activeDesignId ? linkedPostId : menuDesign.communityPlanId),
         (mode) => {
           void (async () => {
             await open(m.id);
             requestShareDialog(mode);
           })();
         },
-        { taskBoard: Boolean(allDesigns.find((design) => design.id === m.id)?.taskBoard) },
+        { taskBoard: Boolean(menuDesign.taskBoard) },
       ),
       {
         label: "Delete plan",
         tone: "red",
-        onSelect: () => setMenu({ kind: "delete", id: m.id, name: m.name, anchor: m.anchor }),
+        onSelect: () => setMenu({ ...m, kind: "delete" }),
       },
     ];
   };
 
   return (
-    <div className="ml-grid" data-my-plans="">
-      <div
-        className="ml-tile ml-new"
-        role="button"
-        onClick={() => {
-          playBoardSound("tick");
-          leaveWelcomeTab();
-          void addDesign();
-        }}
-      >
-        + New plan
+    <div data-my-plans="">
+      <div className="ml-organize" role="group" aria-label="Organize plans">
+        <button type="button" className="mb-key ml-organize-key" aria-pressed={showingAll} onClick={() => setLibraryView({ kind: "all" })}>
+          All plans
+        </button>
+        <button type="button" className="mb-key ml-organize-key" aria-pressed={favoritesOnly} onClick={() => setLibraryView({ kind: "favorites" })}>
+          <Star size={9} aria-hidden /> Favorites
+        </button>
+        <button
+          type="button"
+          className="mb-key ml-organize-key ml-collections"
+          aria-label={selectedFolder ? `Collections: ${selectedFolder.name}` : "Collections"}
+          aria-haspopup="menu"
+          aria-expanded={menu?.kind === "collections"}
+          data-selected={selectedFolder ? "" : undefined}
+          {...{ [MENU_ANCHOR_ATTR]: "" }}
+          onClick={(event) => setMenu(menu?.kind === "collections" ? undefined : { kind: "collections", anchor: chromeAnchorOf(event.currentTarget) })}
+        >
+          <Folder size={9} aria-hidden />
+          <span>{selectedFolder?.name ?? "Collections"}</span>
+          <ChevronDown size={8} aria-hidden />
+        </button>
+        {collectionName !== undefined ? (
+          <form
+            className="ml-collection-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = collectionName.trim();
+              if (name && !creating) void addCollection(name);
+            }}
+          >
+            <input
+              className="ml-search"
+              aria-label="Collection name"
+              placeholder="Collection name"
+              value={collectionName}
+              disabled={creating}
+              autoFocus
+              onChange={(event) => setCollectionName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  setCollectionName(undefined);
+                }
+              }}
+            />
+            <button type="submit" className="mb-key" disabled={creating || !collectionName.trim()}>Create</button>
+            <button type="button" className="mb-key" disabled={creating} onClick={() => setCollectionName(undefined)}>Cancel</button>
+          </form>
+        ) : null}
       </div>
-      {shown.map(({ design, open: isOpen, at }) => (
-        <PlanTile
-          key={design.id}
-          design={design}
-          showing={design.id === activeDesignId}
-          open={isOpen}
-          when={agoText(at, now)}
-          renaming={renaming === design.id}
-          onOpen={() => void open(design.id)}
-          onMenu={(anchor) => setMenu({ kind: "tile", id: design.id, name: design.name, anchor })}
-          onRename={(name) => {
-            setRenaming(undefined);
-            if (name && name !== design.name) void renameDesign(design.id, name);
-          }}
-        />
-      ))}
-      {menu ? (
+      {problem ? <p className="ml-plan-message" role="alert">{problem}</p> : null}
+      <div className="ml-grid">
+        {showingAll ? (
+          <div
+            className="ml-tile ml-new"
+            role="button"
+            tabIndex={0}
+            onKeyDown={activateOnKey}
+            onClick={() => {
+              playBoardSound("tick");
+              leaveWelcomeTab();
+              void addDesign();
+            }}
+          >
+            + New plan
+          </div>
+        ) : null}
+        {shown.map(({ design, open: isOpen, at }) => (
+          <PlanTile
+            key={design.id}
+            design={design}
+            showing={design.id === activeDesignId}
+            open={isOpen}
+            when={agoText(at, now)}
+            renaming={renaming === design.id}
+            onOpen={() => void open(design.id)}
+            onMenu={(anchor) => setMenu({ kind: "tile", id: design.id, anchor })}
+            onRename={(name) => {
+              setRenaming(undefined);
+              if (name && name !== design.name) void renameDesign(design.id, name);
+            }}
+          />
+        ))}
+      </div>
+      {shown.length === 0 && (!showingAll || needle) ? (
+        <p className="ml-plan-message">
+          {needle ? "No plans match your search." : favoritesOnly ? "Add a plan to Favorites from its options." : "Move a plan here from its options."}
+        </p>
+      ) : null}
+      {menu && (menu.kind === "collections" || menuDesign) ? (
         <ChromeMenu
+          key={menu.kind}
           anchor={menu.anchor}
           entries={entries(menu)}
-          label={`Plan options for ${menu.name}`}
-          title={menu.kind === "delete" ? `Delete '${menu.name}' for good?` : undefined}
+          label={menu.kind === "collections" ? "Collections" : menu.kind === "move" ? "Move to collection" : `Plan options for ${menuDesign?.name}`}
+          title={menu.kind === "delete" ? `Delete '${menuDesign?.name}' for good?` : undefined}
           minWidth={menu.kind === "delete" ? 150 : 190}
           onClose={() => setMenu(undefined)}
         />
@@ -372,40 +510,58 @@ function PlanTile({
   return (
     <div
       className="ml-tile"
-      role="button"
       data-tasks={design.taskBoard ? "" : undefined}
       data-showing={showing ? "" : undefined}
-      onClick={() => !renaming && onOpen()}
       onContextMenu={(event) => {
         event.preventDefault();
         const rect = event.currentTarget.getBoundingClientRect();
         onMenu({ left: rect.left + 8, top: rect.top, bottom: rect.top + 20 });
       }}
-      {...tipAttrs({
-        id: `lib|plan:${design.id}`,
-        title: design.name,
-        sub: showing ? "On the board now" : "Click to open it",
-        actions: [
-          { input: "left", label: "Open" },
-          { input: "right", label: "More" },
-        ],
-      })}
     >
-      <span className="ml-face">
-        {drawable ? <Face icon={design.icon} size={24} /> : <span className="ml-noface" />}
-      </span>
-      {open ? <span className="ml-chip" data-showing={showing ? "" : undefined}>{showing ? "SHOWING" : "OPEN"}</span> : null}
-      {renaming ? (
-        <TileRename initial={design.name} onDone={onRename} />
-      ) : (
-        <span className="ml-name">
-          {design.taskBoard ? <ChecklistIcon className="ml-tasks" /> : null}
-          {design.name}
+      <div
+        className="ml-tile-open"
+        role={renaming ? undefined : "button"}
+        tabIndex={renaming ? undefined : 0}
+        aria-label={renaming ? undefined : `Open ${design.name}`}
+        onClick={() => !renaming && onOpen()}
+        onKeyDown={activateOnKey}
+        {...tipAttrs({
+          id: `lib|plan:${design.id}`,
+          title: design.name,
+          sub: showing ? "On the board now" : "Click to open it",
+          actions: [
+            { input: "left", label: "Open" },
+            { input: "right", label: "More" },
+          ],
+        })}
+      >
+        <span className="ml-face">
+          {drawable ? <Face icon={design.icon} size={24} /> : <span className="ml-noface" />}
         </span>
-      )}
-      {size ? <span className="ml-size">{size}</span> : null}
-      <span className="ml-when">last open {when}</span>
-      {design.communityPlanId ? <span className="ml-posted">posted</span> : null}
+        {open ? <span className="ml-chip" data-showing={showing ? "" : undefined}>{showing ? "SHOWING" : "OPEN"}</span> : null}
+        {renaming ? (
+          <TileRename initial={design.name} onDone={onRename} />
+        ) : (
+          <span className="ml-name">
+            {design.taskBoard ? <ChecklistIcon className="ml-tasks" /> : null}
+            {design.favorite ? <Star className="ml-favorite" size={8} fill="currentColor" aria-hidden /> : null}
+            {design.name}
+          </span>
+        )}
+        {size ? <span className="ml-size">{size}</span> : null}
+        <span className="ml-when">last open {when}</span>
+        {design.communityPlanId ? <span className="ml-posted">posted</span> : null}
+      </div>
+      <button
+        type="button"
+        className="mb-key ml-tile-more"
+        aria-label={`Options for ${design.name}`}
+        aria-haspopup="menu"
+        {...{ [MENU_ANCHOR_ATTR]: "" }}
+        onClick={(event) => onMenu(chromeAnchorOf(event.currentTarget))}
+      >
+        <Ellipsis size={11} aria-hidden />
+      </button>
     </div>
   );
 }

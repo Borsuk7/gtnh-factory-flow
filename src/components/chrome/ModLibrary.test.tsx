@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesignSummary } from "@/lib/designs/design-library";
 import { stampOpened, resetLastOpenForTests } from "@/lib/library/last-open";
@@ -41,6 +41,21 @@ const actions = {
   addDesign: vi.fn(async () => undefined),
   removeDesign: vi.fn(async () => undefined),
   renameDesign: vi.fn(async () => undefined),
+  toggleFavorite: vi.fn(async (id: string) => {
+    useDesignStore.setState(({ designs }) => ({
+      designs: designs.map((entry) => entry.id === id ? { ...entry, favorite: !entry.favorite } : entry),
+    }));
+  }),
+  createFolder: vi.fn(async (name: string) => {
+    const folder = { id: "collection", name, createdAt: "2026-10-01T00:00:00.000Z" };
+    useDesignStore.setState({ folders: [folder] });
+    return folder;
+  }),
+  moveDesignToFolder: vi.fn(async (id: string, folderId: string | undefined) => {
+    useDesignStore.setState(({ designs }) => ({
+      designs: designs.map((entry) => entry.id === id ? { ...entry, folderId } : entry),
+    }));
+  }),
 };
 
 beforeEach(() => {
@@ -55,6 +70,7 @@ beforeEach(() => {
       design("b", "ref-chain", { stats: { cards: 10, drawers: 6, machines: 4, tierIndex: 4 } }),
       design("c", "Parked", { closed: true }),
     ],
+    folders: [],
     activeDesignId: "b",
     ...actions,
   });
@@ -113,13 +129,15 @@ describe("the library", () => {
     expect(readLibraryTabState().active).toBe(false);
   });
 
-  it("right-click opens the tile's menu: Open, Rename, Copy plan code, Save to library, Delete plan", () => {
+  it("right-click opens the tile's plan actions and confirms before deleting", () => {
     render(<ModLibrary />);
     fireEvent.contextMenu(screen.getByText("Benzene"));
     const rows = [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((element) => element.textContent);
     expect(rows).toEqual([
       "Open",
       "Rename",
+      "Add to Favorites",
+      "Move to collection",
       "Copy plan codeto paste or share",
       "Post a copy to Community...for other players",
       "Delete plan",
@@ -128,6 +146,46 @@ describe("the library", () => {
     expect(document.querySelector(".mm-title")?.textContent).toBe("Delete 'Benzene' for good?");
     fireEvent.click(screen.getByText("Delete it"));
     expect(actions.removeDesign).toHaveBeenCalledWith("a");
+  });
+
+  it("stars and unstars plans from the options key and filters Favorites", () => {
+    render(<ModLibrary />);
+    fireEvent.click(screen.getByRole("button", { name: "Options for Benzene" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add to Favorites" }));
+    expect(actions.toggleFavorite).toHaveBeenCalledWith("a");
+    expect(actions.switchToDesign).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Favorites" }));
+    expect(tileNames()).toEqual(["Benzene"]);
+    fireEvent.click(screen.getByRole("button", { name: "Options for Benzene" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from Favorites" }));
+    expect(tileNames()).toEqual([]);
+  });
+
+  it("creates a collection and moves a plan into and out of it", async () => {
+    render(<ModLibrary />);
+    fireEvent.click(screen.getByRole("button", { name: "Collections" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New collection" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Collection name" }), { target: { value: " Fuel " } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await screen.findByRole("button", { name: "Collections: Fuel" });
+    expect(actions.createFolder).toHaveBeenCalledWith("Fuel");
+    expect(tileNames()).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "All plans" }));
+    fireEvent.click(screen.getByRole("button", { name: "Options for Benzene" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move to collection" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Move to collection" })).getByRole("menuitem", { name: "Fuel" }));
+    expect(actions.moveDesignToFolder).toHaveBeenCalledWith("a", "collection");
+
+    fireEvent.click(screen.getByRole("button", { name: "Collections" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fuel" }));
+    expect(tileNames()).toEqual(["Benzene"]);
+    fireEvent.click(screen.getByRole("button", { name: "Options for Benzene" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move to collection" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "No collection" }));
+    expect(actions.moveDesignToFolder).toHaveBeenCalledWith("a", undefined);
+    expect(tileNames()).toEqual([]);
   });
 
   it("COMMUNITY shows the public shelf with its sort and tier, and counts what it found", () => {
