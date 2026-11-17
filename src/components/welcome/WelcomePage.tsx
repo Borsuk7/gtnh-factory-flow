@@ -17,6 +17,7 @@ import type { CommunityPlanSummary } from "@/lib/community/types";
 import type { EntryIcon } from "@/lib/model/types";
 import { openCommunityPost } from "@/lib/community/open-post";
 import { openLibrary } from "@/lib/library/library-tab";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { openSidebarTab } from "@/lib/sidebar-tab";
 import { APP_VERSION } from "@/lib/version";
 import { leaveWelcomeTab, setWelcomeOnStartup, useWelcomeTab } from "@/lib/welcome/welcome-tab";
@@ -132,12 +133,12 @@ export function WelcomePage() {
               >
                 New design
               </PrimaryButton>
-              <SecondaryButton
+              {areOnlineFeaturesEnabled() ? <SecondaryButton
                 icon={Factory}
                 onClick={() => openLibrary({ kind: "public" })}
               >
                 Browse shared setups
-              </SecondaryButton>
+              </SecondaryButton> : null}
               <SecondaryButton
                 icon={Search}
                 onClick={() => {
@@ -154,7 +155,7 @@ export function WelcomePage() {
             </div>
           </header>
 
-          <CommunityShelf />
+          {areOnlineFeaturesEnabled() ? <CommunityShelf /> : null}
 
           <footer className="border-t border-line pt-3">
             <label className="flex w-fit cursor-pointer items-center gap-2 text-[12px] text-fg-muted hover:text-fg">

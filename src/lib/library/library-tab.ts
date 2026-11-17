@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { leaveWelcomeTab } from "@/lib/welcome/welcome-tab";
 import { playSfx } from "@/lib/sound/sfx";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 
 /**
  * The Library: everything you have, and everything the network has.
@@ -35,6 +36,13 @@ const SHELF_SESSION_KEY = "gtnh-factory-flow-library";
 
 const CLOSED: LibraryTabState = { active: false, view: { kind: "all" } };
 
+function availableView(view: LibraryView): LibraryView {
+  if (!areOnlineFeaturesEnabled() && (view.kind === "public" || view.kind === "saved" || view.kind === "shared")) {
+    return CLOSED.view;
+  }
+  return view;
+}
+
 let state: LibraryTabState = CLOSED;
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -65,7 +73,7 @@ function readStored(): LibraryTabState {
     const parsed = JSON.parse(raw) as Partial<LibraryTabState>;
     return {
       active: parsed.active === true,
-      view: isLibraryView(parsed.view) ? parsed.view : { kind: "all" },
+      view: isLibraryView(parsed.view) ? availableView(parsed.view) : CLOSED.view,
     };
   } catch {
     return CLOSED;
@@ -93,6 +101,7 @@ function subscribe(listener: () => void) {
 
 function write(patch: Partial<LibraryTabState>) {
   state = { ...getSnapshot(), ...patch };
+  state.view = availableView(state.view);
   try {
     window.sessionStorage.setItem(SHELF_SESSION_KEY, JSON.stringify(state));
   } catch {

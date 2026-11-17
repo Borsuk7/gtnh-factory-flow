@@ -59,6 +59,7 @@ import {
   readDesignCamera,
 } from "@/lib/designs/design-camera";
 import { computeDesignStats } from "@/lib/designs/design-stats";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { parseFactoryProjectJson } from "@/lib/import-export";
 import { applyPlanView, capturePlanView } from "@/lib/plan-view";
 import { noteLibraryDeletion } from "@/lib/library/library-deletes";
@@ -430,8 +431,13 @@ function isBlankDesign(record: DesignRecord): boolean {
 }
 
 async function listLibrary(): Promise<Pick<DesignStore, "designs" | "folders">> {
-  const [designs, folders] = await Promise.all([listDesignSummaries(), listDesignFolders()]);
-  return { designs: sortDesigns(designs), folders: sortFolders(folders) };
+  const [designs, folders] = await Promise.all([listAvailableDesigns(), listDesignFolders()]);
+  return { designs, folders: sortFolders(folders) };
+}
+
+async function listAvailableDesigns(): Promise<DesignSummary[]> {
+  const summaries = await listDesignSummaries();
+  return sortDesigns(areOnlineFeaturesEnabled() ? summaries : summaries.filter((design) => !design.cloud));
 }
 
 export const useDesignStore = create<DesignStore>((set, get) => ({
@@ -481,7 +487,7 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     let summaries: DesignSummary[];
     let folders: DesignFolder[] = [];
     try {
-      summaries = sortDesigns(await listDesignSummaries());
+      summaries = await listAvailableDesigns();
 
       if (summaries.length === 0) {
         summaries = [await seedFirstDesign()];
@@ -504,7 +510,7 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
 
     // Designs can also go away without this tab hearing about it, and a camera
     // for a plan nothing can open is dead weight.
-    keepDesignCameras(summaries.map((design) => design.id));
+    if (areOnlineFeaturesEnabled()) keepDesignCameras(summaries.map((design) => design.id));
 
     const remembered = readActiveDesignId();
     const rememberedDesign = summaries.find((design) => design.id === remembered);
@@ -565,7 +571,7 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
     }
 
     const target = await readDesign(id);
-    if (!target) {
+    if (!target || (!areOnlineFeaturesEnabled() && target.cloud)) {
       return;
     }
 
@@ -984,7 +990,7 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
         set({ activeDesignId: result.copy.id });
         useFactoryStore.getState().renameProject(result.copy.name);
       }
-      set({ saveState: "saved", designs: sortDesigns(await listDesignSummaries()) });
+      set({ saveState: "saved", designs: await listAvailableDesigns() });
     } catch (error) {
       set({
         saveState: "error",
@@ -1016,7 +1022,7 @@ export function startDesignTabSync(): () => void {
     }
     if (liveDesignIdInThisTab() === activeDesignId) {
       // Live: other tabs' edits arrive through the live service, not storage.
-      useDesignStore.setState({ designs: sortDesigns(await listDesignSummaries()) });
+      useDesignStore.setState({ designs: await listAvailableDesigns() });
       return;
     }
     checking = true;
@@ -1033,7 +1039,7 @@ export function startDesignTabSync(): () => void {
         await store.reloadActiveDesign();
       }
       // Names, order and closed tabs may have moved too.
-      useDesignStore.setState({ designs: sortDesigns(await listDesignSummaries()) });
+      useDesignStore.setState({ designs: await listAvailableDesigns() });
     } finally {
       checking = false;
     }
@@ -1128,7 +1134,7 @@ async function backfillSummaryIcons(
   } catch {
     // A failed flag just means the pass runs again next load.
   }
-  return sortDesigns(await listDesignSummaries());
+  return listAvailableDesigns();
 }
 
 /**

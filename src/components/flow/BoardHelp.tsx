@@ -20,6 +20,7 @@ import {
 import { Fragment, memo, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { getUiScale } from "@/lib/ui-scale";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { BOARD_TOOL_SCALE } from "./toolbar-fold";
 import {
   GLANCE_CARD_CLASS,
@@ -195,8 +196,9 @@ const LIBRARY: HelpCard = {
   title: "Plans",
   rows: [
     { icon: Library, text: "Your *plans*, in folders" },
-    { text: "*Community setups*: open in a new tab" },
-    { text: "Favorites, saved and *posted* setups" },
+    ...(areOnlineFeaturesEnabled()
+      ? [{ text: "*Community setups*: open in a new tab" }, { text: "Favorites, saved and *posted* setups" }]
+      : [{ text: "Keep frequently used plans in *Favorites*" }]),
   ],
 };
 

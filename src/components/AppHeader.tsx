@@ -4,6 +4,7 @@ import "./app-chrome.css";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { OPEN_SHARE_DIALOG_EVENT } from "@/lib/setups-tab";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { markNotesReadAndNotify, subscribeToNotesRead, unseenEntries } from "@/lib/whats-new";
 import { ChangelogDialog } from "./ChangelogDialog";
 import { ModAnnouncement } from "./ModAnnouncement";
@@ -52,6 +53,7 @@ export function AppHeader(_props: AppHeaderProps) {
   // The shelf asks for the share dialog by event after putting a design on
   // the canvas ("Update post"): same dialog, same board, no second copy.
   useEffect(() => {
+    if (!areOnlineFeaturesEnabled()) return;
     const open = (event: Event) => {
       const mode = (event as CustomEvent<unknown>).detail;
       setShareMode(mode === "save" || mode === "update" || mode === "new" ? mode : undefined);
@@ -71,7 +73,7 @@ export function AppHeader(_props: AppHeaderProps) {
       {/* The one popup that opens by itself, once per browser. */}
       <ModAnnouncement />
       {isDevMenuOpen ? <DevMenu onClose={() => setDevMenuOpen(false)} /> : null}
-      {shareMode !== false ? <SharePlanDialog mode={shareMode} onClose={() => setShareMode(false)} /> : null}
+      {areOnlineFeaturesEnabled() && shareMode !== false ? <SharePlanDialog mode={shareMode} onClose={() => setShareMode(false)} /> : null}
       {isExportOpen ? <ModScreenshot onClose={() => setExportOpen(false)} /> : null}
       {isSettingsOpen ? (
         <ModSettings onClose={() => setSettingsOpen(false)} />

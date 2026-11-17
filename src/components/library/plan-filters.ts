@@ -7,6 +7,7 @@ import { parsePlanSearch } from "@/lib/community/search-query";
 import type { CommunityPlanSummary } from "@/lib/community/types";
 import type { DesignSummary } from "@/lib/designs/design-library";
 import type { LibraryView } from "@/lib/library/library-tab";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { SETUPS_CHANGED_EVENT } from "@/lib/setups-tab";
 import type { SetupFilters } from "./SetupsFilterBar";
 
@@ -88,7 +89,7 @@ function sortDesignsBy(designs: DesignSummary[], sort: string): DesignSummary[] 
  */
 export function useMyPosts(): { posts: Map<string, CommunityPlanSummary> | undefined; signedIn: boolean } {
   const { user } = useCommunityUser();
-  const username = user?.username;
+  const username = areOnlineFeaturesEnabled() ? user?.username : undefined;
   const [loaded, setLoaded] = useState<{
     username: string;
     posts: Map<string, CommunityPlanSummary>;

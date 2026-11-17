@@ -57,9 +57,21 @@ beforeEach(() => {
   writeWorkspaceView({ averageMachineDraw: true });
   useCommunityAuthStore.setState({ user: undefined, hasHydrated: true });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
 
 describe("the mod's top bar", () => {
+  it("keeps file and link sharing available when online features are disabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ONLINE_FEATURES", "false");
+    renderBar();
+    expect(key("account")).toBeNull();
+    fireEvent.click(key("share"));
+    expect(shareLabels()).toContain("Copy plan link");
+    expect(shareLabels()).toContain("Export plan file");
+    expect(shareLabels()).not.toContain("Post a copy to Community...");
+  });
   it("every key is in the Tab order and Enter or Space presses it", () => {
     renderBar();
     for (const id of ["plans", "share", "account", "feedback", "settings", "help"]) {

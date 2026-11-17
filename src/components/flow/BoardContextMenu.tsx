@@ -10,6 +10,7 @@ import type { ResourceAmount } from "@/lib/model/types";
 import { getUiScale } from "@/lib/ui-scale";
 import { captureBoardSelection, useFactoryStore } from "@/store/factory-store";
 import { BlueprintShelf, type BlueprintShelfRequest } from "./clean/menus/BlueprintShelf";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { AnnotationMenu } from "./clean/note/AnnotationMenu";
 import { BoardMenu, MenuLine, MenuRow } from "./clean/menus/BoardMenu";
 import { CardRows } from "./clean/menus/CardActionsMenu";
@@ -148,7 +149,7 @@ export function BoardContextMenu({
 
   if (target.kind === "group") {
     return group ? <GroupMenu pocket={group} x={target.x} y={target.y} onClose={onClose}
-      onSaveBlueprint={editable && planMode ? () => saveBlueprint([group.id], group.name) : undefined} /> : null;
+      onSaveBlueprint={areOnlineFeaturesEnabled() && editable && planMode ? () => saveBlueprint([group.id], group.name) : undefined} /> : null;
   }
   if (target.kind === "annotation") {
     return annotation ? (
@@ -167,7 +168,7 @@ export function BoardContextMenu({
       {target.kind === "pane" ? <MenuRow label="New product drawer" onClick={() => setPicking(true)} /> : null}
       {target.kind === "node" ? (
         <>
-        {editable && planMode ? <MenuRow label={selectedIds.includes(target.id) && selectedIds.length > 1
+        {areOnlineFeaturesEnabled() && editable && planMode ? <MenuRow label={selectedIds.includes(target.id) && selectedIds.length > 1
           ? "Save selection as blueprint" : "Save card as blueprint"}
           onClick={() => saveBlueprint(selectedIds.includes(target.id) ? selectedIds : [target.id], "")} /> : null}
         <CardRows

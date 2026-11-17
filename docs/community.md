@@ -32,6 +32,14 @@ others built, vote, and open any shared plan directly in the editor.
 Without these variables the rest of the app works normally; the community
 endpoints return 503 and the hub page shows an error banner.
 
+For a database-free deployment, set `NEXT_PUBLIC_ENABLE_ONLINE_FEATURES=false`
+before building Next.js and keep it set on the server. The planner hides
+Community, accounts, cloud and live sharing, and the blueprint library. Local
+plans still save in the browser and share as self-contained links, codes, or
+files. Database-backed endpoints answer as unconfigured. To enable the online
+features later, configure the database and rebuild with the flag set to
+`true` or omitted. The optional live service can be left stopped until then.
+
 ## Behavior notes
 
 - Uploads: max 3 MB JSON, name ≤ 80 chars, description ≤ 2000 chars.

@@ -214,6 +214,7 @@ import { registerBoardCommands, reportArrange } from "../chrome/board-commands";
 import { BoardMinimap } from "./clean/minimap/BoardMinimap";
 import { registerMinimapRoutes } from "./clean/minimap/minimap-feed";
 import { FeedbackHost } from "./clean/feedback/FeedbackPanel";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { TourBridge, TourHost, TourOffer } from "./clean/tour";
 import { GT_NODE_COLORS, flowRampColor } from "./node-colors";
 import {
@@ -6217,6 +6218,7 @@ export function FactoryFlow() {
   const [blueprintShelf, setBlueprintShelf] = useState<BlueprintShelfRequest>();
   const closeBlueprintShelf = useCallback(() => setBlueprintShelf(undefined), []);
   const openBlueprintShelf = useCallback((kind: "place" | "save") => {
+    if (!areOnlineFeaturesEnabled()) return;
     const { project, selectedBoardIds, isReadOnly, checklistMode } = useFactoryStore.getState();
     if (isReadOnly || checklistMode) return;
     if (kind === "save") {
@@ -6811,7 +6813,7 @@ export function FactoryFlow() {
         <RecipeAddChips />
       </div>
       {isProjectImporting ? <FlowLoadingOverlay /> : null}
-      <FeedbackHost />
+      {areOnlineFeaturesEnabled() ? <FeedbackHost /> : null}
       <TourHost />
       <TourOffer />
     </div>

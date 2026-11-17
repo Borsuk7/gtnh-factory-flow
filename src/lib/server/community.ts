@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { entryIconSchema } from "@/lib/model/schemas";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import type { CommunityPlanSummary, EntryIcon, PlanResourceStat } from "@/lib/community/types";
 import {
   assertLocalDbAllowed,
@@ -131,10 +132,14 @@ export async function fetchWithDbTimeout(
 }
 
 export function isCommunityConfigured(): boolean {
-  return isLocalDb() || Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return areOnlineFeaturesEnabled() &&
+    (isLocalDb() || Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY));
 }
 
 export function getCommunityDb(): SupabaseClient {
+  if (!areOnlineFeaturesEnabled()) {
+    throw new Error("Online features are disabled.");
+  }
   if (!cachedClient && isLocalDb()) {
     // Local development (LOCAL_DB=1): the database on this machine, never
     // the hosted project, whatever SUPABASE_URL says. Never in production.

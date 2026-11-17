@@ -29,6 +29,7 @@ import { PixelIcon } from "./pixel-icons";
 import { ControlsList } from "./ControlsList";
 import { HelpLinks } from "./help-links";
 import { isLiveConfigured } from "@/lib/live/live-config";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { useCommunityAuthStore } from "@/store/community-auth-store";
 import { useLiveSession } from "@/store/live-session";
 import { closeFeedback, useFeedbackOpen } from "@/components/flow/clean/feedback/feedback-store";
@@ -211,7 +212,7 @@ export function ModBar({ onShare, onScreenshot, onSettings, onChangelog, onDevMe
         ariaLabel="Plans"
         width={pictures ? undefined : 42}
         open={library.active}
-        tip="Plans: your plans, the ones shared with you, and Community"
+        tip={areOnlineFeaturesEnabled() ? "Plans: your plans, the ones shared with you, and Community" : "Plans saved in this browser"}
         // Opens the library on My plans, and shuts it again; its shelves are along its top.
         onClick={() => (library.active ? leaveLibrary() : openLibrary({ kind: "all" }))}
       >
@@ -223,14 +224,14 @@ export function ModBar({ onShare, onScreenshot, onSettings, onChangelog, onDevMe
         icon={pictures}
         ariaLabel="Share"
         width={pictures ? undefined : 42}
-        tip="Share this plan: invite people to edit it with you, or send a copy"
+        tip={areOnlineFeaturesEnabled() ? "Share this plan: invite people to edit it with you, or send a copy" : "Share a copy of this plan"}
         open={menu?.kind === "share"}
         onClick={(event) => openMenuFrom("share", event)}
         menuAnchor
       >
         {pictures ? <PixelIcon name="share" /> : undefined}
       </BarKey>
-      <AccountKey pictures={pictures} />
+      {areOnlineFeaturesEnabled() ? <AccountKey pictures={pictures} /> : null}
       <BarKey
         id="feedback"
         gap
@@ -243,7 +244,7 @@ export function ModBar({ onShare, onScreenshot, onSettings, onChangelog, onDevMe
             closeFeedback();
             return;
           }
-          if (!knock(OPEN_FEEDBACK_EVENT)) window.open(HelpLinks.bugReport, "_blank", "noopener,noreferrer");
+          if (!areOnlineFeaturesEnabled() || !knock(OPEN_FEEDBACK_EVENT)) window.open(HelpLinks.bugReport, "_blank", "noopener,noreferrer");
         }}
       >
         <PixelIcon name="bug" className="mb-bug" />

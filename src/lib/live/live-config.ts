@@ -1,4 +1,5 @@
 import { liveSocketUrl } from "./protocol";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 
 /**
  * Whether this build has live plans at all: NEXT_PUBLIC_LIVE_URL set at build
@@ -8,12 +9,12 @@ import { liveSocketUrl } from "./protocol";
  * The variable is read by its literal name so Next.js inlines it.
  */
 export function isLiveConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_LIVE_URL?.trim());
+  return areOnlineFeaturesEnabled() && Boolean(process.env.NEXT_PUBLIC_LIVE_URL?.trim());
 }
 
 /** The live socket's address for this page, or undefined when live plans are off. */
 export function liveSocketAddress(): string | undefined {
-  if (typeof window === "undefined") {
+  if (!isLiveConfigured() || typeof window === "undefined") {
     return undefined;
   }
   return liveSocketUrl(process.env.NEXT_PUBLIC_LIVE_URL, window.location);

@@ -32,6 +32,7 @@ import { SetupsGrid } from "./SetupsGrid";
 import { SetupsFilterBar, useSetupFilters } from "./SetupsFilterBar";
 import { SharedWithMe } from "@/components/live/SharedWithMe";
 import { isLiveConfigured } from "@/lib/live/live-config";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
 import { PLAN_SORTS, useFilteredPlans, useMyPosts } from "./plan-filters";
 
@@ -111,9 +112,10 @@ export function LibraryPage() {
   const shelves: { kind: "all" | "shared" | "public" | "saved"; label: string; count?: number }[] = [
     { kind: "all", label: "My plans", count: designs.length },
     ...(showShared ? [{ kind: "shared" as const, label: "Shared", count: sharedCount }] : []),
-    { kind: "public", label: "Community" },
-    { kind: "saved", label: "Saved", count: savedIds.length },
   ];
+  if (areOnlineFeaturesEnabled()) {
+    shelves.push({ kind: "public", label: "Community" }, { kind: "saved", label: "Saved", count: savedIds.length });
+  }
   const kind = library.view.kind;
   const activeShelf = kind === "public" || kind === "saved" || kind === "shared" ? kind : "all";
   const changeView = (view: LibraryView) => {

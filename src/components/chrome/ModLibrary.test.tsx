@@ -79,11 +79,22 @@ beforeEach(() => {
   stampOpened("c", Date.parse("2026-10-14T09:00:00.000Z"));
   openLibrary({ kind: "all" });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
 
 const tileNames = () => [...document.querySelectorAll(".ml-tile:not(.ml-new) .ml-name")].map((element) => element.textContent);
 
 describe("the library", () => {
+  it("falls back to local plans when Community is disabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ONLINE_FEATURES", "false");
+    openLibrary({ kind: "public" });
+    render(<ModLibrary />);
+    expect(readLibraryTabState().view.kind).toBe("all");
+    expect(screen.queryByRole("tab", { name: /community/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open Benzene" })).toBeTruthy();
+  });
   it("has the mod's header, plan filters, and a close key", () => {
     render(<ModLibrary />);
     const tabs = [...document.querySelectorAll(".ml-tab")].map((tab) => tab.textContent);

@@ -27,6 +27,7 @@ import { openPlanCodeFromAddress } from "@/lib/open-plan-code";
 import { forgetSharedPlanId, readSharedPlanId, syncSharedPlanAddress } from "@/lib/community/shared-link";
 import { useIsCompactViewport } from "@/lib/compact-view";
 import { startLibrarySync } from "@/lib/library/library-sync";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { startDesignTabSync } from "@/store/design-store";
 import { startLiveSessions } from "@/store/live-session";
 import { useLibraryTab } from "@/lib/library/library-tab";
@@ -173,7 +174,9 @@ export function FactoryPlannerApp() {
           try {
             // Own posts open as your design; everyone else's opens as a copy.
             const sharedPlanId = readSharedPlanId();
-            if (sharedPlanId) {
+            if (!areOnlineFeaturesEnabled()) {
+              if (sharedPlanId) forgetSharedPlanId();
+            } else if (sharedPlanId) {
               try {
                 await openCommunityPost({ id: sharedPlanId });
               } finally {
@@ -217,7 +220,7 @@ export function FactoryPlannerApp() {
 
   // The library follows the account: sign-in starts the sync, sign-out stops
   // it, and every change here reaches the other devices a few seconds later.
-  useEffect(() => startLibrarySync(), []);
+  useEffect(() => areOnlineFeaturesEnabled() ? startLibrarySync() : undefined, []);
 
   // Who is signed in is asked once as the app opens. The mod's bar has no
   // account key (the Library has it), so nothing else asks before the Library
@@ -232,7 +235,7 @@ export function FactoryPlannerApp() {
 
   // A cloud plan on the canvas is edited live with everyone in it. Nothing at
   // all without NEXT_PUBLIC_LIVE_URL (live-session.ts).
-  useEffect(() => startLiveSessions(), []);
+  useEffect(() => isLiveConfigured() ? startLiveSessions() : undefined, []);
 
   // Recorded here rather than in the resource panel: the charts must not lose
   // their history because the right column happened to be closed, and every
@@ -325,7 +328,7 @@ export function FactoryPlannerApp() {
     <div className="ui-scale-shell flex h-[calc(100*var(--ui-dvh))] flex-col bg-canvas text-fg">
       <RecipeBookOpener />
       <PlacementRevealer />
-      <SharedAddressSync />
+      {areOnlineFeaturesEnabled() ? <SharedAddressSync /> : null}
       {/* On a desktop plan board the mod's bar is the workspace grid's first row, across the overview, the board and
           the items list. */}
       {barInGrid ? null : <AppHeader onLoadDatasetVersion={loadDatasetVersion} />}
@@ -343,7 +346,7 @@ export function FactoryPlannerApp() {
       <ModPowerPicker compact={isCompact} />
       {/* Every pocket-to-shelf path (card save, share-a-pocket,
           overwrite) confirms through this one dialog. */}
-      <BlueprintSaveDialog />
+      {areOnlineFeaturesEnabled() ? <BlueprintSaveDialog /> : null}
     </div>
   );
 }

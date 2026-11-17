@@ -27,6 +27,11 @@ GTNH_DATASET_BACKEND_URL=https://datasets.example.com npm run dev
 For local data, place a dataset and its `datasets.manifest.json` under `public/datasets/gtnh/`
 (ignored by git). Community features need Supabase. See [docs/community.md](docs/community.md).
 
+For a deploy without a database, set `NEXT_PUBLIC_ENABLE_ONLINE_FEATURES=false` in
+the build and server environment. Accounts, Community, cloud sync, live sharing,
+and the blueprint library are hidden. Plans still save in the browser and can be
+shared as self-contained links, codes, or files. Rebuild to change the setting.
+
 ## How it fits together
 
 - `tools/dataset-pipeline/`: a Forge mod runs inside a real GTNH client and exports every

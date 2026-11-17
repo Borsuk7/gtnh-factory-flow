@@ -1,4 +1,5 @@
 import { assertLocalDbAllowed } from "./local-db/client";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 
 /**
  * What the website's server checks as it starts (src/instrumentation.ts):
@@ -12,7 +13,7 @@ import { assertLocalDbAllowed } from "./local-db/client";
  */
 export function checkServerSetup(warn: (message: string) => void = console.warn): void {
   assertLocalDbAllowed();
-  if (!process.env.COMMUNITY_HASH_SALT) {
+  if (areOnlineFeaturesEnabled() && !process.env.COMMUNITY_HASH_SALT) {
     warn(
       "[auth] COMMUNITY_HASH_SALT is not set: sessions are signed with the public fallback secret. Set it in production.",
     );

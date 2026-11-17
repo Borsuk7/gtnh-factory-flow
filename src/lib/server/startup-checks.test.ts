@@ -25,4 +25,13 @@ describe("the server's startup checks", () => {
     checkServerSetup((message) => warnings.push(message));
     expect(warnings).toHaveLength(1);
   });
+
+  it("starts without an auth secret when online features are disabled", () => {
+    vi.stubEnv("LOCAL_DB", "");
+    vi.stubEnv("COMMUNITY_HASH_SALT", "");
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_ONLINE_FEATURES", "false");
+    const warn = vi.fn();
+    checkServerSetup(warn);
+    expect(warn).not.toHaveBeenCalled();
+  });
 });

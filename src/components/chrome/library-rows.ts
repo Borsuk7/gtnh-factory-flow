@@ -1,5 +1,6 @@
 import type { ShareMode } from "@/components/community/SharePlanDialog";
 import { isLiveConfigured } from "@/lib/live/live-config";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import type { MenuEntry } from "./ChromeMenu";
 
 /**
@@ -14,7 +15,7 @@ export function libraryRows(
   options: { disabled?: boolean; taskBoard?: boolean } = {},
 ): MenuEntry[] {
   // A task board is never posted to the library.
-  if (options.taskBoard) return [];
+  if (!areOnlineFeaturesEnabled() || options.taskBoard) return [];
   if (!linked) {
     return [
       isLiveConfigured()

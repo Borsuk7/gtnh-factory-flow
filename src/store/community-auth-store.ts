@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { fetchCurrentUser, logoutCommunityUser } from "@/lib/community/client";
 import type { CommunityUser } from "@/lib/community/types";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 
 /**
  * One session, one store: the planner header, the community header, the share
@@ -26,6 +27,7 @@ export const useCommunityAuthStore = create<CommunityAuthStore>((set, get) => ({
   hasHydrated: false,
   isHydrating: false,
   hydrate: async () => {
+    if (!areOnlineFeaturesEnabled()) return;
     if (get().hasHydrated || get().isHydrating) {
       return;
     }

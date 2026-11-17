@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 
 /**
  * The community hub lives inside the planner. Legacy /community links
@@ -9,6 +10,7 @@ export default async function CommunityRedirect({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  if (!areOnlineFeaturesEnabled()) redirect("/");
   const params = await searchParams;
   const plan = typeof params.plan === "string" ? params.plan : undefined;
   redirect(plan ? `/?plan=${encodeURIComponent(plan)}` : "/");

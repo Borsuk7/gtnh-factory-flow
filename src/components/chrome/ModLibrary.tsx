@@ -28,6 +28,7 @@ import { useCommunityUser } from "@/components/community/auth";
 import { ChromeMenu, chromeAnchorOf, MENU_ANCHOR_ATTR, type ChromeAnchor, type MenuEntry } from "./ChromeMenu";
 import { SharedWithMe } from "@/components/live/SharedWithMe";
 import { isLiveConfigured } from "@/lib/live/live-config";
+import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
 import { ChecklistIcon } from "./pixel-icons";
 import { ListedPlanIdentity } from "./PlanIdentityStrip";
@@ -108,12 +109,12 @@ export function ModLibrary() {
             onClick={() => setLibraryView({ kind: "shared" })}
           />
         ) : null}
-        <ShelfTab
+        {areOnlineFeaturesEnabled() ? <ShelfTab
           label="COMMUNITY"
           count={publicTotal === undefined ? "..." : compact(publicTotal)}
           on={shelf === "public"}
           onClick={() => setLibraryView({ kind: "public" })}
-        />
+        /> : null}
         {shelf === "public" ? (
           <input
             className="ml-search"
@@ -141,7 +142,7 @@ export function ModLibrary() {
             />
           </>
         ) : null}
-        {user ? (
+        {areOnlineFeaturesEnabled() && user ? (
           <span className="ml-as" data-signed-in-as="">
             Signed in as {user.username}
           </span>
@@ -640,7 +641,7 @@ function PlanTile({
             ) : null}
           </span>
         ) : null}
-        {design.communityPlanId ? <span className="ml-posted">posted</span> : null}
+        {areOnlineFeaturesEnabled() && design.communityPlanId ? <span className="ml-posted">posted</span> : null}
       </div>
       <button
         type="button"
