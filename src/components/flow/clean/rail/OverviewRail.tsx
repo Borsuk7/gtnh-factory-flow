@@ -26,6 +26,7 @@ import { BoardMenu, MenuRow } from "../menus/BoardMenu";
 import { useMachineHandlerIcons } from "../../machine-icons";
 import { getFallbackFluidColor, ResourceIcon } from "@/components/nei/ResourceIcon";
 import { formatCompact } from "@/lib/model/resources";
+import { GT_VOLTAGE_TIERS } from "@/lib/model/tiers";
 import {
   powerDisplayFromEuT,
   powerDisplaySuffix,
@@ -550,6 +551,15 @@ function SectionBar({
 }) {
   const shown = item.shown !== item.count;
   const filtering = shown;
+  const powerTip = tipProps("sec|power-total", () => ({
+    title: `${peak ? "Peak" : "Average"} draw · ${formatCompact(usedEuT)} EU/t`,
+    sub: "Equivalent amps by voltage tier",
+    columns: 2,
+    rows: GT_VOLTAGE_TIERS.map(({ tier, maxEuT }) => {
+      const amps = usedEuT / maxEuT;
+      return [tier, `${amps > 0 && amps < 0.00001 ? amps.toExponential(1) : formatCompact(amps)} A`];
+    }),
+  }));
   return (
     <div
       className="rail-sec"
@@ -577,7 +587,13 @@ function SectionBar({
       <span className="rail-sec-end">
         {item.id === "MACHINES" ? (
           <>
-            <span>
+            <span
+              {...powerTip}
+              onPointerMove={(event) => {
+                event.stopPropagation();
+                powerTip.onPointerMove(event);
+              }}
+            >
               <MotionNumberText
                 key={peak ? "peak" : "average"}
                 values={[usedEuT]}

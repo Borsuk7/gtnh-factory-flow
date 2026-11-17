@@ -2,7 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { wheelChangesValues } from "@/lib/device-settings";
-import { useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 
 /**
  * The rail's tooltips, in the clean skin (UI spec section 10): a tip shows once
@@ -23,6 +23,7 @@ export interface TipContent {
   title: string;
   sub?: string;
   rows?: Array<[label: string, value: string]>;
+  columns?: 2;
   notes?: Array<{ text: string; tone?: "muted" | "warn" | "red" }>;
   actions?: Array<{ input: TipInput; label: string }>;
 }
@@ -144,12 +145,19 @@ export function RailTipHost() {
     () => shown,
     () => undefined,
   );
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 300, height: 140 });
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (element) setSize({ width: element.offsetWidth, height: element.offsetHeight });
+  }, [tip?.content]);
   if (!tip || typeof document === "undefined") return null;
-  const width = 300;
-  const flipLeft = tip.x + 12 + width > window.innerWidth;
+  const { width, height } = size;
+  const flipLeft = tip.x + 12 + width > window.innerWidth - 4;
+  const flipUp = tip.y + 12 + height > window.innerHeight - 4;
   const style = {
     left: flipLeft ? Math.max(4, tip.x - 12 - width) : tip.x + 12,
-    top: Math.min(tip.y + 12, window.innerHeight - 140),
+    top: flipUp ? Math.max(4, tip.y - 12 - height) : tip.y + 12,
   };
   const { content } = tip;
   // A wheel step is not offered while the wheel changes no value.
@@ -157,15 +165,19 @@ export function RailTipHost() {
     (action) => action.input !== "wheel" || wheelChangesValues(),
   );
   return createPortal(
-    <div className="rail-tip" style={style} role="tooltip" data-tooltip-stop>
+    <div ref={ref} className="rail-tip" style={style} role="tooltip" data-tooltip-stop>
       <div className="rail-tip-title">{content.title}</div>
       {content.sub ? <div className="rail-tip-sub">{content.sub}</div> : null}
-      {content.rows?.map(([label, value]) => (
-        <div key={label} className="rail-tip-row">
-          <span>{label}</span>
-          <span>{value}</span>
+      {content.rows?.length ? (
+        <div className="rail-tip-rows" data-two-columns={content.columns === 2 ? "" : undefined}>
+          {content.rows.map(([label, value]) => (
+            <div key={label} className="rail-tip-row">
+              <span>{label}</span>
+              <span>{value}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : null}
       {content.notes?.map((note) => (
         <div key={note.text} className="rail-tip-note" data-tone={note.tone}>
           {note.text}

@@ -14,6 +14,7 @@ modes keep it.
   selection restores the full Overview. The device setting Follow selection in Overview can keep the full
   Overview visible while cards are selected. The machine list stays at the bottom and covers the plan.
 - Avg uses the solved running count. Peak uses the configured count on a partly running capped card.
+  The total draw tooltip divides the current EU/t by each tier's voltage.
 - Edits go through `rail-actions.ts`: the store's own actions (one undo step each), except a spare's split while its bar
   is in hand (`previewSpare`: re-solves, no history; `endSpareDrag`: one undo step made from the project as it was
   taken, or none if the split did not move). Wheel steps are held on screen and committed once the wheel is still
