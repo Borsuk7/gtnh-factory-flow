@@ -500,6 +500,7 @@ const ItemView = memo(function ItemView({
   euText: string;
   peak: boolean;
 }) {
+  useRateDisplayUnits();
   const { item } = placed;
   switch (item.t) {
     case "section":
@@ -622,6 +623,7 @@ const LineRow = memo(function LineRow({
   item: Extract<Placed["item"], { t: "line" }>;
   state: RailState;
 }) {
+  useRateDisplayUnits();
   const { line, section, amount, setters } = item;
   const [hot, setHot] = useState(false);
   const setHovered = useFactoryStore((s) => s.setHoveredFlowResourceKey);
@@ -1120,6 +1122,7 @@ const MachineRow = memo(function MachineRow({
   peak: boolean;
   state: RailState;
 }) {
+  useRateDisplayUnits();
   useFontEpoch();
   const railWidth = useContext(RailWidthContext);
   const [hot, setHot] = useState(false);
