@@ -13,11 +13,14 @@ import {
   FLOW_IMAGE_EXPORT_COMPLETE_EVENT,
   FLOW_IMAGE_EXPORT_EVENT,
   embedProjectJsonInPng,
+  embedProjectJsonInPngMetadata,
   type FlowExportCapture,
+  type FlowExportRequest,
 } from "@/lib/import-export/plan-image";
 import { resolveExportFontCss } from "@/lib/import-export/export-fonts";
 import { compositeExportPng, computeCompositeLayout } from "@/lib/import-export/export-composite";
 import { randomUUID } from "@/lib/random-id";
+import { activateOnKey } from "@/lib/hooks/button-keys";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useFactoryStore } from "@/store/factory-store";
 import { useDesignStore } from "@/store/design-store";
@@ -30,7 +33,14 @@ const DETAILS: ReadonlyArray<{ id: Detail; label: string }> = [
 ];
 
 /** What was chosen last, kept while the page is open (the mod keeps it while the game runs). */
-let chosen: { detail: Detail; title: boolean; io: boolean } = { detail: "full", title: false, io: false };
+let chosen = {
+  detail: "full" as Detail,
+  title: false,
+  io: false,
+  transparent: false,
+  showAnnotations: true,
+  embedPlan: true,
+};
 
 interface CaptureResult {
   capture?: FlowExportCapture;
@@ -56,14 +66,17 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
   const [detail, setDetail] = useState<Detail>(chosen.detail);
   const [title, setTitle] = useState(chosen.title);
   const [io, setIo] = useState(chosen.io);
+  const [transparent, setTransparent] = useState(chosen.transparent);
+  const [showAnnotations, setShowAnnotations] = useState(chosen.showAnnotations);
+  const [embedPlan, setEmbedPlan] = useState(chosen.embedPlan);
   const [taken, setTaken] = useState<{ key: string; capture?: FlowExportCapture; problem?: string }>();
   const [status, setStatus] = useState<{ text: string; good: boolean }>();
   const [keeping, setKeeping] = useState(false);
   const planName = project.name || activeTabName || "My factory";
 
   useEffect(() => {
-    chosen = { detail, title, io };
-  }, [detail, title, io]);
+    chosen = { detail, title, io, transparent, showAnnotations, embedPlan };
+  }, [detail, title, io, transparent, showAnnotations, embedPlan]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -101,14 +114,13 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
   }, []);
 
   const requestBoardCapture = useCallback(
-    (cardDetail: Detail) =>
+    (options: Pick<FlowExportRequest, "cardDetail" | "background" | "hideAnnotations">) =>
       new Promise<CaptureResult>((resolve) => {
         const requestId = randomUUID();
         pendingRef.current.set(requestId, resolve);
         window.dispatchEvent(
           new CustomEvent(FLOW_IMAGE_EXPORT_EVENT, {
-            // Notes are part of the picture (the mod's pictures carry them).
-            detail: { format: "png", requestId, capture: true, cardDetail, hideAnnotations: false },
+            detail: { format: "png", requestId, capture: true, ...options },
           }),
         );
         window.setTimeout(() => {
@@ -118,15 +130,18 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     [],
   );
 
-  // What the picture needs to be taken again for: the cards' look, and the rate unit the board prints.
-  const wantKey = `${detail}|${rateUnit}`;
+  const wantKey = `${detail}|${rateUnit}|${transparent}|${showAnnotations}`;
   const capturing = taken?.key !== wantKey;
   const capture = taken?.capture;
   const problem = taken?.key === wantKey ? taken.problem : undefined;
   useEffect(() => {
     let cancelled = false;
     const attempt = (retriesLeft: number) => {
-      void requestBoardCapture(detail).then((outcome) => {
+      void requestBoardCapture({
+        cardDetail: detail,
+        background: transparent ? "transparent" : undefined,
+        hideAnnotations: !showAnnotations,
+      }).then((outcome) => {
         if (cancelled) return;
         if (!outcome.capture?.blob) {
           if (retriesLeft > 0) {
@@ -145,7 +160,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
       cancelAnimationFrame(frame);
     };
     // The rate unit repaints the board, not the request: the photograph is taken again.
-  }, [requestBoardCapture, detail, wantKey]);
+  }, [requestBoardCapture, detail, transparent, showAnnotations, wantKey]);
 
   const previewUrl = useMemo(() => (capture?.blob ? URL.createObjectURL(capture.blob) : undefined), [capture]);
   useEffect(() => () => (previewUrl ? URL.revokeObjectURL(previewUrl) : undefined), [previewUrl]);
@@ -196,7 +211,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
 
   // ---- The picture itself --------------------------------------------------
 
-  const compose = async (): Promise<Blob> => {
+  const compose = async (includePlan: boolean): Promise<Blob> => {
     if (!capture?.blob || !layout) throw new Error("The board capture is missing.");
     const wantFooter = footerVisible && footerElement !== null && layout.footerHeight > 0;
     const fontEmbedCSS = wantFooter && footerElement ? await resolveExportFontCss(footerElement) : undefined;
@@ -217,7 +232,11 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
       pixelRatio: capture.pixelRatio,
     });
     const marked = footerBlob ? composed : await stampMark(composed, capture.pixelRatio);
-    return embedProjectJsonInPng(marked, serializeFactoryProject(project));
+    if (!includePlan) return marked;
+    const projectJson = serializeFactoryProject(project);
+    return transparent
+      ? embedProjectJsonInPngMetadata(marked, projectJson)
+      : embedProjectJsonInPng(marked, projectJson);
   };
 
   const save = async () => {
@@ -225,7 +244,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     setKeeping(true);
     setStatus(undefined);
     try {
-      const blob = await compose();
+      const blob = await compose(embedPlan);
       const name = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "factory"}.png`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -247,7 +266,8 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     setKeeping(true);
     setStatus(undefined);
     try {
-      const blob = await compose();
+      // Clipboard PNGs can lose metadata. The opaque export has a pixel fallback.
+      const blob = await compose(embedPlan && !transparent);
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       setStatus({ text: "Copied: paste it anywhere", good: true });
       playBoardSound("tick");
@@ -279,7 +299,11 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
         <div className="mshot-body">
           <div ref={wellRef} className="mshot-well">
             {previewUrl && capture && scale > 0 ? (
-              <div className="mshot-picture" style={{ width: capture.width * scale }}>
+              <div
+                className="mshot-picture"
+                data-transparent={transparent && !capturing ? "" : undefined}
+                style={{ width: capture.width * scale }}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt="Plan picture preview" draggable={false} />
                 {footerVisible && layout ? (
@@ -339,6 +363,15 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
             </div>
             <Toggle label="Plan name" on={title} onChange={setTitle} />
             <Toggle label="Inputs and outputs" on={io} onChange={setIo} />
+            <Toggle label="Transparent background" on={transparent} onChange={setTransparent} />
+            <Toggle label="Show annotations" on={showAnnotations} onChange={setShowAnnotations} />
+            <Toggle label="Embed plan" on={embedPlan} onChange={setEmbedPlan} />
+            {embedPlan && !showAnnotations ? (
+              <div className="mshot-hint">The embedded plan includes annotations.</div>
+            ) : null}
+            {embedPlan && transparent ? (
+              <div className="mshot-hint">Use Save to embed the plan in a transparent PNG.</div>
+            ) : null}
             <div className="mshot-size">{pixels ?? "Taking the picture..."}</div>
             {status ? (
               <div className="mshot-status" data-good={status.good ? "" : undefined}>
@@ -346,10 +379,27 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
               </div>
             ) : null}
             <div className="mshot-keys">
-              <div className="mb-key mshot-key" role="button" data-off={ready ? undefined : ""} onClick={() => ready && void copy()}>
+              <div
+                className="mb-key mshot-key"
+                role="button"
+                tabIndex={0}
+                aria-disabled={!ready}
+                data-off={ready ? undefined : ""}
+                onKeyDown={activateOnKey}
+                onClick={() => ready && void copy()}
+              >
                 Copy
               </div>
-              <div className="mb-key mshot-key" data-save="" role="button" data-off={ready ? undefined : ""} onClick={() => ready && void save()}>
+              <div
+                className="mb-key mshot-key"
+                data-save=""
+                role="button"
+                tabIndex={0}
+                aria-disabled={!ready}
+                data-off={ready ? undefined : ""}
+                onKeyDown={activateOnKey}
+                onClick={() => ready && void save()}
+              >
                 Save
               </div>
             </div>
@@ -366,8 +416,10 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
     <div
       className="mshot-row"
       role="switch"
+      tabIndex={0}
       aria-checked={on}
       aria-label={label}
+      onKeyDown={activateOnKey}
       onClick={() => {
         onChange(!on);
         playBoardSound("tick", { gain: on ? 0.9 : 1.1 });

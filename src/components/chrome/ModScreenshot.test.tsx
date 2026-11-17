@@ -1,11 +1,22 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { FLOW_IMAGE_EXPORT_COMPLETE_EVENT, FLOW_IMAGE_EXPORT_EVENT } from "@/lib/import-export/plan-image";
+import {
+  embedProjectJsonInPng,
+  embedProjectJsonInPngMetadata,
+  FLOW_IMAGE_EXPORT_COMPLETE_EVENT,
+  FLOW_IMAGE_EXPORT_EVENT,
+  type FlowExportRequest,
+} from "@/lib/import-export/plan-image";
 import { useDesignStore } from "@/store/design-store";
 import { ModScreenshot } from "./ModScreenshot";
 
 vi.mock("@/lib/compact-view", () => ({ isCompactViewport: () => false }));
+vi.mock("@/lib/import-export/plan-image", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/import-export/plan-image")>(),
+  embedProjectJsonInPng: vi.fn(async (blob: Blob) => blob),
+  embedProjectJsonInPngMetadata: vi.fn(async (blob: Blob) => blob),
+}));
 
 beforeAll(() => {
   (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -21,15 +32,15 @@ beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 600 });
 });
 
-const asked: Array<{ cardDetail: string; hideAnnotations: boolean }> = [];
+const asked: Array<Pick<FlowExportRequest, "cardDetail" | "hideAnnotations" | "background">> = [];
 const onExport = (event: Event) => {
-  const detail = (event as CustomEvent).detail as { requestId: string; cardDetail: string; hideAnnotations: boolean };
-  asked.push({ cardDetail: detail.cardDetail, hideAnnotations: detail.hideAnnotations });
+  const { requestId, cardDetail, hideAnnotations, background } = (event as CustomEvent<FlowExportRequest>).detail;
+  asked.push({ cardDetail, hideAnnotations, background });
   queueMicrotask(() =>
     window.dispatchEvent(
       new CustomEvent(FLOW_IMAGE_EXPORT_COMPLETE_EVENT, {
         detail: {
-          requestId: detail.requestId,
+          requestId,
           capture: {
             kind: "png",
             blob: new Blob(["x"], { type: "image/png" }),
@@ -47,6 +58,7 @@ const onExport = (event: Event) => {
 
 beforeEach(() => {
   asked.length = 0;
+  vi.clearAllMocks();
   useDesignStore.setState({ designs: [], activeDesignId: undefined });
   window.addEventListener(FLOW_IMAGE_EXPORT_EVENT, onExport);
 });
@@ -64,6 +76,9 @@ describe("the screenshot box", () => {
     expect([...document.querySelectorAll('[aria-label="Cards"] .ms-choice')].map((element) => element.textContent)).toEqual(["Detailed", "Simple"]);
     expect(screen.getByRole("switch", { name: "Plan name" }).getAttribute("aria-checked")).toBe("false");
     expect(screen.getByRole("switch", { name: "Inputs and outputs" }).getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByRole("switch", { name: "Transparent background" }).getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByRole("switch", { name: "Show annotations" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("switch", { name: "Embed plan" }).getAttribute("aria-checked")).toBe("true");
     // By default it is the plan and nothing else, with the mark every picture carries.
     expect(document.querySelector(".mshot-mark")?.textContent).toBe("GTNH Planner");
   });
@@ -84,5 +99,34 @@ describe("the screenshot box", () => {
     await waitFor(() => expect(document.querySelector('.mshot-key[data-save]')?.hasAttribute("data-off")).toBe(false));
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("captures the requested pixels and embeds the plan only when selected", async () => {
+    const download = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      render(<ModScreenshot onClose={vi.fn()} />);
+      fireEvent.click(screen.getByRole("switch", { name: "Transparent background" }));
+      fireEvent.click(screen.getByRole("switch", { name: "Show annotations" }));
+      const save = screen.getByRole("button", { name: "Save" });
+      await waitFor(() => expect(save.getAttribute("aria-disabled")).toBe("false"));
+      expect(asked.at(-1)).toMatchObject({ background: "transparent", hideAnnotations: true });
+      expect(screen.getByText("The embedded plan includes annotations.")).toBeTruthy();
+      expect(screen.getByText("Use Save to embed the plan in a transparent PNG.")).toBeTruthy();
+
+      fireEvent.click(save);
+      await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+      expect(embedProjectJsonInPngMetadata).toHaveBeenCalledTimes(1);
+      expect(embedProjectJsonInPng).not.toHaveBeenCalled();
+
+      const captureCount = asked.length;
+      fireEvent.click(screen.getByRole("switch", { name: "Embed plan" }));
+      fireEvent.click(save);
+      await waitFor(() => expect(download).toHaveBeenCalledTimes(2));
+      expect(embedProjectJsonInPngMetadata).toHaveBeenCalledTimes(1);
+      expect(embedProjectJsonInPng).not.toHaveBeenCalled();
+      expect(asked).toHaveLength(captureCount);
+    } finally {
+      download.mockRestore();
+    }
   });
 });

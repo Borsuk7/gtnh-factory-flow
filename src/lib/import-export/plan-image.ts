@@ -109,7 +109,12 @@ export async function embedProjectJsonInPng(
     projectJson,
     backgroundColor,
   );
-  const bytes = new Uint8Array(await pngWithPixelPayload.arrayBuffer());
+  return embedProjectJsonInPngMetadata(pngWithPixelPayload, projectJson);
+}
+
+/** Keeps the original pixels and size so transparent exports have no opaque data strip. */
+export async function embedProjectJsonInPngMetadata(pngBlob: Blob, projectJson: string): Promise<Blob> {
+  const bytes = new Uint8Array(await pngBlob.arrayBuffer());
   validatePng(bytes);
 
   const iendOffset = findPngChunkOffset(bytes, "IEND");
