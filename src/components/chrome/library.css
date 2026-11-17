@@ -215,10 +215,6 @@
 .ml-plan-content [data-filter-fields] svg,
 .ml-plan-content [data-item-filter-side] > button svg,
 .ml-plan-content [data-item-filter-side] > span > button svg { width: 8px; height: 8px; }
-.ml-plan-content [data-library-filters] [data-item-picker] {
-  zoom: calc(1 / 1.7094);
-  font-size: 12px;
-}
 .ml-collection-form .mb-key:disabled {
   color: var(--mc-off);
   cursor: default;
@@ -303,7 +299,8 @@
 .ml-compact-collections .ml-collection-row span { min-width: 0; }
 .ml-compact-collections .ml-collection-row input { min-width: 0; width: 100px; }
 .ml-compact .ml-compact-collection-options,
-.ml-compact .ml-compact-tile-options {
+.ml-compact .ml-compact-tile-options,
+.ml-compact .ml-tile-edit {
   width: 38px;
   min-height: 38px;
   justify-content: center;
@@ -382,7 +379,7 @@
   outline: 1px solid var(--mc-cyan);
   outline-offset: -2px;
 }
-.ml-tile-more {
+.ml-tile > :is(.ml-tile-more, .ml-tile-edit) {
   position: absolute;
   right: 4px;
   bottom: 4px;
@@ -391,6 +388,7 @@
   padding: 0;
   color: var(--mc-muted);
 }
+.ml-tile > .ml-tile-edit { right: 22px; }
 .ml-tile-more:hover,
 .ml-tile-more:focus-visible {
   color: var(--mc-ink);
@@ -528,7 +526,7 @@
 .ml-stats > span:nth-child(2) svg { color: var(--mc-gold); }
 .ml-posted {
   position: absolute;
-  right: 24px;
+  right: 41px;
   bottom: 5px;
   color: #9fd9e6;
 }

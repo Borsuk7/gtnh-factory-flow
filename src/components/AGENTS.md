@@ -150,6 +150,7 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
   and in a scrollable row above them in compact mode. The tile menu supports filing plans by touch.
   My Plans shares its search, power and tier ceilings, Makes/Takes filters, and sort options across layouts.
   Plan tiles show saved machine counts, power draw, and a color-coded tier when those figures are available.
+  The pencil opens the inline editor from the tile. Desktop and compact plan tiles use the same options menu.
 - What edits or views the board is the BOARD TOOLBAR (`chrome/BoardToolbar.tsx`): no band. Its keys float over the
   board's top edge (it sits inside the board's box, so the board fills the whole middle column and nothing is reserved;
   not while the Library or Welcome covers it). Both bars share the key and fit hook in `chrome/bar-parts.tsx`.

@@ -22,6 +22,7 @@ import { FLUID_ICON_SCALE, ResourceIcon } from "@/components/nei/ResourceIcon";
 import { TierBadge, type VoltageTier } from "@/components/shelf-cards";
 import { normalizeBlueprintTags } from "@/lib/blueprints/types";
 import type { EntryIcon } from "@/lib/model/types";
+import { PlanDetailsButton } from "@/components/chrome/PlanIdentityStrip";
 
 /**
  * THE tile: one shape for your designs and network posts, in every library
@@ -88,6 +89,7 @@ export interface LibraryTileProps {
   busy?: boolean;
   menuOpen?: boolean;
   showOptions?: boolean;
+  onEditDetails?: () => void;
   onOpen: () => void;
   onMenu: (left: number, top: number) => void;
   /**
@@ -125,6 +127,7 @@ export function LibraryTile({
   busy,
   menuOpen,
   showOptions,
+  onEditDetails,
   onOpen,
   onMenu,
   onDragPress,
@@ -136,6 +139,8 @@ export function LibraryTile({
   // (iPhones send no contextmenu event). It is never a drag: the drag would
   // swallow the swipe. Filing into collections is in the menu on a phone.
   const press = useRef<{ timer: number; x: number; y: number } | undefined>(undefined);
+  const held = useRef(false);
+  useEffect(() => () => window.clearTimeout(press.current?.timer), []);
   const cancelPress = () => {
     if (press.current) {
       window.clearTimeout(press.current.timer);
@@ -143,6 +148,7 @@ export function LibraryTile({
     }
   };
   const handlePointerDown = (event: React.PointerEvent) => {
+    held.current = false;
     if (renaming || (event.target as HTMLElement).closest("button, input, a")) {
       return;
     }
@@ -154,6 +160,7 @@ export function LibraryTile({
         y: clientY,
         timer: window.setTimeout(() => {
           press.current = undefined;
+          held.current = true;
           onMenu(clientX, clientY);
         }, LONG_PRESS_MS),
       };
@@ -179,7 +186,7 @@ export function LibraryTile({
       data-selected={selected ? "true" : undefined}
       data-library-tile=""
       onClick={(event) => {
-        if (renaming || busy || (event.target as HTMLElement).closest("button, input, a")) {
+        if (held.current || renaming || busy || (event.target as HTMLElement).closest("button, input, a")) {
           return;
         }
         if (onSelect && (event.ctrlKey || event.metaKey)) {
@@ -349,6 +356,7 @@ export function LibraryTile({
               ) : null}
             </>
           ) : null}
+          {onEditDetails ? <PlanDetailsButton name={name} onClick={onEditDetails} /> : null}
           {showOptions ? (
             <button
               type="button"
@@ -356,6 +364,7 @@ export function LibraryTile({
               aria-label={`Options for ${name}`}
               aria-haspopup="menu"
               aria-expanded={Boolean(menuOpen)}
+              data-menu-anchor=""
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 onMenu(rect.right, rect.bottom);

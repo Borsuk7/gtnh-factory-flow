@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { getUiScale } from "@/lib/ui-scale";
 import { IconPicker, iconSuggestionsFromProject } from "@/components/IconPicker";
+import { PlanListMenu } from "@/components/chrome/PlanListMenu";
 import { ListedPlanIdentity } from "@/components/chrome/PlanIdentityStrip";
 import { formatRelativeDate } from "@/components/shelf-cards";
 import { deleteCommunityPlan, patchCommunityPlan } from "@/lib/community/client";
@@ -26,7 +27,7 @@ import { useSavedSetups } from "@/lib/library/saved-setups";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
 import { LibraryDetail, previewUrlFor } from "./LibraryDetail";
-import { ArmedMenuItem, LibraryMenu, MenuHeading, MenuItem, MenuRule } from "./library-menu";
+import { ArmedMenuItem, LibraryMenu, MenuItem } from "./library-menu";
 import { Face, InlineName, LibraryTile } from "./LibraryTile";
 import { SetupsGrid } from "./SetupsGrid";
 import { SetupsFilterBar, useSetupFilters } from "./SetupsFilterBar";
@@ -56,9 +57,7 @@ export function LibraryPage() {
   const folders = useDesignStore((state) => state.folders);
   const switchToDesign = useDesignStore((state) => state.switchToDesign);
   const addDesign = useDesignStore((state) => state.addDesign);
-  const copyDesign = useDesignStore((state) => state.copyDesign);
   const renameDesign = useDesignStore((state) => state.renameDesign);
-  const closeDesign = useDesignStore((state) => state.closeDesign);
   const removeDesign = useDesignStore((state) => state.removeDesign);
   const moveDesignToFolder = useDesignStore((state) => state.moveDesignToFolder);
   const toggleFavorite = useDesignStore((state) => state.toggleFavorite);
@@ -378,9 +377,6 @@ export function LibraryPage() {
 
   const menuDesign = tileMenu
     ? designs.find((design) => design.id === tileMenu.designId)
-    : undefined;
-  const menuPost = menuDesign?.communityPlanId
-    ? myPosts?.get(menuDesign.communityPlanId)
     : undefined;
   const menuFolder = folderMenu
     ? folders.find((folder) => folder.id === folderMenu.folderId)
@@ -738,6 +734,7 @@ export function LibraryPage() {
                         onCopyLink={post ? () => void copyLink(design) : undefined}
                         menuOpen={tileMenu?.designId === design.id}
                         showOptions
+                        onEditDetails={() => setEditingDetails(design.id)}
                         onOpen={() => {
                           if (suppressClickRef.current) {
                             return;
@@ -770,107 +767,17 @@ export function LibraryPage() {
       </section>
 
       {tileMenu && menuDesign ? (
-        <LibraryMenu
-          left={tileMenu.left}
-          top={tileMenu.top}
-          label={`Options for ${menuDesign.name}`}
+        <PlanListMenu
+          key={menuDesign.id}
+          design={menuDesign}
+          folders={folders}
+          anchor={{ left: tileMenu.left, top: tileMenu.top, bottom: tileMenu.top }}
+          onOpen={() => switchToDesign(menuDesign.id)}
+          onRename={() => setRenamingId(menuDesign.id)}
+          onEdit={() => setEditingDetails(menuDesign.id)}
+          onError={setError}
           onClose={closeMenus}
-        >
-          <MenuItem
-            label="Open"
-            onClick={() => {
-              closeMenus();
-              open(menuDesign.id);
-            }}
-          />
-          {!menuDesign.closed ? (
-            <MenuItem
-              label="Close tab"
-              onClick={() => {
-                closeMenus();
-                void closeDesign(menuDesign.id);
-              }}
-            />
-          ) : null}
-          <MenuItem
-            label="Rename"
-            onClick={() => {
-              closeMenus();
-              setRenamingId(menuDesign.id);
-            }}
-          />
-          <MenuItem
-            label="Edit plan details"
-            onClick={() => {
-              closeMenus();
-              setEditingDetails(menuDesign.id);
-            }}
-          />
-          <MenuItem
-            label="Duplicate"
-            onClick={() => {
-              closeMenus();
-              void copyDesign(menuDesign.id);
-            }}
-          />
-          {folders.length > 0 ? (
-            <>
-              <MenuHeading>Add to collection</MenuHeading>
-              {folders.map((folder) => (
-                <MenuItem
-                  key={folder.id}
-                  label={folder.name}
-                  indent
-                  checked={menuDesign.folderId === folder.id}
-                  onClick={() => {
-                    closeMenus();
-                    void moveDesignToFolder(
-                      menuDesign.id,
-                      menuDesign.folderId === folder.id ? undefined : folder.id,
-                    );
-                  }}
-                />
-              ))}
-            </>
-          ) : null}
-          <MenuRule />
-          {menuPost ? (
-            <>
-              <MenuItem
-                label="Copy link"
-                onClick={() => {
-                  closeMenus();
-                  void copyLink(menuDesign);
-                }}
-              />
-              <MenuItem
-                label={menuPost.isPublic ? "Make private" : "Make public"}
-                onClick={() => {
-                  closeMenus();
-                  void setPostVisibility(menuDesign, !menuPost.isPublic);
-                }}
-              />
-            </>
-          ) : signedIn ? (
-            <MenuItem
-              label="Post as a public setup"
-              onClick={() => {
-                closeMenus();
-                void postDesign(menuDesign.id);
-              }}
-            />
-          ) : null}
-          <ArmedMenuItem
-            label="Delete"
-            armedLabel={menuPost ? "Confirm delete (the post comes down too)" : "Confirm delete"}
-            armed={armed?.id === menuDesign.id && armed.what === "delete"}
-            onArm={() => setArmed({ id: menuDesign.id, what: "delete" })}
-            onFire={() => {
-              closeMenus();
-              void deleteDesign(menuDesign.id);
-            }}
-          />
-        </LibraryMenu>
+        />
       ) : null}
 
       {drag ? <DragGhost drag={drag} /> : null}

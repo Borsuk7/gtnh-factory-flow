@@ -162,6 +162,8 @@ describe("the library", () => {
       "Open",
       "Rename",
       "Edit plan details",
+      "Duplicate",
+      "Close tab",
       "Add to Favorites",
       "Move to collection",
       "Copy plan codeto paste or share",
@@ -186,6 +188,15 @@ describe("the library", () => {
     fireEvent.click(screen.getByRole("button", { name: "Options for Benzene" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Remove from Favorites" }));
     expect(tileNames()).toEqual([]);
+  });
+
+  it("opens inline plan details from the tile without switching plans", () => {
+    render(<ModLibrary />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit details for ref-chain" }));
+    const details = within(screen.getByRole("region", { name: "Plan details" }));
+    expect(details.getByRole("textbox", { name: "Plan description" })).toBeTruthy();
+    expect(details.getByRole("button", { name: /pick an icon|change the icon/i })).toBeTruthy();
+    expect(actions.switchToDesign).not.toHaveBeenCalled();
   });
 
   it("creates a collection and moves a plan into and out of it", async () => {

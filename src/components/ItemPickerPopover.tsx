@@ -7,6 +7,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { DatasetResourceIndexEntry } from "@/lib/datasets/types";
 import type { RecipeQueryRole } from "@/lib/datasets/recipe-query";
 import { ResourceIndexPane, type IndexedResource } from "./ResourceIndexPane";
+import { MenuPortal, type MenuAnchor } from "@/components/flow/clean/menus/MenuPortal";
 
 /**
  * THE ITEM PANEL (ResourceIndexPane) in a popover, where a tile click picks
@@ -18,12 +19,15 @@ export function ItemPickerPopover({
   role,
   placement = "above",
   align = "center",
+  anchor,
   onPick,
   onClose,
 }: {
   role: RecipeQueryRole;
   placement?: "above" | "below";
   align?: "center" | "start";
+  /** A viewport anchor for pickers hosted in a scrolling panel. */
+  anchor?: MenuAnchor;
   onPick: (entry: DatasetResourceIndexEntry, role: RecipeQueryRole) => void;
   onClose: () => void;
   /** Kept for callers that still pass it; the pane queries the dataset itself. */
@@ -54,7 +58,7 @@ export function ItemPickerPopover({
 
   // The one dropdown rule (use-dropdown-dismiss.ts); its Escape is consumed
   // so the search behind the picker stays open.
-  useDropdownDismiss(true, { refs: [rootRef], onClose, fade: true });
+  useDropdownDismiss(!anchor, { refs: [rootRef], onClose, fade: true });
 
   const pick = (resource: IndexedResource) => {
     onPick(
@@ -71,6 +75,15 @@ export function ItemPickerPopover({
     );
   };
 
+  const pane = <ResourceIndexPane search={search} onSearchChange={setSearch} onBrowse={pick} autoFocus />;
+  if (anchor) {
+    return (
+      <MenuPortal anchor={anchor} width={380} maxHeight={560} role="dialog" label={role === "makes" ? "Choose a product" : "Choose an input"} onClose={onClose}>
+        <div className="flex h-[560px] min-h-0 flex-col" data-item-picker={role}>{pane}</div>
+      </MenuPortal>
+    );
+  }
+
   return (
     <div
       ref={rootRef}
@@ -86,12 +99,7 @@ export function ItemPickerPopover({
       ].join(" ")}
       data-item-picker={role}
     >
-      <ResourceIndexPane
-        search={search}
-        onSearchChange={setSearch}
-        onBrowse={pick}
-        autoFocus
-      />
+      {pane}
     </div>
   );
 }

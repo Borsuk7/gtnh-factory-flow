@@ -37,6 +37,8 @@ export interface MenuEntry {
   tone?: "red";
   current?: boolean;
   disabled?: boolean;
+  /** The row opens another page in the same menu. */
+  keepOpen?: boolean;
   /** A thin rule above this row. */
   ruleAbove?: boolean;
   /** A tooltip: why a greyed row does nothing, or more about what it does. */
@@ -68,6 +70,7 @@ export function ChromeMenu({
   minWidth,
   align = "left",
   zIndex,
+  fitViewport = false,
   onClose,
 }: {
   anchor: ChromeAnchor;
@@ -79,6 +82,7 @@ export function ChromeMenu({
   align?: "left" | "right";
   /** Over a column that stacks above the bar's menus (the items column). */
   zIndex?: number;
+  fitViewport?: boolean;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -106,10 +110,13 @@ export function ChromeMenu({
   const shell = (px: number) => px / scale;
   const vw = shell(window.innerWidth);
   const spaceBelow = shell(window.innerHeight - anchor.bottom) - 8;
+  const spaceAbove = shell(anchor.top) - 8;
+  const above = fitViewport && spaceBelow < entries.length * 20 + 24 && spaceAbove > spaceBelow;
   const style: React.CSSProperties = {
-    minWidth: minWidth ?? 100,
-    maxHeight: Math.max(80, spaceBelow),
-    top: shell(anchor.bottom) + 2,
+    minWidth: fitViewport ? Math.min(minWidth ?? 100, vw - 8) : minWidth ?? 100,
+    ...(fitViewport ? { maxWidth: Math.min(360, vw - 8) } : {}),
+    maxHeight: fitViewport ? Math.max(0, above ? spaceAbove : spaceBelow) : Math.max(80, spaceBelow),
+    ...(above ? { bottom: shell(window.innerHeight - anchor.top) + 2 } : { top: shell(anchor.bottom) + 2 }),
     ...(zIndex === undefined ? {} : { zIndex }),
   };
   // The menu's width is only known once it is drawn, so one wider than the room on its side (a right-hung menu
@@ -189,7 +196,7 @@ function MenuRow({ entry, onClose }: { entry: MenuEntry; onClose: () => void }):
         onClick={() => {
           if (entry.disabled) return;
           playBoardSound("tick");
-          onClose();
+          if (!entry.keepOpen) onClose();
           entry.onSelect();
         }}
       >

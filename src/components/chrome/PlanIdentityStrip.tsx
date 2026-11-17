@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { EntryIconSlot, IconPicker, iconSuggestionsFromProject } from "@/components/IconPicker";
 import { readDesign } from "@/lib/designs/design-storage";
@@ -36,6 +37,20 @@ export function ListedPlanIdentity({ designId }: { designId: string }) {
   return isActive
     ? <ActivePlanIdentity designId={designId} />
     : <StoredPlanIdentity designId={designId} />;
+}
+
+export function PlanDetailsButton({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="mb-key ml-tile-edit"
+      aria-label={`Edit details for ${name}`}
+      title="Edit title, description, and icon"
+      onClick={onClick}
+    >
+      <Pencil size={11} aria-hidden />
+    </button>
+  );
 }
 
 function StoredPlanIdentity({ designId }: { designId: string }) {

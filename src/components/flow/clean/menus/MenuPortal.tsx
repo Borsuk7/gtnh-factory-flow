@@ -62,7 +62,7 @@ export function MenuPortal({
     if (role !== "dialog") return;
     const previous = document.activeElement;
     const panel = ref.current;
-    panel?.focus({ preventScroll: true });
+    if (!panel?.contains(previous)) panel?.focus({ preventScroll: true });
     return () => {
       const active = document.activeElement;
       if (previous instanceof HTMLElement && previous.isConnected &&

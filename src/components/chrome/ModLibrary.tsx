@@ -5,11 +5,8 @@ import "./library.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Ellipsis, Factory, Folder, FolderPlus, LayoutGrid, Star, X, Zap } from "lucide-react";
-import { requestShareDialog } from "@/lib/setups-tab";
 import { openDesigns, type DesignSummary } from "@/lib/designs/design-library";
-import { readDesign } from "@/lib/designs/design-storage";
-import { libraryRows } from "./library-rows";
-import { copyPlanCode } from "./share-actions";
+import { PlanListMenu } from "./PlanListMenu";
 import { agoText, lastOpenOf } from "@/lib/library/last-open";
 import { leaveLibrary, setLibraryView, useLibraryTab, type LibraryView } from "@/lib/library/library-tab";
 import { activateOnKey } from "@/lib/hooks/button-keys";
@@ -17,7 +14,6 @@ import { GT_VOLTAGE_TIERS } from "@/lib/model/tiers";
 import { leaveWelcomeTab } from "@/lib/welcome/welcome-tab";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useDesignStore } from "@/store/design-store";
-import { useFactoryStore } from "@/store/factory-store";
 import { tipAttrs } from "@/components/flow/clean/interaction";
 import { Face, formatEuT } from "@/components/library/LibraryTile";
 import { tierChipColors } from "@/components/flow/clean/tokens";
@@ -31,7 +27,7 @@ import { isLiveConfigured } from "@/lib/live/live-config";
 import { areOnlineFeaturesEnabled } from "@/lib/online-features";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
 import { ChecklistIcon } from "./pixel-icons";
-import { ListedPlanIdentity } from "./PlanIdentityStrip";
+import { ListedPlanIdentity, PlanDetailsButton } from "./PlanIdentityStrip";
 
 /** Plans shared with you come with live plans: none of it shows without NEXT_PUBLIC_LIVE_URL. */
 const LIVE = isLiveConfigured();
@@ -225,7 +221,7 @@ function DropKey({ label, open, tip, onOpen }: { label: string; open: boolean; t
 
 // ---- My plans --------------------------------------------------------------
 
-type MyPlansMenu = { kind: "tile" | "delete" | "move"; id: string; anchor: ChromeAnchor };
+type MyPlansMenu = { id: string; anchor: ChromeAnchor };
 const PLAN_DRAG_TYPE = "application/x-gtnh-plan";
 
 function MyPlans({ filters, view }: { filters: SetupFilters; view: LibraryView }) {
@@ -236,11 +232,9 @@ function MyPlans({ filters, view }: { filters: SetupFilters; view: LibraryView }
   const addDesign = useDesignStore((state) => state.addDesign);
   const switchToDesign = useDesignStore((state) => state.switchToDesign);
   const renameDesign = useDesignStore((state) => state.renameDesign);
-  const removeDesign = useDesignStore((state) => state.removeDesign);
   const toggleFavorite = useDesignStore((state) => state.toggleFavorite);
   const moveDesignToFolder = useDesignStore((state) => state.moveDesignToFolder);
   const createFolder = useDesignStore((state) => state.createFolder);
-  const linkedPostId = useFactoryStore((state) => state.project.metadata?.communityPlanId);
   const [menu, setMenu] = useState<MyPlansMenu>();
   const [collectionName, setCollectionName] = useState<string>();
   const [creating, setCreating] = useState(false);
@@ -328,68 +322,7 @@ function MyPlans({ filters, view }: { filters: SetupFilters; view: LibraryView }
     await switchToDesign(id);
   };
 
-  const copyCode = async (id: string) => {
-    try {
-      const project = id === activeDesignId ? useFactoryStore.getState().project : (await readDesign(id))?.project;
-      if (!project) return;
-      await copyPlanCode(project);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   const menuDesign = menu ? allDesigns.find((design) => design.id === menu.id) : undefined;
-  const entries = (m: MyPlansMenu): MenuEntry[] => {
-    if (!menuDesign) return [];
-    if (m.kind === "move") {
-      const move = (id: string | undefined) => savePlanOrganization(moveDesignToFolder(m.id, id));
-      return [
-        { label: "No collection", current: !menuDesign.folderId, onSelect: () => move(undefined) },
-        ...folders.map((folder) => ({
-          label: folder.name,
-          current: menuDesign.folderId === folder.id,
-          onSelect: () => move(folder.id),
-        })),
-      ];
-    }
-    if (m.kind === "delete") {
-      return [
-        { label: "Delete it", tone: "red", onSelect: () => void removeDesign(m.id) },
-        { label: "Keep it", onSelect: () => undefined },
-      ];
-    }
-    return [
-      { label: "Open", onSelect: () => void open(m.id) },
-      { label: "Rename", onSelect: () => setRenaming(m.id) },
-      { label: "Edit plan details", onSelect: () => setEditingDetails(m.id) },
-      {
-        label: menuDesign.favorite ? "Remove from Favorites" : "Add to Favorites",
-        onSelect: () => savePlanOrganization(toggleFavorite(m.id)),
-      },
-      {
-        label: "Move to collection",
-        disabled: folders.length === 0,
-        tip: folders.length === 0 ? "Create a collection first" : undefined,
-        onSelect: () => setMenu({ ...m, kind: "move" }),
-      },
-      { label: "Copy plan code", detail: "to paste or share", onSelect: () => void copyCode(m.id) },
-      ...libraryRows(
-        Boolean(m.id === activeDesignId ? linkedPostId : menuDesign.communityPlanId),
-        (mode) => {
-          void (async () => {
-            await open(m.id);
-            requestShareDialog(mode);
-          })();
-        },
-        { taskBoard: Boolean(menuDesign.taskBoard) },
-      ),
-      {
-        label: "Delete plan",
-        tone: "red",
-        onSelect: () => setMenu({ ...m, kind: "delete" }),
-      },
-    ];
-  };
 
   return (
     <div className="ml-my-plans" data-my-plans="">
@@ -515,7 +448,8 @@ function MyPlans({ filters, view }: { filters: SetupFilters; view: LibraryView }
               onDragEnd={finishDrag}
               renaming={renaming === design.id}
               onOpen={() => void open(design.id)}
-              onMenu={(anchor) => setMenu({ kind: "tile", id: design.id, anchor })}
+              onEditDetails={() => setEditingDetails(design.id)}
+              onMenu={(anchor) => setMenu({ id: design.id, anchor })}
               onRename={(name) => {
                 setRenaming(undefined);
                 if (name && name !== design.name) void renameDesign(design.id, name);
@@ -530,13 +464,15 @@ function MyPlans({ filters, view }: { filters: SetupFilters; view: LibraryView }
         ) : null}
       </div>
       {menu && menuDesign ? (
-        <ChromeMenu
-          key={menu.kind}
+        <PlanListMenu
+          key={menu.id}
+          design={menuDesign}
+          folders={folders}
           anchor={menu.anchor}
-          entries={entries(menu)}
-          label={menu.kind === "move" ? "Move to collection" : `Plan options for ${menuDesign?.name}`}
-          title={menu.kind === "delete" ? `Delete '${menuDesign?.name}' for good?` : undefined}
-          minWidth={menu.kind === "delete" ? 150 : 190}
+          onOpen={() => open(menu.id)}
+          onRename={() => setRenaming(menu.id)}
+          onEdit={() => setEditingDetails(menu.id)}
+          onError={setProblem}
           onClose={() => setMenu(undefined)}
         />
       ) : null}
@@ -554,6 +490,7 @@ function PlanTile({
   onDragEnd,
   renaming,
   onOpen,
+  onEditDetails,
   onMenu,
   onRename,
 }: {
@@ -566,6 +503,7 @@ function PlanTile({
   onDragEnd: () => void;
   renaming: boolean;
   onOpen: () => void;
+  onEditDetails: () => void;
   onMenu: (anchor: ChromeAnchor) => void;
   onRename: (name: string) => void;
 }) {
@@ -643,6 +581,7 @@ function PlanTile({
         ) : null}
         {areOnlineFeaturesEnabled() && design.communityPlanId ? <span className="ml-posted">posted</span> : null}
       </div>
+      <PlanDetailsButton name={design.name} onClick={onEditDetails} />
       <button
         type="button"
         className="mb-key ml-tile-more"

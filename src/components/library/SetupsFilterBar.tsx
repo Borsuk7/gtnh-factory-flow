@@ -14,6 +14,7 @@ import type { EntryIcon } from "@/lib/model/types";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useFactoryStore } from "@/store/factory-store";
 import { Face } from "./LibraryTile";
+import { anchorOf, type MenuAnchor } from "@/components/flow/clean/menus/MenuPortal";
 
 /**
  * The one filter bar over every library grid (your designs and public
@@ -116,7 +117,7 @@ export function SetupsFilterBar({
     setMakes,
     setTakes,
   } = filters;
-  const [picking, setPicking] = useState<"makes" | "takes">();
+  const [picking, setPicking] = useState<{ side: "makes" | "takes"; anchor: MenuAnchor }>();
   const [searchFocused, setSearchFocused] = useState(false);
   // On a phone everything but the search folds behind one key, which
   // wears a count of the filters in force so a narrowed list is never a
@@ -328,18 +329,21 @@ export function SetupsFilterBar({
             <div key={side} data-item-filter-side="" className="relative flex max-w-full flex-wrap items-center gap-1">
               <button
                 type="button"
-                onClick={() => setPicking(picking === side ? undefined : side)}
+                data-menu-anchor=""
+                aria-expanded={picking?.side === side}
+                onClick={(event) => setPicking(picking?.side === side ? undefined : { side, anchor: anchorOf(event.currentTarget) })}
                 title={side === "makes" ? "Only what makes this" : "Only what takes this"}
                 className="flex h-7 items-center gap-1 border-2 border-[var(--mc-33)] bg-[var(--mc-61)] px-2 text-xs font-bold text-[var(--mc-ink)] shadow-[inset_1px_1px_0_var(--mc-85)] hover:bg-[var(--mc-85)]"
               >
                 <Plus className="h-3 w-3" aria-hidden />
                 {side === "makes" ? "Makes" : "Takes"}
               </button>
-              {picking === side ? (
+              {picking?.side === side ? (
                 // The recipe search's own picker, opened downward from the key.
                 <ItemPickerPopover
                   role={side}
                   placement="below"
+                  anchor={picking.anchor}
                   searchPickerResources={searchPickerResources}
                   onPick={(entry) => {
                     playBoardSound("shelfTick");
