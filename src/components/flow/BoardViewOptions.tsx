@@ -35,26 +35,20 @@ function ThemeSwatch({ theme }: { theme: CanvasTheme }) {
   );
 }
 
-/** View settings and Arrange use the same controls in both toolbars. */
+/** The view settings shared by both toolbars. */
 export function BoardViewOptions({
   view,
   onChange,
   showOverviewOptions = false,
-  keepBoardsByDefault = false,
-  arrangeDisabled = false,
-  onArrange,
 }: {
   view: BoardView;
   onChange: (patch: Partial<BoardView>) => void;
   showOverviewOptions?: boolean;
-  keepBoardsByDefault?: boolean;
-  arrangeDisabled?: boolean;
-  onArrange: (keepBoards: boolean) => void;
 }) {
   const { canvasPattern } = view;
   const settings = useDeviceSettings();
   const boardMotion = useBoardMotion();
-  const keepBoards = settings.keepBoardsOnArrange ?? keepBoardsByDefault;
+  const keepBoards = settings.keepBoardsOnArrange ?? true;
   const toggles: Array<{
     id: string;
     on: boolean;
@@ -180,7 +174,7 @@ export function BoardViewOptions({
           </span>
         </button>
       ))}
-        <div className="mt-1 border-t-2 border-[var(--mc-15)] pt-1">
+      <div className="mt-1 border-t-2 border-[var(--mc-15)] pt-1">
         <button
           type="button"
           onClick={() => writeDeviceSettings({ keepBoardsOnArrange: !keepBoards })}
@@ -207,16 +201,6 @@ export function BoardViewOptions({
               </span>
             </span>
           </span>
-        </button>
-        <button
-          type="button"
-          disabled={arrangeDisabled}
-          onClick={() => onArrange(keepBoards)}
-          className="mt-1 flex w-full items-center justify-center gap-2 border-2 border-[var(--mc-15)] bg-[var(--mc-49)] p-2 font-mono text-[12px] font-black uppercase text-white shadow-[inset_2px_2px_0_var(--mc-85),inset_-2px_-2px_0_var(--mc-25)] hover:brightness-110 disabled:opacity-50"
-          aria-label="Arrange the board"
-        >
-          <Network className="h-4 w-4" />
-          Arrange
         </button>
       </div>
     </>

@@ -30,6 +30,16 @@ const RATE_LABEL: Record<string, string> = { tick: "/t", second: "/s", minute: "
 
 /** This strip has fewer keys than the top bar: it tightens at its own width (its own px); its two groups wrap by themselves. */
 const STRIP_FIT = { tightBelow: 390, foldedBelow: 0 } as const;
+const KEEP_GROUPS = {
+  label: "Keep groups",
+  tip: "Each group moves as one block. What is inside a group stays where it is.",
+  onSelect: () => pressArrange(),
+};
+const UNGROUP_ALL = {
+  label: "Ungroup all",
+  tip: "Takes every group apart, then arranges all the cards. Undo brings the groups back.",
+  onSelect: () => pressArrange({ ungroup: true }),
+};
 
 /**
  * The board's toolbar, along the top of the board between the overview and the items list: what edits or views the
@@ -117,7 +127,7 @@ function BoardKeys({ tight }: { tight: boolean }) {
   const setRateUnit = useFactoryStore((state) => state.setRateUnit);
   const powerDisplayUnit = useFactoryStore((state) => state.powerDisplayUnit);
   const setPowerDisplayUnit = useFactoryStore((state) => state.setPowerDisplayUnit);
-  const { scrollChangesValues } = useDeviceSettings();
+  const { scrollChangesValues, keepBoardsOnArrange = true } = useDeviceSettings();
   const powerMenuOpen = useFactoryStore((state) => state.powerMenuOpen);
   const openPowerMenu = useFactoryStore((state) => state.openPowerMenu);
   const closePowerMenu = useFactoryStore((state) => state.closePowerMenu);
@@ -194,6 +204,7 @@ function BoardKeys({ tight }: { tight: boolean }) {
         open={arrangeMenu !== undefined}
         menuAnchor={hasGroups}
         onClick={(event) => {
+          setOptionsAnchor(undefined);
           if (arrange.running || !hasGroups) {
             pressArrange();
           } else if (arrangeMenu) {
@@ -208,18 +219,9 @@ function BoardKeys({ tight }: { tight: boolean }) {
           anchor={arrangeMenu}
           label="Arrange"
           minWidth={110}
-          entries={[
-            {
-              label: "Keep groups",
-              tip: "Each group moves as one block. What is inside a group stays where it is.",
-              onSelect: () => pressArrange(),
-            },
-            {
-              label: "Ungroup all",
-              tip: "Takes every group apart, then arranges all the cards. Undo brings the groups back.",
-              onSelect: () => pressArrange({ ungroup: true }),
-            },
-          ]}
+          entries={keepBoardsOnArrange
+            ? [{ ...KEEP_GROUPS, current: true, detail: "Default" }, UNGROUP_ALL]
+            : [{ ...UNGROUP_ALL, current: true, detail: "Default" }, KEEP_GROUPS]}
           onClose={() => setArrangeMenu(undefined)}
         />
       ) : null}
@@ -280,7 +282,6 @@ function BoardKeys({ tight }: { tight: boolean }) {
       {optionsAnchor ? (
         <PlanOptions
           anchor={optionsAnchor}
-          isReadOnly={isReadOnly}
           onClose={() => setOptionsAnchor(undefined)}
         />
       ) : null}
@@ -291,11 +292,9 @@ function BoardKeys({ tight }: { tight: boolean }) {
 
 function PlanOptions({
   anchor,
-  isReadOnly,
   onClose,
 }: {
   anchor: ChromeAnchor;
-  isReadOnly: boolean;
   onClose: () => void;
 }) {
   const view = useBoardView();
@@ -315,12 +314,6 @@ function PlanOptions({
           view={view}
           onChange={writeBoardView}
           showOverviewOptions={planMode}
-          keepBoardsByDefault={planMode}
-          arrangeDisabled={isReadOnly}
-          onArrange={(keepBoards) => {
-            onClose();
-            pressArrange({ ungroup: !keepBoards });
-          }}
         />
       </div>
     </MenuPortal>

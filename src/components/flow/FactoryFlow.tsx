@@ -6701,7 +6701,6 @@ export function FactoryFlow() {
         onDeleteModeChange={handleDeleteModeChange}
         view={boardView}
         onViewChange={writeBoardView}
-        onAutoArrange={handleAutoArrange}
         folded={toolbarFold.paint}
         openGroup={openToolGroup}
         onToggleGroup={handleToolGroupToggle}
@@ -8188,14 +8187,12 @@ const BoardViewMenu = memo(function BoardViewMenu({
   onChange,
   open,
   onOpenChange,
-  onArrange,
 }: {
   view: BoardView;
   onChange: (patch: Partial<BoardView>) => void;
   /** Held by the paint toolbar, which lifts the row's z while the sheet is out. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onArrange: (options: { keepBoards: boolean }) => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const closeSheet = useCallback(() => onOpenChange(false), [onOpenChange]);
@@ -8219,14 +8216,7 @@ const BoardViewMenu = memo(function BoardViewMenu({
       </button>
       {open ? (
         <div className="absolute right-0 top-[calc(100%+6px)] z-30 flex max-h-[calc(70*var(--ui-vh))] w-[300px] max-w-[calc(100*var(--ui-vw)-24px)] flex-col gap-1 overflow-y-auto border-2 border-[var(--mc-15)] bg-[var(--mc-78)] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
-          <BoardViewOptions
-            view={view}
-            onChange={onChange}
-            onArrange={(keepBoards) => {
-              onOpenChange(false);
-              onArrange({ keepBoards });
-            }}
-          />
+          <BoardViewOptions view={view} onChange={onChange} />
         </div>
       ) : null}
     </div>
@@ -8348,7 +8338,6 @@ const PaintToolbar = memo(function PaintToolbar({
   onDeleteModeChange,
   view,
   onViewChange,
-  onAutoArrange,
   folded,
   openGroup,
   onToggleGroup,
@@ -8367,7 +8356,6 @@ const PaintToolbar = memo(function PaintToolbar({
   view: BoardView;
   onViewChange: (patch: Partial<BoardView>) => void;
   /** Runs the arrange; the fold-out's setting rides along per press. */
-  onAutoArrange: (options: { keepBoards: boolean }) => void;
   folded: boolean;
   openGroup?: ToolGroupId;
   onToggleGroup: (group: ToolGroupId | undefined) => void;
@@ -8558,7 +8546,6 @@ const PaintToolbar = memo(function PaintToolbar({
             onChange={onViewChange}
             open={isViewMenuOpen}
             onOpenChange={setViewMenuOpen}
-            onArrange={onAutoArrange}
           />
         </ToolTray>
     </>

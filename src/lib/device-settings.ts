@@ -34,7 +34,7 @@ export interface DeviceSettings {
   itemsLeft: boolean;
   /** Overview shows the selected cards' resources when enabled. */
   overviewFollowsSelection: boolean;
-  /** An unset value uses the default of the toolbar that opens Arrange. */
+  /** The Arrange menu defaults to Keep groups when this preference is unset. */
   keepBoardsOnArrange?: boolean;
   /** The overview column's width the player set by dragging its edge (shell px; the window may show it narrower). */
   overviewWidth: number;

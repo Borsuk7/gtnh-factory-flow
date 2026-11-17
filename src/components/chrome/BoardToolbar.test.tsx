@@ -95,9 +95,13 @@ describe("the board's toolbar", () => {
     expect(key("annotate").getAttribute("aria-label")).toBe("Annotations");
   });
 
-  it("opens Plan options and uses the saved Keep boards choice when arranging", () => {
+  it("keeps Arrange in the toolbar and offers the saved choice first", () => {
     const arrange = vi.fn();
     const off = registerBoardCommands({ arrange, cancelArrange: () => {}, fit: () => {} });
+    const project = useFactoryStore.getState().project;
+    useFactoryStore.setState({
+      project: { ...project, pockets: [{ id: "group", name: "Group", position: { x: 0, y: 0 } }] },
+    });
     writeDeviceSettings({ keepBoardsOnArrange: true });
     writeBoardView(DEFAULT_BOARD_VIEW);
     renderStrip();
@@ -108,10 +112,17 @@ describe("the board's toolbar", () => {
     expect(readBoardViewSnapshot()).toMatchObject({ canvasTheme: "slate", canvasPattern: "cross" });
     const keep = options.getByRole("button", { name: "Keep boards on rearrange" });
     expect(keep.getAttribute("aria-pressed")).toBe("true");
+    expect(options.queryByRole("button", { name: "Arrange the board" })).toBeNull();
     fireEvent.click(keep);
-    fireEvent.click(options.getByRole("button", { name: "Arrange the board" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(key("arrange"));
+    const entries = within(screen.getByRole("menu", { name: "Arrange" })).getAllByRole("menuitem");
+    expect(entries[0]?.textContent).toContain("Ungroup all");
+    expect(entries[0]).toBe(document.activeElement);
+    fireEvent.click(entries[0]!);
     expect(arrange).toHaveBeenCalledExactlyOnceWith({ ungroup: true });
     expect(screen.queryByRole("dialog", { name: "Plan options" })).toBeNull();
+    useFactoryStore.setState({ project });
     writeBoardView(DEFAULT_BOARD_VIEW);
     off();
   });

@@ -154,8 +154,9 @@ blueprint there. A group carries its contents and internal wires. Each placement
 Arrange keeps a group together: each top-level group is one block of its frame's size (or the summary card's when
 collapsed), its insides untouched, placed with the ungrouped cards. Wires into a group count as wires into its block
 for the placing; the website's router judge still routes them to the card inside. On the website a plan with groups
-asks first (the Arrange key's menu): Keep groups, or Ungroup all, which takes every group apart and arranges all the
-cards (undo brings the groups back).
+asks first in the Arrange key's menu. Keep groups moves the groups as blocks. Ungroup all takes every group apart
+and arranges all the cards. Undo brings the groups back. Keep boards on rearrange in Plan options sets which
+choice appears first and has keyboard focus.
 
 ## Where it lives
 
