@@ -403,7 +403,6 @@ function PlacementRevealer() {
 const BoardColumn = memo(function BoardColumn() {
   const covering = useCoveringPage();
   const publicView = useDesignStore((state) => state.publicView);
-  // The mod's bar renames in the tab menu and describes in the share box: no identity strip on a desktop board.
   const isCompact = useIsCompactViewport();
   // A task board is a plan of its own kind: its tasks cover the board like the Library does, and a plan that is not
   // one never shows tasks. Only with live plans configured (tasks come with them).

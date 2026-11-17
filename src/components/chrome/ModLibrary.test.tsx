@@ -164,11 +164,12 @@ describe("the library", () => {
 
   it("creates a collection and moves a plan into and out of it", async () => {
     render(<ModLibrary />);
-    fireEvent.click(screen.getByRole("button", { name: "Collections" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "New collection" }));
+    const collections = within(screen.getByRole("navigation", { name: "Collections" }));
+    fireEvent.click(collections.getByRole("button", { name: "New collection" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Collection name" }), { target: { value: " Fuel " } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    await screen.findByRole("button", { name: "Collections: Fuel" });
+    const fuel = await collections.findByRole("button", { name: "Fuel" });
+    expect(fuel.getAttribute("aria-pressed")).toBe("true");
     expect(actions.createFolder).toHaveBeenCalledWith("Fuel");
     expect(tileNames()).toEqual([]);
 
@@ -178,8 +179,7 @@ describe("the library", () => {
     fireEvent.click(within(screen.getByRole("menu", { name: "Move to collection" })).getByRole("menuitem", { name: "Fuel" }));
     expect(actions.moveDesignToFolder).toHaveBeenCalledWith("a", "collection");
 
-    fireEvent.click(screen.getByRole("button", { name: "Collections" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fuel" }));
+    fireEvent.click(fuel);
     expect(tileNames()).toEqual(["Benzene"]);
     fireEvent.click(screen.getByRole("button", { name: "Options for Benzene" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Move to collection" }));

@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { DEFAULT_DATASET_MANIFEST_URL } from "@/lib/datasets";
 import {
   queryRecipeDatasetResources,
@@ -19,8 +19,8 @@ const PICKER_PAGE = 60;
  * eats — shown at the top of the picker before any searching happens.
  */
 export function iconSuggestionsFromStats(
-  needs: PlanResourceStat[] | undefined,
-  outputs: PlanResourceStat[] | undefined,
+  needs: readonly Omit<PlanResourceStat, "ratePerSecond">[] | undefined,
+  outputs: readonly Omit<PlanResourceStat, "ratePerSecond">[] | undefined,
 ): EntryIcon[] {
   const seen = new Set<string>();
   const suggestions: EntryIcon[] = [];
@@ -73,6 +73,7 @@ export function IconPicker({
   );
 
   const [query, setQuery] = useState("");
+  const titleId = useId();
   const debouncedQuery = useDebouncedValue(query, 200);
   const [result, setResult] = useState<RecipeDatasetResourceQueryResult>();
   const [error, setError] = useState<string>();
@@ -117,11 +118,20 @@ export function IconPicker({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        data-icon-picker=""
         className="flex max-h-[calc(70*var(--ui-vh))] w-full max-w-sm flex-col rounded-[6px] border border-neutral-600 bg-[#25272c] p-3 text-neutral-100 shadow-xl"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.stopPropagation();
+          onClose();
+        }}
       >
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-sm font-semibold">{title}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -143,7 +153,7 @@ export function IconPicker({
         </label>
         {error ? <p className="mt-2 text-[11px] text-red-400">{error}</p> : null}
         {suggestions && suggestions.length > 0 ? (
-          <div className="mt-2 shrink-0">
+          <div className="mt-2 shrink-0" role="group" aria-label="From this build">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
               From this build
             </p>
@@ -154,29 +164,17 @@ export function IconPicker({
                   type="button"
                   onClick={() => onPick(suggestion)}
                   title={suggestion.displayName ?? suggestion.resourceId}
+                  aria-label={suggestion.displayName ?? suggestion.resourceId}
                   className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[4px] border border-neutral-600 bg-[#17191d] hover:border-cyan-500"
                 >
-                  <ResourceIcon
-                    resource={{
-                      id: suggestion.resourceId,
-                      kind: suggestion.kind,
-                      amount: 1,
-                      displayName: suggestion.displayName,
-                      iconPath: suggestion.iconPath,
-                      iconAtlas: suggestion.iconAtlas,
-                      dominantColor: suggestion.dominantColor,
-                    }}
-                    bare
-                    tooltip={false}
-                    showAmount={false}
-                    className="!h-full !w-full"
-                  />
+                  <IconPreview icon={suggestion} />
                 </button>
               ))}
             </div>
           </div>
         ) : null}
-        <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-neutral-700 pt-2" role="group" aria-label="Item and fluid catalog">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-400">Item and fluid catalog</p>
           {!version ? (
             <p className="pt-1 text-[11px] text-neutral-500">The dataset is still loading…</p>
           ) : resources.length === 0 ? (
@@ -185,40 +183,28 @@ export function IconPicker({
             </p>
           ) : (
             <div className="grid grid-cols-8 gap-1">
-              {resources.map((entry) => (
-                <button
-                  key={`${entry.kind}:${entry.id}`}
-                  type="button"
-                  onClick={() =>
-                    onPick({
-                      kind: entry.kind as EntryIcon["kind"],
-                      resourceId: entry.id,
-                      displayName: entry.displayName,
-                      iconPath: entry.iconPath,
-                      iconAtlas: entry.iconAtlas,
-                      dominantColor: entry.dominantColor,
-                    })
-                  }
-                  title={entry.displayName ?? entry.id}
-                  className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[4px] border border-neutral-700 bg-[#17191d] hover:border-cyan-500"
-                >
-                  <ResourceIcon
-                    resource={{
-                      id: entry.id,
-                      kind: entry.kind as "item" | "fluid",
-                      amount: 1,
-                      displayName: entry.displayName,
-                      iconPath: entry.iconPath,
-                      iconAtlas: entry.iconAtlas,
-                      dominantColor: entry.dominantColor,
-                    }}
-                    bare
-                    tooltip={false}
-                    showAmount={false}
-                    className="!h-full !w-full"
-                  />
-                </button>
-              ))}
+              {resources.map((entry) => {
+                const icon: EntryIcon = {
+                  kind: entry.kind as EntryIcon["kind"],
+                  resourceId: entry.id,
+                  displayName: entry.displayName,
+                  iconPath: entry.iconPath,
+                  iconAtlas: entry.iconAtlas,
+                  dominantColor: entry.dominantColor,
+                };
+                return (
+                  <button
+                    key={`${entry.kind}:${entry.id}`}
+                    type="button"
+                    onClick={() => onPick(icon)}
+                    title={entry.displayName ?? entry.id}
+                    aria-label={entry.displayName ?? entry.id}
+                    className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[4px] border border-neutral-700 bg-[#17191d] hover:border-cyan-500"
+                  >
+                    <IconPreview icon={icon} />
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -233,6 +219,30 @@ export function IconPicker({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function IconPreview({ icon }: { icon: EntryIcon }) {
+  if (!icon.iconPath && !icon.iconAtlas && icon.kind !== "fluid") {
+    const initial = (icon.displayName ?? icon.resourceId).slice(0, 1).toUpperCase();
+    return <span aria-hidden className="text-xs font-semibold text-neutral-400">{initial}</span>;
+  }
+  return (
+    <ResourceIcon
+      resource={{
+        id: icon.resourceId,
+        kind: icon.kind,
+        amount: 1,
+        displayName: icon.displayName,
+        iconPath: icon.iconPath,
+        iconAtlas: icon.iconAtlas,
+        dominantColor: icon.dominantColor,
+      }}
+      bare
+      tooltip={false}
+      showAmount={false}
+      className="!h-full !w-full"
+    />
   );
 }
 
@@ -253,23 +263,7 @@ export function EntryIconSlot({
 }) {
   // Fills the slot: the padded source art is drawn at 200% and cropped by
   // the wrapper, so the sprite lands at roughly the slot's own size.
-  const face = icon ? (
-    <ResourceIcon
-      resource={{
-        id: icon.resourceId,
-        kind: icon.kind,
-        amount: 1,
-        displayName: icon.displayName,
-        iconPath: icon.iconPath,
-        iconAtlas: icon.iconAtlas,
-        dominantColor: icon.dominantColor,
-      }}
-      bare
-      tooltip={false}
-      showAmount={false}
-      className="!h-full !w-full"
-    />
-  ) : null;
+  const face = icon ? <IconPreview icon={icon} /> : null;
 
   if (!editable) {
     // Read-only rows without an icon give the space back to the name.

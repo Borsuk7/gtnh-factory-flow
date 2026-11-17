@@ -3,8 +3,8 @@
 import "./chrome.css";
 import "./library.css";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Ellipsis, Folder, Star } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Ellipsis, Folder, FolderPlus, LayoutGrid, Search, Star } from "lucide-react";
 import { requestShareDialog } from "@/lib/setups-tab";
 import { openDesigns, type DesignSummary } from "@/lib/designs/design-library";
 import { readDesign } from "@/lib/designs/design-storage";
@@ -111,16 +111,7 @@ export function ModLibrary() {
           on={shelf === "public"}
           onClick={() => setLibraryView({ kind: "public" })}
         />
-        {shelf === "shared" ? null : shelf === "mine" ? (
-          <input
-            className="ml-search"
-            style={{ width: 240 }}
-            placeholder="Find a plan"
-            aria-label="Find a plan"
-            value={mineQuery}
-            onChange={(event) => setMineQuery(event.target.value)}
-          />
-        ) : (
+        {shelf === "public" ? (
           <input
             className="ml-search"
             style={{ width: 300 }}
@@ -129,7 +120,7 @@ export function ModLibrary() {
             value={filters.query}
             onChange={(event) => filters.setQuery(event.target.value)}
           />
-        )}
+        ) : null}
         <span className="mb-grow" />
         {shelf === "public" ? (
           <>
@@ -167,7 +158,7 @@ export function ModLibrary() {
       </div>
       <div className="ml-body">
         {shelf === "mine" ? (
-          <MyPlans query={mineQuery} view={library.view} />
+          <MyPlans query={mineQuery} onQueryChange={setMineQuery} view={library.view} />
         ) : shelf === "shared" ? (
           <div className="ml-public ml-shared" data-shared-shelf="">
             <SharedWithMe />
@@ -230,11 +221,10 @@ function DropKey({ label, open, tip, onOpen }: { label: string; open: boolean; t
 
 // ---- My plans --------------------------------------------------------------
 
-type MyPlansMenu =
-  | { kind: "collections"; anchor: ChromeAnchor }
-  | { kind: "tile" | "delete" | "move"; id: string; anchor: ChromeAnchor };
+type MyPlansMenu = { kind: "tile" | "delete" | "move"; id: string; anchor: ChromeAnchor };
+const PLAN_DRAG_TYPE = "application/x-gtnh-plan";
 
-function MyPlans({ query, view }: { query: string; view: LibraryView }) {
+function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange: (query: string) => void; view: LibraryView }) {
   const everyDesign = useDesignStore((state) => state.designs);
   const allDesigns = useMemo(() => everyDesign.filter((design) => !design.cloud), [everyDesign]);
   const folders = useDesignStore((state) => state.folders);
@@ -250,6 +240,9 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
   const [menu, setMenu] = useState<MyPlansMenu>();
   const [collectionName, setCollectionName] = useState<string>();
   const [creating, setCreating] = useState(false);
+  const [dropTarget, setDropTarget] = useState<string>();
+  const [collectionPlanId, setCollectionPlanId] = useState<string>();
+  const draggedPlan = useRef<string | undefined>(undefined);
   const [problem, setProblem] = useState<string>();
   const [renaming, setRenaming] = useState<string>();
   const [now, setNow] = useState(() => Date.now());
@@ -263,6 +256,13 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
   const favoritesOnly = view.kind === "favorites";
   const showingAll = !folderId && !favoritesOnly;
   const needle = query.trim().toLowerCase();
+  const collectionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { folderId } of allDesigns) {
+      if (folderId) counts.set(folderId, (counts.get(folderId) ?? 0) + 1);
+    }
+    return counts;
+  }, [allDesigns]);
   const shown = useMemo(() => {
     const open = new Set(openDesigns(allDesigns).map((design) => design.id));
     return allDesigns
@@ -279,6 +279,8 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
       const folder = await createFolder(name);
       setLibraryView({ kind: "folder", folderId: folder.id });
       setCollectionName(undefined);
+      setCollectionPlanId(undefined);
+      if (collectionPlanId) savePlanOrganization(moveDesignToFolder(collectionPlanId, folder.id));
     } catch {
       setProblem("Could not create the collection.");
     } finally {
@@ -290,6 +292,37 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
     setProblem(undefined);
     void save.catch(() => setProblem("Could not save the plan change."));
   };
+
+  const openCollectionForm = (id?: string) => {
+    setProblem(undefined);
+    setCollectionPlanId(id);
+    setCollectionName("");
+  };
+
+  const finishDrag = () => {
+    draggedPlan.current = undefined;
+    setDropTarget(undefined);
+  };
+  const acceptDrop = (target: string, action: (id: string) => void) => ({
+    "data-drop-active": dropTarget === target ? "" : undefined,
+    onDragOver: (event: DragEvent<HTMLButtonElement>) => {
+      if (!draggedPlan.current || !event.dataTransfer.types.includes(PLAN_DRAG_TYPE)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = target === "favorites" ? "copy" : "move";
+      setDropTarget(target);
+    },
+    onDragLeave: (event: DragEvent<HTMLButtonElement>) => {
+      if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+      setDropTarget((current) => current === target ? undefined : current);
+    },
+    onDrop: (event: DragEvent<HTMLButtonElement>) => {
+      if (!draggedPlan.current || event.dataTransfer.getData(PLAN_DRAG_TYPE) !== draggedPlan.current) return;
+      event.preventDefault();
+      const id = draggedPlan.current;
+      finishDrag();
+      action(id);
+    },
+  });
 
   const open = async (id: string) => {
     leaveWelcomeTab();
@@ -306,23 +339,8 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
     }
   };
 
-  const menuDesign = menu && menu.kind !== "collections" ? allDesigns.find((design) => design.id === menu.id) : undefined;
+  const menuDesign = menu ? allDesigns.find((design) => design.id === menu.id) : undefined;
   const entries = (m: MyPlansMenu): MenuEntry[] => {
-    if (m.kind === "collections") {
-      return [
-        ...folders.map((folder) => ({
-          label: folder.name,
-          current: folder.id === folderId,
-          onSelect: () => setLibraryView({ kind: "folder", folderId: folder.id }),
-        })),
-        {
-          label: "New collection",
-          plus: true,
-          ruleAbove: folders.length > 0,
-          onSelect: () => { setProblem(undefined); setCollectionName(""); },
-        },
-      ];
-    }
     if (!menuDesign) return [];
     if (m.kind === "move") {
       const move = (id: string | undefined) => savePlanOrganization(moveDesignToFolder(m.id, id));
@@ -374,27 +392,46 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
   };
 
   return (
-    <div data-my-plans="">
-      <div className="ml-organize" role="group" aria-label="Organize plans">
-        <button type="button" className="mb-key ml-organize-key" aria-pressed={showingAll} onClick={() => setLibraryView({ kind: "all" })}>
-          All plans
-        </button>
-        <button type="button" className="mb-key ml-organize-key" aria-pressed={favoritesOnly} onClick={() => setLibraryView({ kind: "favorites" })}>
-          <Star size={9} aria-hidden /> Favorites
+    <div className="ml-my-plans" data-my-plans="">
+      <nav className="ml-collection-nav" aria-label="Collections">
+        <button type="button" className="ml-collection-row" aria-pressed={showingAll} onClick={() => setLibraryView({ kind: "all" })}>
+          <LayoutGrid size={9} aria-hidden /> <span>All plans</span>
+          <span className="ml-collection-count" aria-hidden>{allDesigns.length}</span>
         </button>
         <button
           type="button"
-          className="mb-key ml-organize-key ml-collections"
-          aria-label={selectedFolder ? `Collections: ${selectedFolder.name}` : "Collections"}
-          aria-haspopup="menu"
-          aria-expanded={menu?.kind === "collections"}
-          data-selected={selectedFolder ? "" : undefined}
-          {...{ [MENU_ANCHOR_ATTR]: "" }}
-          onClick={(event) => setMenu(menu?.kind === "collections" ? undefined : { kind: "collections", anchor: chromeAnchorOf(event.currentTarget) })}
+          className="ml-collection-row"
+          aria-pressed={favoritesOnly}
+          onClick={() => setLibraryView({ kind: "favorites" })}
+          {...acceptDrop("favorites", (id) => {
+            if (!useDesignStore.getState().designs.find((design) => design.id === id)?.favorite) {
+              savePlanOrganization(toggleFavorite(id));
+            }
+          })}
         >
-          <Folder size={9} aria-hidden />
-          <span>{selectedFolder?.name ?? "Collections"}</span>
-          <ChevronDown size={8} aria-hidden />
+          <Star size={9} aria-hidden /> <span>Favorites</span>
+          <span className="ml-collection-count" aria-hidden>{allDesigns.filter((design) => design.favorite).length}</span>
+        </button>
+        {folders.map((folder) => (
+          <button
+            type="button"
+            key={folder.id}
+            className="ml-collection-row"
+            aria-pressed={folderId === folder.id}
+            onClick={() => setLibraryView({ kind: "folder", folderId: folder.id })}
+            {...acceptDrop(folder.id, (id) => savePlanOrganization(moveDesignToFolder(id, folder.id)))}
+          >
+            <Folder size={9} aria-hidden /> <span>{folder.name}</span>
+            <span className="ml-collection-count" aria-hidden>{collectionCounts.get(folder.id) ?? 0}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          className="ml-collection-row ml-collection-add"
+          onClick={() => openCollectionForm()}
+          {...acceptDrop("new", openCollectionForm)}
+        >
+          <FolderPlus size={9} aria-hidden /> <span>New collection</span>
         </button>
         {collectionName !== undefined ? (
           <form
@@ -424,52 +461,71 @@ function MyPlans({ query, view }: { query: string; view: LibraryView }) {
             <button type="button" className="mb-key" disabled={creating} onClick={() => setCollectionName(undefined)}>Cancel</button>
           </form>
         ) : null}
-      </div>
-      {problem ? <p className="ml-plan-message" role="alert">{problem}</p> : null}
-      <div className="ml-grid">
-        {showingAll ? (
-          <div
-            className="ml-tile ml-new"
-            role="button"
-            tabIndex={0}
-            onKeyDown={activateOnKey}
-            onClick={() => {
-              playBoardSound("tick");
-              leaveWelcomeTab();
-              void addDesign();
-            }}
-          >
-            + New plan
-          </div>
-        ) : null}
-        {shown.map(({ design, open: isOpen, at }) => (
-          <PlanTile
-            key={design.id}
-            design={design}
-            showing={design.id === activeDesignId}
-            open={isOpen}
-            when={agoText(at, now)}
-            renaming={renaming === design.id}
-            onOpen={() => void open(design.id)}
-            onMenu={(anchor) => setMenu({ kind: "tile", id: design.id, anchor })}
-            onRename={(name) => {
-              setRenaming(undefined);
-              if (name && name !== design.name) void renameDesign(design.id, name);
-            }}
+      </nav>
+      <div className="ml-plan-content">
+        <label className="ml-plan-search">
+          <Search size={9} aria-hidden />
+          <input
+            className="ml-search"
+            placeholder="Find a plan"
+            aria-label="Find a plan"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
           />
-        ))}
+        </label>
+        {problem ? <p className="ml-plan-message" role="alert">{problem}</p> : null}
+        <div className="ml-grid">
+          {showingAll ? (
+            <div
+              className="ml-tile ml-new"
+              role="button"
+              tabIndex={0}
+              onKeyDown={activateOnKey}
+              onClick={() => {
+                playBoardSound("tick");
+                leaveWelcomeTab();
+                void addDesign();
+              }}
+            >
+              + New plan
+            </div>
+          ) : null}
+          {shown.map(({ design, open: isOpen, at }) => (
+            <PlanTile
+              key={design.id}
+              design={design}
+              showing={design.id === activeDesignId}
+              open={isOpen}
+              when={agoText(at, now)}
+              collection={folders.find((folder) => folder.id === design.folderId)?.name}
+              onDragStart={(event) => {
+                draggedPlan.current = design.id;
+                event.dataTransfer.effectAllowed = "copyMove";
+                event.dataTransfer.setData(PLAN_DRAG_TYPE, design.id);
+              }}
+              onDragEnd={finishDrag}
+              renaming={renaming === design.id}
+              onOpen={() => void open(design.id)}
+              onMenu={(anchor) => setMenu({ kind: "tile", id: design.id, anchor })}
+              onRename={(name) => {
+                setRenaming(undefined);
+                if (name && name !== design.name) void renameDesign(design.id, name);
+              }}
+            />
+          ))}
+        </div>
+        {shown.length === 0 && (!showingAll || needle) ? (
+          <p className="ml-plan-message">
+            {needle ? "No plans match your search." : favoritesOnly ? "Add a plan to Favorites from its options." : "Drag a plan here or use Move to collection in its options."}
+          </p>
+        ) : null}
       </div>
-      {shown.length === 0 && (!showingAll || needle) ? (
-        <p className="ml-plan-message">
-          {needle ? "No plans match your search." : favoritesOnly ? "Add a plan to Favorites from its options." : "Move a plan here from its options."}
-        </p>
-      ) : null}
-      {menu && (menu.kind === "collections" || menuDesign) ? (
+      {menu && menuDesign ? (
         <ChromeMenu
           key={menu.kind}
           anchor={menu.anchor}
           entries={entries(menu)}
-          label={menu.kind === "collections" ? "Collections" : menu.kind === "move" ? "Move to collection" : `Plan options for ${menuDesign?.name}`}
+          label={menu.kind === "move" ? "Move to collection" : `Plan options for ${menuDesign?.name}`}
           title={menu.kind === "delete" ? `Delete '${menuDesign?.name}' for good?` : undefined}
           minWidth={menu.kind === "delete" ? 150 : 190}
           onClose={() => setMenu(undefined)}
@@ -484,6 +540,9 @@ function PlanTile({
   showing,
   open,
   when,
+  collection,
+  onDragStart,
+  onDragEnd,
   renaming,
   onOpen,
   onMenu,
@@ -493,6 +552,9 @@ function PlanTile({
   showing: boolean;
   open: boolean;
   when: string;
+  collection?: string;
+  onDragStart: (event: DragEvent<HTMLDivElement>) => void;
+  onDragEnd: () => void;
   renaming: boolean;
   onOpen: () => void;
   onMenu: (anchor: ChromeAnchor) => void;
@@ -520,6 +582,9 @@ function PlanTile({
     >
       <div
         className="ml-tile-open"
+        draggable={!renaming}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
         role={renaming ? undefined : "button"}
         tabIndex={renaming ? undefined : 0}
         aria-label={renaming ? undefined : `Open ${design.name}`}
@@ -549,7 +614,7 @@ function PlanTile({
           </span>
         )}
         {size ? <span className="ml-size">{size}</span> : null}
-        <span className="ml-when">last open {when}</span>
+        <span className="ml-when">{collection ? `${collection} · ` : ""}last open {when}</span>
         {design.communityPlanId ? <span className="ml-posted">posted</span> : null}
       </div>
       <button
