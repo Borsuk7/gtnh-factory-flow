@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { wheelChangesValues } from "@/lib/device-settings";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import { tierChipColors } from "../tokens";
 
 /**
  * The rail's tooltips, in the clean skin (UI spec section 10): a tip shows once
@@ -24,6 +25,7 @@ export interface TipContent {
   sub?: string;
   rows?: Array<[label: string, value: string]>;
   columns?: 2;
+  tierLabels?: true;
   notes?: Array<{ text: string; tone?: "muted" | "warn" | "red" }>;
   actions?: Array<{ input: TipInput; label: string }>;
 }
@@ -170,12 +172,21 @@ export function RailTipHost() {
       {content.sub ? <div className="rail-tip-sub">{content.sub}</div> : null}
       {content.rows?.length ? (
         <div className="rail-tip-rows" data-two-columns={content.columns === 2 ? "" : undefined}>
-          {content.rows.map(([label, value]) => (
-            <div key={label} className="rail-tip-row">
-              <span>{label}</span>
-              <span>{value}</span>
-            </div>
-          ))}
+          {content.rows.map(([label, value]) => {
+            const tier = content.tierLabels ? tierChipColors(label) : undefined;
+            return (
+              <div key={label} className="rail-tip-row">
+                <span
+                  className={tier ? "rail-tip-tier" : undefined}
+                  data-underline={tier?.underline ? "" : undefined}
+                  style={tier ? { backgroundColor: tier.background, borderColor: tier.border, color: tier.ink } : undefined}
+                >
+                  {label}
+                </span>
+                <span>{value}</span>
+              </div>
+            );
+          })}
         </div>
       ) : null}
       {content.notes?.map((note) => (

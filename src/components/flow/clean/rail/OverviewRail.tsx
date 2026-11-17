@@ -555,6 +555,7 @@ function SectionBar({
     title: `${peak ? "Peak" : "Average"} draw · ${formatCompact(usedEuT)} EU/t`,
     sub: "Equivalent amps by voltage tier",
     columns: 2,
+    tierLabels: true,
     rows: GT_VOLTAGE_TIERS.map(({ tier, maxEuT }) => {
       const amps = usedEuT / maxEuT;
       return [tier, `${amps > 0 && amps < 0.00001 ? amps.toExponential(1) : formatCompact(amps)} A`];
