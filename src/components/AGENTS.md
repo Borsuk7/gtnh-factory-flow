@@ -153,6 +153,7 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
   (`pointer-events: none`), only the keys do. A task board shows its own header the same way (title and count as plain
   words left; Board / Chain and New task right; `TaskBoard` leaves room at its top). The Non-recipe picker opens below the
   keys (`header[data-board-toolbar]`). Arrange is its label's width, 90 only while it shows progress.
+  A key has a cyan inset border and tinted face while its panel is open or its tool is active.
 - The desktop top bar is one row and hides nothing in a menu (`useTopBarFit` in `bar-parts.tsx`, steps in the pure,
   tested `chrome/top-bar-fold.ts`, `data-fit` roomy / icons / tight). The tabs give way first (the strip scrolls; the open
   plan's tab and the + never go: the `.mt` min-width, and `ModTabs` scrolls the open tab back into view when the strip

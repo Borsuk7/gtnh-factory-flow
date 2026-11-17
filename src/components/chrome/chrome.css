@@ -682,6 +682,13 @@
     inset 1px 1px 0 var(--mc-key-hi),
     inset -1px -1px 0 var(--mc-key-lo);
 }
+.mb-strip .mb-key[data-open]:not([data-off]) {
+  background: color-mix(in srgb, var(--mc-cyan) 16%, var(--mc-key));
+  color: var(--mc-cyan);
+  box-shadow:
+    0 0 0 1px var(--mc-key-edge),
+    inset 0 0 0 1px var(--mc-cyan);
+}
 .mb-title {
   flex: 0 1 auto;
   min-width: 0;
