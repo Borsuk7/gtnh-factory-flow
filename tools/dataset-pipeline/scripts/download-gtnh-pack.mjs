@@ -8,7 +8,13 @@ if (!outputPath) {
 
 // Local pack source for offline/pre-downloaded runs (used by the WSL rebuild
 // flow): skips every network path and copies the zip into the pack cache.
-const localZip = process.env.GTNH_PACK_LOCAL_ZIP;
+// GTNH_PACK_LOCAL_ZIP_SERVER / _CLIENT pick a zip per pack kind (the split
+// export runs both); GTNH_PACK_LOCAL_ZIP is the fallback for either.
+const localPackKind = process.env.GTNH_EXPORT_PACK_KIND ?? "server";
+const localZip =
+  (localPackKind === "client"
+    ? process.env.GTNH_PACK_LOCAL_ZIP_CLIENT
+    : process.env.GTNH_PACK_LOCAL_ZIP_SERVER) || process.env.GTNH_PACK_LOCAL_ZIP;
 if (localZip) {
   const source = path.resolve(localZip);
   const stats = await fs.stat(source);
