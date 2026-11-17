@@ -11,17 +11,15 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { getUiScale } from "@/lib/ui-scale";
-import { useCommunityUser } from "@/components/community/auth";
 import { IconPicker, iconSuggestionsFromProject } from "@/components/IconPicker";
 import { ListedPlanIdentity } from "@/components/chrome/PlanIdentityStrip";
 import { formatRelativeDate } from "@/components/shelf-cards";
-import { deleteCommunityPlan, listCommunityPlans, patchCommunityPlan } from "@/lib/community/client";
+import { deleteCommunityPlan, patchCommunityPlan } from "@/lib/community/client";
 import { sharedPlanLink } from "@/lib/community/shared-link";
-import type { CommunityPlanSummary } from "@/lib/community/types";
 import type { DesignSummary } from "@/lib/designs/design-library";
 import { readDesign } from "@/lib/designs/design-storage";
 import type { FactoryProject } from "@/lib/model/types";
-import { SETUPS_CHANGED_EVENT, notifySetupsChanged, requestShareDialog } from "@/lib/setups-tab";
+import { notifySetupsChanged, requestShareDialog } from "@/lib/setups-tab";
 import { leaveLibrary, setLibraryView, useLibraryTab, type LibraryView } from "@/lib/library/library-tab";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useSavedSetups } from "@/lib/library/saved-setups";
@@ -35,7 +33,7 @@ import { SetupsFilterBar, useSetupFilters } from "./SetupsFilterBar";
 import { SharedWithMe } from "@/components/live/SharedWithMe";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
-import { parsePlanSearch } from "@/lib/community/search-query";
+import { PLAN_SORTS, useFilteredPlans, useMyPosts } from "./plan-filters";
 
 /**
  * The Library: your designs and the network's public setups, as one kind of
@@ -47,21 +45,6 @@ import { parsePlanSearch } from "@/lib/community/search-query";
  * then Community. Search, tier and sort apply to whatever is showing.
  * Closing a tab never deletes; delete lives here, armed.
  */
-
-const POSTS_PAGE_SIZE = 48;
-const POSTS_MAX_PAGES = 6;
-
-type SortKey = "edited" | "name" | "created" | "tier" | "power" | "lowPower" | "machines";
-
-const SORTS: { value: SortKey; label: string }[] = [
-  { value: "edited", label: "Last edited" },
-  { value: "name", label: "Name" },
-  { value: "created", label: "Newest" },
-  { value: "tier", label: "Highest tier" },
-  { value: "power", label: "Highest power" },
-  { value: "lowPower", label: "Lowest power" },
-  { value: "machines", label: "Most machines" },
-];
 
 export function LibraryPage() {
   const library = useLibraryTab();
@@ -86,8 +69,7 @@ export function LibraryPage() {
   // The same bar and the same fields as Community (SetupsFilterBar);
   // here they are applied in memory over the designs.
   const filters = useSetupFilters("edited");
-  const { query, maxTier, setMaxTier } = filters;
-  const sort = filters.sort as SortKey;
+  const { setMaxTier } = filters;
   /** The design whose icon is being picked on the preview page. */
   const [iconEdit, setIconEdit] = useState<{ id: string; suggestions: ReturnType<typeof iconSuggestionsFromProject> }>();
   const [tileMenu, setTileMenu] = useState<{ designId: string; left: number; top: number }>();
@@ -184,37 +166,7 @@ export function LibraryPage() {
 
   const viewFolderId = library.view.kind === "folder" ? library.view.folderId : undefined;
   const favoritesOnly = library.view.kind === "favorites";
-  const parsedSearch = parsePlanSearch(query);
-  const search = parsedSearch.text.toLowerCase();
-  const { maxEuT, makesKeys, takesKeys } = filters;
-  const shown = useMemo(() => {
-    const tierLimit = maxTier === "" ? undefined : Number(maxTier);
-    return sortDesignsBy(
-      designs.filter(
-        (design) =>
-          (!viewFolderId || design.folderId === viewFolderId) &&
-          (!favoritesOnly || design.favorite === true) &&
-          (!search || design.name.toLowerCase().includes(search)) &&
-          // #tags are the post's: an unposted design has none to match.
-          parsedSearch.tags.every((tag) =>
-            myPosts?.get(design.communityPlanId ?? "")?.tags.includes(tag),
-          ) &&
-          (maxEuT === undefined ||
-            (design.stats?.euT !== undefined && design.stats.euT <= maxEuT)) &&
-          makesKeys.every((key) => design.stats?.makes?.includes(key)) &&
-          takesKeys.every((key) => design.stats?.takes?.includes(key)) &&
-          // A design with no stat row yet cannot answer the tier question,
-          // so it shows under "any" and hides under a limit.
-          (tierLimit === undefined ||
-            (design.stats !== undefined && design.stats.tierIndex <= tierLimit)),
-      ),
-      sort,
-    );
-  }, [designs, viewFolderId, favoritesOnly, search, parsedSearch.tags, myPosts, maxEuT, makesKeys, takesKeys, maxTier, sort]);
-  const knownTags = useMemo(
-    () => [...(myPosts?.values() ?? [])].flatMap((post) => post.tags ?? []),
-    [myPosts],
-  );
+  const { shown, knownTags, hasFilters } = useFilteredPlans(designs, library.view, filters, myPosts);
 
   const perFolder = useMemo(
     () =>
@@ -655,7 +607,7 @@ export function LibraryPage() {
             <SetupsFilterBar
               filters={filters}
               placeholder="Search your plans (#tag)"
-              sortOptions={SORTS}
+              sortOptions={PLAN_SORTS}
               knownTags={knownTags}
             />
 
@@ -719,7 +671,7 @@ export function LibraryPage() {
               ) : null}
               {shown.length === 0 && kind !== "all" ? (
                 <p className="px-0.5 pt-1 text-[12px] leading-relaxed text-[var(--mc-ink-muted)]">
-                  {search || maxTier
+                  {hasFilters
                     ? "No designs match."
                     : viewFolderId
                       ? "Nothing here yet. Drag a design onto this collection, or use Add to collection in its menu."
@@ -734,7 +686,7 @@ export function LibraryPage() {
                       + New plan
                     </button>
                   ) : null}
-                  {shown.length === 0 && (search || maxTier) ? (
+                  {shown.length === 0 && hasFilters ? (
                     <p className="ml-plan-message">No designs match.</p>
                   ) : null}
                   {shown.map((design) => {
@@ -1044,93 +996,6 @@ function BarButton({
       {children}
     </button>
   );
-}
-
-function sortDesignsBy(designs: DesignSummary[], sort: SortKey): DesignSummary[] {
-  const sorted = [...designs];
-  switch (sort) {
-    case "name":
-      sorted.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-      break;
-    case "created":
-      sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      break;
-    case "tier":
-      sorted.sort((a, b) => (b.stats?.tierIndex ?? -1) - (a.stats?.tierIndex ?? -1));
-      break;
-    case "power":
-      sorted.sort((a, b) => (b.stats?.euT ?? -1) - (a.stats?.euT ?? -1));
-      break;
-    case "lowPower":
-      // A design with no figure yet goes last, not first.
-      sorted.sort((a, b) => (a.stats?.euT ?? Infinity) - (b.stats?.euT ?? Infinity));
-      break;
-    case "machines":
-      sorted.sort((a, b) => (b.stats?.machines ?? -1) - (a.stats?.machines ?? -1));
-      break;
-    case "edited":
-    default:
-      sorted.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }
-  return sorted;
-}
-
-/**
- * The signed-in account's posts by id, or undefined while signed out or
- * still loading. Read once per sign-in and again whenever a share lands or
- * a post is changed from here.
- */
-function useMyPosts(): { posts: Map<string, CommunityPlanSummary> | undefined; signedIn: boolean } {
-  const { user } = useCommunityUser();
-  const username = user?.username;
-  const [loaded, setLoaded] = useState<{
-    username: string;
-    posts: Map<string, CommunityPlanSummary>;
-  }>();
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const refresh = () => setTick((value) => value + 1);
-    window.addEventListener(SETUPS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(SETUPS_CHANGED_EVENT, refresh);
-  }, []);
-
-  useEffect(() => {
-    if (!username) {
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const found = new Map<string, CommunityPlanSummary>();
-      for (let page = 1; page <= POSTS_MAX_PAGES; page += 1) {
-        const response = await listCommunityPlans({
-          mine: true,
-          sort: "new",
-          page,
-          pageSize: POSTS_PAGE_SIZE,
-        });
-        for (const plan of response.plans) {
-          found.set(plan.id, plan);
-        }
-        if (response.plans.length < POSTS_PAGE_SIZE || found.size >= response.total) {
-          break;
-        }
-      }
-      if (!cancelled) {
-        setLoaded({ username, posts: found });
-      }
-    })().catch(() => {
-      // The marks fall back to "linked"; nothing else depends on this.
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [username, tick]);
-
-  return {
-    posts: loaded && loaded.username === username ? loaded.posts : undefined,
-    signedIn: Boolean(username),
-  };
 }
 
 /* ------------------------------------------------------------------ */

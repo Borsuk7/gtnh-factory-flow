@@ -120,6 +120,20 @@ beforeEach(() => {
   });
 });
 
+it("preserves an inactive design's power and flow stats when editing its details", async () => {
+  const stats = { cards: 1, machines: 2, tierIndex: 1, euT: 48, takes: ["item:ore"], makes: ["item:plate"] };
+  const record = summary("inactive", { stats });
+  library(record);
+  useDesignStore.setState({ activeDesignId: "other" });
+
+  await useDesignStore.getState().updateDesignIdentity(record.id, { description: "Plate line" });
+
+  expect(storage.writeDesign).toHaveBeenCalledWith(expect.objectContaining({
+    stats,
+    project: expect.objectContaining({ description: "Plate line" }),
+  }));
+});
+
 describe("opening the design library", () => {
   beforeEach(() => {
     storage.listDesignSummaries.mockResolvedValue([summary("a"), summary("b")]);

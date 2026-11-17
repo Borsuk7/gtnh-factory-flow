@@ -6,7 +6,7 @@ import { stampOpened, resetLastOpenForTests } from "@/lib/library/last-open";
 import { openLibrary, readLibraryTabState } from "@/lib/library/library-tab";
 import { useDesignStore } from "@/store/design-store";
 
-vi.mock("@/lib/compact-view", () => ({ isCompactViewport: () => false }));
+vi.mock("@/lib/compact-view", () => ({ isCompactViewport: () => false, useIsCompactViewport: () => false }));
 const auth = vi.hoisted(() => ({ user: undefined as undefined | { username: string } }));
 vi.mock("@/components/community/auth", () => ({
   useCommunityUser: () => ({ user: auth.user, isLoading: false, setUser: vi.fn(), signOut: vi.fn() }),
@@ -66,8 +66,8 @@ beforeEach(() => {
   for (const fn of Object.values(actions)) fn.mockClear();
   useDesignStore.setState({
     designs: [
-      design("a", "Benzene", { stats: { cards: 4, drawers: 3, machines: 1, tierIndex: 3 } }),
-      design("b", "ref-chain", { stats: { cards: 10, drawers: 6, machines: 4, tierIndex: 4 } }),
+      design("a", "Benzene", { stats: { cards: 4, drawers: 3, machines: 1, tier: "HV", tierIndex: 3, euT: 512 } }),
+      design("b", "ref-chain", { updatedAt: "2026-10-02T00:00:00.000Z", stats: { cards: 10, drawers: 6, machines: 4, tier: "EV", tierIndex: 4, euT: 2048 } }),
       design("c", "Parked", { closed: true }),
     ],
     folders: [],
@@ -84,18 +84,20 @@ afterEach(() => cleanup());
 const tileNames = () => [...document.querySelectorAll(".ml-tile:not(.ml-new) .ml-name")].map((element) => element.textContent);
 
 describe("the library", () => {
-  it("has the mod's header: MY PLANS with its count, COMMUNITY, a Find a plan box and a close key, and no sign-in key (that is the top bar's account key)", () => {
+  it("has the mod's header, plan filters, and a close key", () => {
     render(<ModLibrary />);
     const tabs = [...document.querySelectorAll(".ml-tab")].map((tab) => tab.textContent);
     expect(tabs).toEqual(["MY PLANS3", "COMMUNITY..."]);
     expect(document.querySelector(".ml-tab[data-on]")?.textContent).toContain("MY PLANS");
-    expect(screen.getByPlaceholderText("Find a plan")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Search your plans (#tag)")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Makes" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Takes" })).toBeTruthy();
     expect(document.querySelector(".ml-signin")).toBeNull();
     expect(screen.queryByText("Sign in")).toBeNull();
     expect(screen.getByLabelText("Close the panel")).toBeTruthy();
   });
 
-  it("My plans lists every plan, the most recently open first, after the new-plan tile", () => {
+  it("My plans lists every plan, last edited first, after the new-plan tile", () => {
     render(<ModLibrary />);
     expect(document.querySelector(".ml-grid")?.firstElementChild?.textContent).toBe("+ New plan");
     expect(tileNames()).toEqual(["ref-chain", "Benzene", "Parked"]);
@@ -105,6 +107,9 @@ describe("the library", () => {
     render(<ModLibrary />);
     const tiles = [...document.querySelectorAll(".ml-tile:not(.ml-new)")];
     expect(tiles[0].querySelector(".ml-size")?.textContent).toBe("4 cards · 6 drawers");
+    expect(tiles[0].querySelector(".ml-tier")?.textContent).toBe("EV");
+    expect(within(tiles[0] as HTMLElement).getByLabelText("4 machines")).toBeTruthy();
+    expect(tiles[0].querySelector(".ml-stats")?.textContent).toContain("EU/t");
     expect(tiles[0].querySelector(".ml-chip")?.textContent).toBe("SHOWING");
     expect(tiles[0].hasAttribute("data-showing")).toBe(true);
     expect(tiles[0].querySelector(".ml-when")?.textContent).toMatch(/^last open /);
@@ -115,7 +120,16 @@ describe("the library", () => {
 
   it("the search narrows My plans by name", () => {
     render(<ModLibrary />);
-    fireEvent.change(screen.getByPlaceholderText("Find a plan"), { target: { value: "benz" } });
+    fireEvent.change(screen.getByPlaceholderText("Search your plans (#tag)"), { target: { value: "benz" } });
+    expect(tileNames()).toEqual(["Benzene"]);
+  });
+
+  it("combines tier and power ceilings and can sort by lowest power", () => {
+    render(<ModLibrary />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "lowPower" } });
+    expect(tileNames()).toEqual(["Benzene", "ref-chain", "Parked"]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Highest power tier" }), { target: { value: "4" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Highest EU/t to show" }), { target: { value: "1k" } });
     expect(tileNames()).toEqual(["Benzene"]);
   });
 

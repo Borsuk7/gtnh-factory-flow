@@ -41,8 +41,8 @@ export function ItemPickerPopover({
     }
     const margin = 8;
     // Real px in, shell px out: the shift is a translate inside the zoomed shell.
-    const scale = getUiScale();
     const rect = root.getBoundingClientRect();
+    const scale = (rect.width / root.offsetWidth) || getUiScale();
     const overRight = (rect.right - (window.innerWidth - margin)) / scale;
     const overLeft = (margin - rect.left) / scale;
     if (overRight > 0) {

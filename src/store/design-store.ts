@@ -956,7 +956,8 @@ export const useDesignStore = create<DesignStore>((set, get) => ({
         delete project.icon;
       }
     }
-    await writeDesign(withStats(updateDesignProject({ ...record, project }, project)));
+    // Identity edits preserve the stored plan's stats. The canvas belongs to another design.
+    await writeDesign(updateDesignProject(record, project));
     set(await listLibrary());
   },
 

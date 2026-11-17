@@ -148,6 +148,8 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
 - The active plan's identity strip sits above the canvas, within the board column. Its inline title and description
   and icon picker also work from Edit plan details in the Library. Collections sit beside the desktop tiles
   and in a scrollable row above them in compact mode. The tile menu supports filing plans by touch.
+  My Plans shares its search, power and tier ceilings, Makes/Takes filters, and sort options across layouts.
+  Plan tiles show saved machine counts, power draw, and a color-coded tier when those figures are available.
 - What edits or views the board is the BOARD TOOLBAR (`chrome/BoardToolbar.tsx`): no band. Its keys float over the
   board's top edge (it sits inside the board's box, so the board fills the whole middle column and nothing is reserved;
   not while the Library or Welcome covers it). Both bars share the key and fit hook in `chrome/bar-parts.tsx`.

@@ -177,8 +177,8 @@ export function SetupsFilterBar({
   );
 
   return (
-    <header className="flex shrink-0 flex-col border-b border-[var(--mc-33)]">
-      <div className="flex h-10 items-center gap-2 px-4 compact:h-auto compact:flex-wrap compact:gap-1.5 compact:px-2 compact:py-1.5">
+    <header data-library-filters="" className="flex shrink-0 flex-col border-b border-[var(--mc-33)]">
+      <div data-filter-fields="" className="flex h-10 items-center gap-2 px-4 compact:h-auto compact:flex-wrap compact:gap-1.5 compact:px-2 compact:py-1.5">
         <div className="relative min-w-0 flex-1 compact:basis-full">
           <label className={`flex h-7 min-w-0 items-center gap-1.5 px-2 text-xs ${INSET}`}>
             <Search className="h-3.5 w-3.5 shrink-0 text-[var(--mc-ink-muted)]" aria-hidden />
@@ -320,12 +320,12 @@ export function SetupsFilterBar({
         ) : null}
       </div>
       {itemFilter && showFilters ? (
-        <div className="flex min-h-9 flex-wrap items-center gap-2 border-t border-[var(--mc-33)]/60 bg-[#0c0e11] px-4 py-1 compact:gap-1.5 compact:px-2">
+        <div data-item-filters="" className="flex min-h-9 flex-wrap items-center gap-2 border-t border-[var(--mc-33)]/60 bg-[#0c0e11] px-4 py-1 compact:gap-1.5 compact:px-2">
           <span className="mr-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--mc-ink-muted)]">
             Item filter
           </span>
           {(["makes", "takes"] as const).map((side) => (
-            <div key={side} className="relative flex shrink-0 items-center gap-1">
+            <div key={side} data-item-filter-side="" className="relative flex max-w-full flex-wrap items-center gap-1">
               <button
                 type="button"
                 onClick={() => setPicking(picking === side ? undefined : side)}

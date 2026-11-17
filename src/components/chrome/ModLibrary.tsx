@@ -4,7 +4,7 @@ import "./chrome.css";
 import "./library.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { Ellipsis, Folder, FolderPlus, LayoutGrid, Search, Star, X } from "lucide-react";
+import { Ellipsis, Factory, Folder, FolderPlus, LayoutGrid, Star, X, Zap } from "lucide-react";
 import { requestShareDialog } from "@/lib/setups-tab";
 import { openDesigns, type DesignSummary } from "@/lib/designs/design-library";
 import { readDesign } from "@/lib/designs/design-storage";
@@ -19,9 +19,11 @@ import { playBoardSound } from "@/lib/board-sounds";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
 import { tipAttrs } from "@/components/flow/clean/interaction";
-import { Face } from "@/components/library/LibraryTile";
+import { Face, formatEuT } from "@/components/library/LibraryTile";
+import { tierChipColors } from "@/components/flow/clean/tokens";
 import { SETUP_SORTS, SetupsGrid } from "@/components/library/SetupsGrid";
-import { useSetupFilters } from "@/components/library/SetupsFilterBar";
+import { SetupsFilterBar, useSetupFilters, type SetupFilters } from "@/components/library/SetupsFilterBar";
+import { PLAN_SORTS, useFilteredPlans, useMyPosts } from "@/components/library/plan-filters";
 import { useCommunityUser } from "@/components/community/auth";
 import { ChromeMenu, chromeAnchorOf, MENU_ANCHOR_ATTR, type ChromeAnchor, type MenuEntry } from "./ChromeMenu";
 import { SharedWithMe } from "@/components/live/SharedWithMe";
@@ -34,8 +36,8 @@ import { ListedPlanIdentity } from "./PlanIdentityStrip";
 const LIVE = isLiveConfigured();
 
 /**
- * The Library (the mod's LibraryView): a header with the two shelves, My plans (every plan kept, the most recently
- * open first, after a tile for a new one) and Public setups, the search, the public list's sort and tier, the account
+ * The Library (the mod's LibraryView): a header with the two shelves, My plans (every plan kept, last edited first,
+ * after a tile for a new one) and Public setups, the search, the public list's sort and tier, the account
  * key and a close key; the shelf below. It takes the board's place and closes back onto it.
  */
 export function ModLibrary() {
@@ -46,7 +48,7 @@ export function ModLibrary() {
   const sharedCount = useCloudLibraryStore((state) => state.shared?.length);
   const filters = useSetupFilters("top");
   const [publicTotal, setPublicTotal] = useState<number>();
-  const [mineQuery, setMineQuery] = useState("");
+  const mineFilters = useSetupFilters("edited");
   const [menu, setMenu] = useState<{ kind: "sort" | "tier"; anchor: ChromeAnchor }>();
   const { user } = useCommunityUser();
   const showShared = LIVE && Boolean(user);
@@ -159,7 +161,7 @@ export function ModLibrary() {
       </div>
       <div className="ml-body">
         {shelf === "mine" ? (
-          <MyPlans query={mineQuery} onQueryChange={setMineQuery} view={library.view} />
+          <MyPlans filters={mineFilters} view={library.view} />
         ) : shelf === "shared" ? (
           <div className="ml-public ml-shared" data-shared-shelf="">
             <SharedWithMe />
@@ -225,7 +227,7 @@ function DropKey({ label, open, tip, onOpen }: { label: string; open: boolean; t
 type MyPlansMenu = { kind: "tile" | "delete" | "move"; id: string; anchor: ChromeAnchor };
 const PLAN_DRAG_TYPE = "application/x-gtnh-plan";
 
-function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange: (query: string) => void; view: LibraryView }) {
+function MyPlans({ filters, view }: { filters: SetupFilters; view: LibraryView }) {
   const everyDesign = useDesignStore((state) => state.designs);
   const allDesigns = useMemo(() => everyDesign.filter((design) => !design.cloud), [everyDesign]);
   const folders = useDesignStore((state) => state.folders);
@@ -257,7 +259,9 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
   const folderId = selectedFolder?.id;
   const favoritesOnly = view.kind === "favorites";
   const showingAll = !folderId && !favoritesOnly;
-  const needle = query.trim().toLowerCase();
+  const { posts } = useMyPosts();
+  const { shown, knownTags, hasFilters } = useFilteredPlans(allDesigns, view, filters, posts);
+  const openIds = useMemo(() => new Set(openDesigns(allDesigns).map((design) => design.id)), [allDesigns]);
   const collectionCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const { folderId } of allDesigns) {
@@ -265,14 +269,6 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
     }
     return counts;
   }, [allDesigns]);
-  const shown = useMemo(() => {
-    const open = new Set(openDesigns(allDesigns).map((design) => design.id));
-    return allDesigns
-      .filter((design) => (!favoritesOnly || design.favorite) && (!folderId || design.folderId === folderId))
-      .filter((design) => !needle || design.name.toLowerCase().includes(needle))
-      .map((design) => ({ design, open: open.has(design.id), at: lastOpenOf(design.id, design.updatedAt) }))
-      .sort((a, b) => b.at - a.at);
-  }, [allDesigns, favoritesOnly, folderId, needle]);
 
   const addCollection = async (name: string) => {
     setCreating(true);
@@ -466,16 +462,12 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
         ) : null}
       </nav>
       <div className="ml-plan-content">
-        <label className="ml-plan-search">
-          <Search size={9} aria-hidden />
-          <input
-            className="ml-search"
-            placeholder="Find a plan"
-            aria-label="Find a plan"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-          />
-        </label>
+        <SetupsFilterBar
+          filters={filters}
+          placeholder="Search your plans (#tag)"
+          sortOptions={PLAN_SORTS}
+          knownTags={knownTags}
+        />
         {problem ? <p className="ml-plan-message" role="alert">{problem}</p> : null}
         {editingDetails && allDesigns.some((design) => design.id === editingDetails) ? (
           <div className="ml-plan-details">
@@ -506,13 +498,13 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
               + New plan
             </div>
           ) : null}
-          {shown.map(({ design, open: isOpen, at }) => (
+          {shown.map((design) => (
             <PlanTile
               key={design.id}
               design={design}
               showing={design.id === activeDesignId}
-              open={isOpen}
-              when={agoText(at, now)}
+              open={openIds.has(design.id)}
+              when={agoText(lastOpenOf(design.id, design.updatedAt), now)}
               collection={folders.find((folder) => folder.id === design.folderId)?.name}
               onDragStart={(event) => {
                 draggedPlan.current = design.id;
@@ -530,9 +522,9 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
             />
           ))}
         </div>
-        {shown.length === 0 && (!showingAll || needle) ? (
+        {shown.length === 0 && (!showingAll || hasFilters) ? (
           <p className="ml-plan-message">
-            {needle ? "No plans match your search." : favoritesOnly ? "Add a plan to Favorites from its options." : "Drag a plan here or use Move to collection in its options."}
+            {hasFilters ? "No plans match these filters." : favoritesOnly ? "Add a plan to Favorites from its options." : "Drag a plan here or use Move to collection in its options."}
           </p>
         ) : null}
       </div>
@@ -585,6 +577,8 @@ function PlanTile({
       ? undefined
       : `${cards} ${cards === 1 ? "card" : "cards"}${drawers === undefined ? "" : ` · ${drawers} ${drawers === 1 ? "drawer" : "drawers"}`}`;
   const drawable = Boolean(design.icon && (design.icon.iconPath || design.icon.iconAtlas || design.icon.kind === "fluid"));
+  const tier = design.stats?.tier;
+  const tierColors = tier ? tierChipColors(tier) : undefined;
   return (
     <div
       className="ml-tile"
@@ -620,6 +614,11 @@ function PlanTile({
           {drawable ? <Face icon={design.icon} size={24} /> : <span className="ml-noface" />}
         </span>
         {open ? <span className="ml-chip" data-showing={showing ? "" : undefined}>{showing ? "SHOWING" : "OPEN"}</span> : null}
+        {tierColors ? (
+          <span className="ml-tier" style={{ background: tierColors.background, borderColor: tierColors.border, color: tierColors.ink }}>
+            {tier}
+          </span>
+        ) : null}
         {renaming ? (
           <TileRename initial={design.name} onDone={onRename} />
         ) : (
@@ -631,6 +630,16 @@ function PlanTile({
         )}
         {size ? <span className="ml-size">{size}</span> : null}
         <span className="ml-when">{collection ? `${collection} · ` : ""}last open {when}</span>
+        {!design.taskBoard && design.stats ? (
+          <span className="ml-stats">
+            <span aria-label={`${design.stats.machines} machines`} title={`${design.stats.machines} machines`}>
+              <Factory size={8} aria-hidden /> {design.stats.machines}
+            </span>
+            {design.stats.euT !== undefined ? (
+              <span><Zap size={8} aria-hidden /> {formatEuT(design.stats.euT)} EU/t</span>
+            ) : null}
+          </span>
+        ) : null}
         {design.communityPlanId ? <span className="ml-posted">posted</span> : null}
       </div>
       <button
