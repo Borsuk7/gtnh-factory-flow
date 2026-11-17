@@ -21,8 +21,9 @@ The board must stay smooth with 100+ cards on weak PCs.
 4. Identity is currency: node `data` through `reuseObjectIdentity`, edges through
    `reuseDeepObjectIdentity` (`layoutEpoch` is the deliberate bust), custom `memo`
    comparators on node components, stable callbacks for toolbar children.
-5. Drags never show a guessed route. Each beat (throttled) routes the moved wires for real but rough (no
-   negotiation), the drop routes them properly; past `LIVE_DRAG_ROUTE_EDGE_LIMIT` wires hold until the drop.
+5. Each drag beat (throttled) routes the moved wires roughly, and the drop routes them properly. When a route
+   no longer reaches a moving card, its temporary preview follows the live card rim until routing catches up.
+   Wires away from the drag keep their settled routes.
 6. An effect that touches every card at once (the hop map, `hop-map.ts`) paints CSS
    custom properties; it does not go through React.
 7. No `querySelectorAll` / `getBoundingClientRect` per edge, node or frame. No card
@@ -146,6 +147,7 @@ The board must stay smooth with 100+ cards on weak PCs.
 - Past `ASYNC_ROUTE_EDGE_LIMIT` wires, routing runs in a worker (`grid-route-solve.ts`).
   A worker file must never import the module that spawns it (Turbopack hangs). Negotiation budgets count
   the wires that can move, not pinned ones.
+- Wires use a solid stroke while the plan solve is pending. Dots mark a known zero rate.
 - Drawer, trash and minimized-board ends meet their card square (`sourceSquare`/`targetSquare`): a 45° stub into a
   two-cell drawer reads as aimed at the wrong spot. Past the clean run the wire may still go diagonal.
 - Crossing hops (`wire-hops.ts`) are measured along the whole wire; arrows avoid hops.

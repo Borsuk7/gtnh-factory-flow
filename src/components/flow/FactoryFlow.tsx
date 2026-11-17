@@ -14,6 +14,7 @@ import { capturePoolWorksheet } from "../export/capture-pool-worksheet";
 import { formatRatioShare, getProjectRatioBranches } from "@/lib/model/storage-ratios";
 import { labelRatioArrows, layoutRatioLabels, type RatioWireLabel } from "./ratio-label-layout";
 import { RatioWireLabel as RatioWireLabelControl } from "./RatioWireLabel";
+import { isDockedOnCard, previewDraggedWire } from "./wire-drag-preview";
 
 import {
   BaseEdge,
@@ -30,6 +31,7 @@ import {
   type Edge,
   type EdgeProps,
   type EdgeTypes,
+  type InternalNode,
   type Node,
   type NodeChange,
   type NodeTypes,
@@ -516,14 +518,14 @@ const MIN_FRAMED_WIDTH = 420;
  * reruns while a card moves, throttled to LIVE_DRAG_SOLVE_MS, so the wires
  * follow it. Each beat routes again only the wires the move touched, roughly
  * (`incremental-router.ts`), and big boards do it in the worker; the drop
- * routes them properly. Past the limit wires freeze until the drop.
+ * routes them properly. Connected wires keep a docked preview between solves.
  */
 const LIVE_DRAG_ROUTE_EDGE_LIMIT = 1000;
 const LIVE_DRAG_SOLVE_MS = 50;
 /**
  * Measured half of the gate above. Each mid-drag solve is timed through to
  * the frame it painted; one over this budget marks the current board size as
- * too slow to follow, and later drags freeze until the board shrinks well
+ * too slow to solve live, and later drags use previews until the board shrinks well
  * below that size.
  */
 const LIVE_DRAG_BUDGET_MS = 36;
@@ -784,6 +786,8 @@ type ResourceEdgeData = {
      * glance.
      */
     idle: boolean;
+    /** Throughput has not been confirmed by the solver yet. */
+    pending?: boolean;
   };
   /**
    * Bust token for the edge-identity cache. Node size changes bump it, which
@@ -828,6 +832,7 @@ type RoutedEdgePath = {
    * morph gate in the edge).
    */
   solved?: boolean;
+  preview?: boolean;
   /** Where hop bumps replace the wire, as arc lengths along `points`. */
   hopSpans?: HopSpan[];
 };
@@ -1825,10 +1830,8 @@ function pruneNodeDataCaches(
 let routeCacheGrewThisPass = false;
 const MAX_HOP_SETTLE_PASSES = 2;
 
-// Node ids currently being dragged. Edges touching them skip endpoint
-// measurement and draw their last solved route (see `shouldUsePreciseRouting`
-// in the edge); the drop republishes and re-solves. Module state rather than
-// React state: those edges re-render every frame anyway via their position props.
+// Node ids travelling with the drag. Only their incident edges read live
+// bounds for previews; their position props already make them re-render.
 const activelyDraggedNodeIds = new Set<string>();
 /**
  * Bumped whenever the dragged set changes. The pulse canvas caches its
@@ -2886,10 +2889,9 @@ export function FactoryFlow() {
   useLayoutEffect(() => {
     // Drag frames rewrite positions constantly. Where the board can afford
     // it, wires FOLLOW: a throttled rough solve of the wires the move touched
-    // reruns against the card's current cell. Wires freeze instead for an
-    // annotation-only drag (ink cannot change a route), a board past the wire
-    // cap, or a board whose measured solves blew the frame budget. Not a
-    // setting on purpose. The drop republishes explicitly (handleNodeDragStop)
+    // reruns against the card's current cell. Skip solving live for ink-only
+    // drags and boards past the wire or time budget. Moving ends still preview
+    // their positions. The drop republishes explicitly (handleNodeDragStop)
     // because React Flow streams the final position during the last drag
     // frame, so this fingerprint does NOT change again after the drag ends.
     if (draggingNodeRef.current) {
@@ -3326,7 +3328,7 @@ export function FactoryFlow() {
       // representative carries the whole channel's flow.
       const transferred = channelTotal?.transferred ?? transferredById.get(edge.id) ?? 0;
       // This line's place in its own kind's range (see flowHeatFor).
-      const flowHeat = flowHeatById.get(edge.id) ?? 0;
+      const flowHeat = result.stale ? 0 : flowHeatById.get(edge.id) ?? 0;
       // Storage soaks up whatever arrives, so a line into a barrel is never
       // supply-capped.
       const isSupplyCapped = edgeResult?.constraint === "supply" && !targetStorage;
@@ -3457,7 +3459,10 @@ export function FactoryFlow() {
           flowRate: anyLineMode
             ? {
                 heat: flowHeat,
-                idle: (transferredById.get(edge.id) ?? 0) <= RATE_DISPLAY_EPSILON,
+                // An idle stroke describes a known zero rate. A plan that is
+                // still opening needs a solid wire to show its connection.
+                idle: !result.stale && (transferredById.get(edge.id) ?? 0) <= RATE_DISPLAY_EPSILON,
+                pending: result.stale === true,
                 kind: flowBucketFor(edge.resourceKind),
                 color: speedColorMode,
                 thickness: true,
@@ -5719,10 +5724,11 @@ export function FactoryFlow() {
       const inkIds = new Set((project.annotations ?? []).map((annotation) => annotation.id));
       const solid: Array<{ id: string; isFrame: boolean; rect: PlacementRect }> = [];
       for (const [id, geometry] of publishedBoardGeometryById) {
+        const travelling = carried.has(id) || ridesAlong(id);
+        if (travelling) activelyDraggedNodeIds.add(id);
         if (
-          carried.has(id) ||
+          travelling ||
           inkIds.has(id) ||
-          ridesAlong(id) ||
           geometry.width <= 0 ||
           geometry.height <= 0
         ) {
@@ -8607,6 +8613,7 @@ function ResourceEdgeComponent({
   selected,
   data,
 }: EdgeProps<ResourceFlowEdge>) {
+  const flowStore = useStoreApi();
   const updateEdge = useFactoryStore((state) => state.updateEdge);
   // Waypoint dot dragging: a local draft while the pointer is down, committed
   // to the store (snapped to the grid) on release, so no board-wide re-solve
@@ -8686,6 +8693,7 @@ function ResourceEdgeComponent({
   const pulseVelocity = PULSE_MIN_VELOCITY +
     (flowRate?.heat ?? 0) * (PULSE_MAX_VELOCITY - PULSE_MIN_VELOCITY);
   const isGlobalView = hasEdgeDetail(detailLevel, EDGE_DETAIL_GLOBAL);
+  const isStarved = !flowRate?.pending && isEdgeStarved(data);
   // Lit when a hovered port or label pulls this line into its flow scope.
   // Boolean selector: only involved edges re-render on hover changes.
   const isFlowScopeLit = useFactoryStore((state) =>
@@ -8703,12 +8711,15 @@ function ResourceEdgeComponent({
         : data?.bundle?.role === "primary"
           ? Math.max(Number(style?.strokeWidth ?? 3.1) + 0.6, 3.7)
           : Number(style?.strokeWidth ?? 3.1);
-  // Mid-drag, an edge whose endpoint node is moving draws its LAST solved
-  // route, never a pointer-chasing guess. On a small board the live-drag solve
-  // refreshes it a few times a second; on a big board it stays the pre-drag
-  // route until the drop re-signs the solve.
-  const shouldUsePreciseRouting =
-    !activelyDraggedNodeIds.has(source) && !activelyDraggedNodeIds.has(target);
+  const sourceMoving = activelyDraggedNodeIds.has(source);
+  const targetMoving = activelyDraggedNodeIds.has(target);
+  const shouldUsePreciseRouting = !sourceMoving && !targetMoving;
+  // Keep an attached preview through the drop if an older worker route is
+  // still installed. The first real route that reaches both cards clears it.
+  const previewRef = useRef(false);
+  const liveNodes = !shouldUsePreciseRouting || previewRef.current ? flowStore.getState().nodeLookup : undefined;
+  const liveSource = liveNodes?.get(source);
+  const liveTarget = liveNodes?.get(target);
   const visualSourceCandidates = getSlotEdgeEndpointCandidates({
     nodeId: source,
     handleId: data?.sourceHandleId ?? sourceHandleId,
@@ -8756,11 +8767,16 @@ function ResourceEdgeComponent({
     targetX: visualTarget.x,
     targetY: visualTarget.y,
     targetPosition: visualTarget.side,
-    // Always the solved route (see shouldUsePreciseRouting). The simple-L
-    // fallback inside only covers a brand-new wire the solve has not seen.
-    useSmartRouting: true,
+    movingCards: liveNodes ? {
+      source: liveCardBounds(liveSource),
+      target: liveCardBounds(liveTarget),
+      sourceDrawer: liveSource?.type === "storageNode",
+      targetDrawer: liveTarget?.type === "storageNode",
+      waypoints: data?.waypoints,
+    } : undefined,
     strokeWidth: coreStrokeWidth,
   });
+  previewRef.current = routedEdge.preview === true;
   // The route as DRAWN this frame: the router's line once settled, a morph
   // between old and new lines for a beat after a re-solve (a plain polyline;
   // hop bumps land with the final frame). Capped by wire count: a board-wide
@@ -8776,7 +8792,7 @@ function ResourceEdgeComponent({
   const liveRoute = useMotionRoute(
     routedEdge.points,
     routedEdge.path,
-    moveMotion && !routeSourceChanged && !routeDragActive && publishedGridRouteEdges.length <= 300,
+    moveMotion && !routedEdge.preview && !routeSourceChanged && !routeDragActive && publishedGridRouteEdges.length <= 300,
   );
   // LIGHTNING. A power wire draws JAGGED: the router's route, zigzagged
   // after the fact so the router, the lanes and the hit-testing all still
@@ -8978,7 +8994,7 @@ function ResourceEdgeComponent({
                 ? undefined
                 : flowRate?.idle
                   ? idleDots(coreStrokeWidth)
-                  : isGlobalView && isEdgeStarved(data)
+                  : isGlobalView && isStarved
                     ? "2 8"
                     : style?.strokeDasharray,
               strokeLinecap: "round",
@@ -9002,7 +9018,7 @@ function ResourceEdgeComponent({
                 ? undefined
                 : flowRate?.idle
                   ? idleDots(coreStrokeWidth)
-                  : isGlobalView && isEdgeStarved(data)
+                  : isGlobalView && isStarved
                     ? "2 8"
                     : style?.strokeDasharray,
               strokeLinecap: "round",
@@ -9084,7 +9100,7 @@ function ResourceEdgeComponent({
               stroke={darkenHexColor(edgeColor, 0.6)}
               strokeWidth={isGlobalView ? 2.5 : 1.5}
               strokeLinejoin="round"
-              opacity={isEdgeStarved(data) ? 0.8 : 1}
+              opacity={isStarved ? 0.8 : 1}
               style={{
                 pointerEvents: "none",
                 // The outline is a DEEP shade of the wire's colour, never
@@ -9828,12 +9844,10 @@ function isStorageNodeId(id: string | undefined): boolean {
 /** The route's points with each drawer end carried on into the drawer. */
 function inkPointsFor(
   points: Array<{ x: number; y: number }>,
-  sourceNodeId: string | undefined,
-  targetNodeId: string | undefined,
+  intoSource: boolean,
+  intoTarget: boolean,
 ): Array<{ x: number; y: number }> {
   if (points.length < 2) return points;
-  const intoSource = isStorageNodeId(sourceNodeId);
-  const intoTarget = isStorageNodeId(targetNodeId);
   if (!intoSource && !intoTarget) return points;
   const out = points.slice();
   const extend = (from: { x: number; y: number }, to: { x: number; y: number }) => {
@@ -9849,6 +9863,22 @@ function inkPointsFor(
   return out;
 }
 
+function liveCardBounds(node: InternalNode | undefined): MeasuredBounds | undefined {
+  if (!node) return undefined;
+  const width = node.measured.width ?? node.width ?? node.initialWidth;
+  const height = node.measured.height ?? node.height ?? node.initialHeight;
+  if (!width || !height) return undefined;
+  const { x, y } = node.internals.positionAbsolute;
+  return { left: x, top: y, right: x + width, bottom: y + height };
+}
+
+function matchesRouteBounds(live: MeasuredBounds, nodeId: string | undefined): boolean {
+  const routed = getMeasuredNodeBoundsById(nodeId);
+  return routed !== undefined &&
+    Math.abs(live.left - routed.left) <= 1 && Math.abs(live.top - routed.top) <= 1 &&
+    Math.abs(live.right - routed.right) <= 1 && Math.abs(live.bottom - routed.bottom) <= 1;
+}
+
 function getDirectEdgePath({
   edgeId,
   routeIndex,
@@ -9860,7 +9890,7 @@ function getDirectEdgePath({
   targetX,
   targetY,
   targetPosition,
-  useSmartRouting = true,
+  movingCards,
   strokeWidth,
 }: {
   edgeId?: string;
@@ -9875,26 +9905,50 @@ function getDirectEdgePath({
   targetX: number;
   targetY: number;
   targetPosition: Position;
-  useSmartRouting?: boolean;
+  movingCards?: {
+    source?: MeasuredBounds;
+    target?: MeasuredBounds;
+    sourceDrawer: boolean;
+    targetDrawer: boolean;
+    waypoints?: readonly { x: number; y: number }[];
+  };
 }): RoutedEdgePath {
   // The grid solve owns every settled route; fallbacks cover wires it has
   // not routed in the current solve.
-  const fresh = useSmartRouting ? getBestDirectEdgePoints({ edgeId }) : undefined;
+  const fresh = getBestDirectEdgePoints({ edgeId });
   // No fresh route: the wire's LAST one stands in. A card is unmeasured for
   // a frame after it mounts and its wires are left out of that solve; without
   // this they would flash the port-anchored L-shape.
-  const stale = fresh === undefined && useSmartRouting ? getLastDirectEdgePoints(edgeId) : undefined;
+  const stale = fresh === undefined ? getLastDirectEdgePoints(edgeId) : undefined;
+  const solvedPoints = fresh ?? stale;
+  if (movingCards?.source && movingCards.target && (
+    gridSolveWantedSignature !== gridSolveSignature ||
+    !matchesRouteBounds(movingCards.source, sourceNodeId) ||
+    !matchesRouteBounds(movingCards.target, targetNodeId) ||
+    !isDockedOnCard(solvedPoints?.[0], movingCards.source) ||
+    !isDockedOnCard(solvedPoints?.at(-1), movingCards.target)
+  )) {
+    const points = previewDraggedWire(
+      movingCards.source,
+      movingCards.target,
+      sourceNodeId === targetNodeId,
+      movingCards.waypoints,
+    );
+    return buildRoutedEdgePath(
+      points,
+      inkPointsFor(points, movingCards.sourceDrawer, movingCards.targetDrawer),
+    );
+  }
   // A wire the router has never seen (a drawer split, a heal, a paste) draws
   // the ARRANGER'S PROXY PATH between the two cards
   // (board-arrange-optimize.ts), the shape the router is about to draw. The
   // port-anchored L-shape below is the last resort, for an unmeasured card.
   const guess =
-    fresh === undefined && stale === undefined && useSmartRouting
+    solvedPoints === undefined
       ? proxyBetweenNodes(sourceNodeId, targetNodeId)
       : undefined;
   const points =
-    fresh ??
-    stale ??
+    solvedPoints ??
     guess ??
     getSimpleOrthogonalEdgePoints({
       sourceX,
@@ -9904,7 +9958,7 @@ function getDirectEdgePath({
       targetY,
       targetPosition,
     });
-  const solved = Boolean(fresh ?? stale);
+  const solved = Boolean(solvedPoints);
 
   // Hop bumps are sized from the width this line actually draws at, so a
   // highlighted (thickened) line still clears what it crosses.
@@ -9930,7 +9984,7 @@ function getDirectEdgePath({
     y: (sourceY + targetY) / 2,
   };
 
-  const inkPoints = inkPointsFor(points, sourceNodeId, targetNodeId);
+  const inkPoints = inkPointsFor(points, isStorageNodeId(sourceNodeId), isStorageNodeId(targetNodeId));
   const hopped = buildHoppedPath(
     inkPoints,
     collectHoppedRouteSegments(edgeId, routeIndex, points),
@@ -10077,17 +10131,21 @@ function snapRouteCoord(value: number) {
   return Math.round(value / EDGE_ROUTE_SNAP_GRID) * EDGE_ROUTE_SNAP_GRID;
 }
 
-function buildRoutedEdgePath(points: Array<{ x: number; y: number }>): RoutedEdgePath {
+function buildRoutedEdgePath(
+  points: Array<{ x: number; y: number }>,
+  previewInk?: Array<{ x: number; y: number }>,
+): RoutedEdgePath {
   const labelPoint = getPointAtPolylineRatio(points, 0.5) ??
     points[Math.floor(points.length / 2)] ?? {
       x: 0,
       y: 0,
     };
   return {
-    path: pointsToSvgPath(points),
+    path: pointsToSvgPath(previewInk ?? points),
     labelX: labelPoint.x,
     labelY: labelPoint.y,
-    labelHidden: isPointInsideAnyMeasuredNode(labelPoint),
+    labelHidden: Boolean(previewInk) || isPointInsideAnyMeasuredNode(labelPoint),
+    preview: previewInk ? true : undefined,
     points,
   };
 }
