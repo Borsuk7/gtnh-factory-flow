@@ -86,7 +86,7 @@ See the [board guide](flow/AGENTS.md), [legacy Pool worksheet guide](pool/AGENTS
   own folds (`leftPanelOpen`, the rail's `open`) are never written by it, so a column comes back as the window widens.
   A click on a strip, or a resource browsed (`requestPanelOpen`, `src/lib/panel-force.ts`), opens a window-folded column
   anyway and the other gives way. The overview's machine lines fit their text to the rail's measured width. Re-measure
-  `BOARD_MIN_WIDTH` when a key is added to the board toolbar.
+  `BOARD_MIN_WIDTH` when the board toolbar layout changes.
 - The eye key opens Plan options. The theme, pattern and fixed wire width use the active plan's view.
   Motion, Follow selection in Overview, and Keep boards on rearrange are device preferences.
 - The items column is NEI's list (`ResourceIndexPane`, `nei/nei.css`): page keys and n/m at the top, 32 px slots
@@ -147,12 +147,13 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
   `PlanIdentityDrawer`, `DesignTabs` and `BoardActions` keep their live keys but are not on the desktop board.
 - What edits or views the board is the BOARD TOOLBAR (`chrome/BoardToolbar.tsx`): no band. Its keys float over the
   board's top edge (it sits inside the board's box, so the board fills the whole middle column and nothing is reserved;
-  not while the Library or Welcome covers it). Left group: Non-recipe, undo, redo. Right group: Arrange, Fit, the rate
-  unit, EU/t, Avg; same order and words as the game's (`chrome/bar-parts.tsx` has the key and the fit hook both bars
-  share). Too narrow for one row, the right group drops to a second row, still right. The strip takes no presses
+  not while the Library or Welcome covers it). Both bars share the key and fit hook in `chrome/bar-parts.tsx`.
+  Too narrow for one row, the right group drops to a second row, still right. The strip takes no presses
   (`pointer-events: none`), only the keys do. A task board shows its own header the same way (title and count as plain
   words left; Board / Chain and New task right; `TaskBoard` leaves room at its top). The Non-recipe picker opens below the
   keys (`header[data-board-toolbar]`). Arrange is its label's width, 90 only while it shows progress.
+  The toolbar frames Non-recipe, undo and redo, Arrange and Fit, rate and power units, and markup and Plan options
+  on separate plates. Narrow layouts wrap between plates.
   A key has a cyan inset border and tinted face while its panel is open or its tool is active.
 - The desktop top bar is one row and hides nothing in a menu (`useTopBarFit` in `bar-parts.tsx`, steps in the pure,
   tested `chrome/top-bar-fold.ts`, `data-fit` roomy / icons / tight). The tabs give way first (the strip scrolls; the open

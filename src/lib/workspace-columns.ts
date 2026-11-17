@@ -27,10 +27,10 @@ export const ITEMS_MIN_WIDTH = 108;
 export const ITEMS_MAX_WIDTH = 420;
 /**
  * The least the board keeps while a side column can still give way: the board toolbar on one row with its labels
- * (318 toolbar px including Plan options, 1.7094 shell px each). Measure
- * it again when a key is added to `BoardToolbar`.
+ * (about 331 toolbar px with the framed groups, 1.7094 shell px each). Measure
+ * it again when the toolbar layout changes.
  */
-export const BOARD_MIN_WIDTH = 545;
+export const BOARD_MIN_WIDTH = 568;
 
 export function clampOverviewWidth(width: number): number {
   return Number.isFinite(width)

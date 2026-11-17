@@ -43,10 +43,8 @@ const UNGROUP_ALL = {
 };
 
 /**
- * The board's toolbar, along the top of the board between the overview and the items list: what edits or views the
- * board, in the mod's order (Non-recipe, undo and redo, Arrange and Fit, the rate unit, EU/t, Avg), the same keys and
- * words as the game's. Its right group drops to a second row when the board is too narrow for both. A task board has no cards to edit: its
- * strip carries the board's title and New task instead.
+ * The board toolbar sits between the overview and the items list. The right group drops to a second row when
+ * space runs out, and each plate keeps its keys together. A task board shows its title and task controls.
  */
 export function BoardToolbar() {
   const ref = useRef<HTMLElement | null>(null);
@@ -155,165 +153,172 @@ function BoardKeys({ tight }: { tight: boolean }) {
   return (
     <>
       <div className="mb-group mb-group-left">
-      <BarKey
-        id="nonrecipe"
-        glyph="bolt"
-        width={tight ? undefined : 78}
-        ariaLabel="Non-recipe machines"
-        tip="Non-recipe machines: generators, turbines, boilers, reactors"
-        open={powerMenuOpen}
-        off={isReadOnly}
-        onClick={() => {
-          // The key opens the picker and closes it again.
-          if (powerMenuOpen) closePowerMenu();
-          else {
-            leaveLibrary();
-            openPowerMenu();
-          }
-        }}
-        menuAnchor
-      >
-        <PixelBolt className="mb-bolt" />
-        {tight ? null : "Non-recipe"}
-      </BarKey>
-      <BarKey
-        id="undo"
-        gap
-        icon
-        off={!canUndo || isReadOnly}
-        ariaLabel="Undo"
-        tip="Undo (Ctrl+Z)"
-        onClick={() => undo()}
-      >
-        <PixelIcon name="undo" />
-      </BarKey>
-      <BarKey
-        id="redo"
-        icon
-        off={!canRedo || isReadOnly}
-        ariaLabel="Redo"
-        tip="Redo (Ctrl+Shift+Z or Ctrl+Y)"
-        onClick={() => redo()}
-      >
-        <PixelIcon name="undo" mirror />
-      </BarKey>
+        <div className="mb-tool-plate">
+          <BarKey
+            id="nonrecipe"
+            glyph="bolt"
+            width={tight ? undefined : 78}
+            ariaLabel="Non-recipe machines"
+            tip="Non-recipe machines: generators, turbines, boilers, reactors"
+            open={powerMenuOpen}
+            off={isReadOnly}
+            onClick={() => {
+              // The key opens the picker and closes it again.
+              if (powerMenuOpen) closePowerMenu();
+              else {
+                leaveLibrary();
+                openPowerMenu();
+              }
+            }}
+            menuAnchor
+          >
+            <PixelBolt className="mb-bolt" />
+            {tight ? null : "Non-recipe"}
+          </BarKey>
+        </div>
+        <div className="mb-tool-plate">
+          <BarKey
+            id="undo"
+            icon
+            off={!canUndo || isReadOnly}
+            ariaLabel="Undo"
+            tip="Undo (Ctrl+Z)"
+            onClick={() => undo()}
+          >
+            <PixelIcon name="undo" />
+          </BarKey>
+          <BarKey
+            id="redo"
+            icon
+            off={!canRedo || isReadOnly}
+            ariaLabel="Redo"
+            tip="Redo (Ctrl+Shift+Z or Ctrl+Y)"
+            onClick={() => redo()}
+          >
+            <PixelIcon name="undo" mirror />
+          </BarKey>
+        </div>
       </div>
       <div className="mb-group mb-group-right">
-      <BarKey
-        id="arrange"
-        label={arrangeLabel(arrange)}
-        width={arrange.running ? 90 : undefined}
-        tip="Auto-arrange the plan (press again to stop)"
-        off={isReadOnly}
-        open={arrangeMenu !== undefined}
-        menuAnchor={hasGroups}
-        onClick={(event) => {
-          setOptionsAnchor(undefined);
-          setMarkupAnchor(undefined);
-          if (arrange.running || !hasGroups) {
-            pressArrange();
-          } else if (arrangeMenu) {
-            setArrangeMenu(undefined);
-          } else {
-            setArrangeMenu(chromeAnchorOf(event.currentTarget));
-          }
-        }}
-      />
-      {arrangeMenu ? (
-        <ChromeMenu
-          anchor={arrangeMenu}
-          label="Arrange"
-          minWidth={110}
-          entries={keepBoardsOnArrange
-            ? [{ ...KEEP_GROUPS, current: true, detail: "Default" }, UNGROUP_ALL]
-            : [{ ...UNGROUP_ALL, current: true, detail: "Default" }, KEEP_GROUPS]}
-          onClose={() => setArrangeMenu(undefined)}
-        />
-      ) : null}
-      <BarKey id="fit" label="Fit" width={24} tip="Zoom to fit the whole plan" onClick={() => getBoardCommands()?.fit()} />
-      <BarKey
-        id="rate"
-        gap
-        label={RATE_LABEL[rateUnit] ?? "/s"}
-        width={32}
-        tip="Rate unit: per tick, second, minute or hour"
-        onClick={() => stepRate(1)}
-        onContext={() => stepRate(-1)}
-        onWheel={scrollChangesValues ? stepRate : undefined}
-      />
-      <BarKey
-        id="power"
-        label={isAmps ? "Amps" : "EU/t"}
-        width={36}
-        tip="Show power as EU/t, or as amps at each machine's tier"
-        onClick={togglePower}
-        onContext={togglePower}
-        onWheel={scrollChangesValues ? togglePower : undefined}
-      />
-      <BarKey
-        id="annotate"
-        gap
-        icon
-        off={isReadOnly}
-        ariaLabel={painting ? "Stop painting" : "Annotations"}
-        tip={painting ? "Stop painting" : "Add a sticky note or other markup"}
-        tipSub={painting ? "Esc" : undefined}
-        menuAnchor={painting ? undefined : "dialog"}
-        open={painting || Boolean(markupAnchor && markup)}
-        onClick={(event) => {
-          if (painting) {
-            markup.onPaintModeChange(undefined);
-            return;
-          }
-          setArrangeMenu(undefined);
-          setOptionsAnchor(undefined);
-          event.currentTarget.focus({ preventScroll: true });
-          setMarkupAnchor(markupAnchor ? undefined : chromeAnchorOf(event.currentTarget));
-        }}
-      >
-        {painting ? <X size={12} aria-hidden /> : <PixelIcon name="pencil" />}
-      </BarKey>
-      {markupAnchor && markup && !isReadOnly ? (
-        <MenuPortal
-          anchor={markupAnchor}
-          align="right"
-          width={222}
-          maxHeight={420}
-          label="Markup tools"
-          role="dialog"
-          onClose={() => setMarkupAnchor(undefined)}
-        >
-          <div className="cm-scroll">
-            <BoardMarkup tools={markup} onClose={() => setMarkupAnchor(undefined)} />
-          </div>
-        </MenuPortal>
-      ) : null}
-      <BarKey
-        id="plan-options"
-        icon
-        ariaLabel="Plan options"
-        tip="Plan options"
-        menuAnchor="dialog"
-        open={optionsAnchor !== undefined}
-        onClick={(event) => {
-          setMarkupAnchor(undefined);
-          if (optionsAnchor) {
-            setOptionsAnchor(undefined);
-          } else {
-            setArrangeMenu(undefined);
-            event.currentTarget.focus({ preventScroll: true });
-            setOptionsAnchor(chromeAnchorOf(event.currentTarget));
-          }
-        }}
-      >
-        <Eye size={12} aria-hidden />
-      </BarKey>
-      {optionsAnchor ? (
-        <PlanOptions
-          anchor={optionsAnchor}
-          onClose={() => setOptionsAnchor(undefined)}
-        />
-      ) : null}
+        <div className="mb-tool-plate">
+          <BarKey
+            id="arrange"
+            label={arrangeLabel(arrange)}
+            width={arrange.running ? 90 : undefined}
+            tip="Auto-arrange the plan (press again to stop)"
+            off={isReadOnly}
+            open={arrangeMenu !== undefined}
+            menuAnchor={hasGroups}
+            onClick={(event) => {
+              setOptionsAnchor(undefined);
+              setMarkupAnchor(undefined);
+              if (arrange.running || !hasGroups) {
+                pressArrange();
+              } else if (arrangeMenu) {
+                setArrangeMenu(undefined);
+              } else {
+                setArrangeMenu(chromeAnchorOf(event.currentTarget));
+              }
+            }}
+          />
+          {arrangeMenu ? (
+            <ChromeMenu
+              anchor={arrangeMenu}
+              label="Arrange"
+              minWidth={110}
+              entries={keepBoardsOnArrange
+                ? [{ ...KEEP_GROUPS, current: true, detail: "Default" }, UNGROUP_ALL]
+                : [{ ...UNGROUP_ALL, current: true, detail: "Default" }, KEEP_GROUPS]}
+              onClose={() => setArrangeMenu(undefined)}
+            />
+          ) : null}
+          <BarKey id="fit" label="Fit" width={24} tip="Zoom to fit the whole plan" onClick={() => getBoardCommands()?.fit()} />
+        </div>
+        <div className="mb-tool-plate">
+          <BarKey
+            id="rate"
+            label={RATE_LABEL[rateUnit] ?? "/s"}
+            width={32}
+            tip="Rate unit: per tick, second, minute or hour"
+            onClick={() => stepRate(1)}
+            onContext={() => stepRate(-1)}
+            onWheel={scrollChangesValues ? stepRate : undefined}
+          />
+          <BarKey
+            id="power"
+            label={isAmps ? "Amps" : "EU/t"}
+            width={36}
+            tip="Show power as EU/t, or as amps at each machine's tier"
+            onClick={togglePower}
+            onContext={togglePower}
+            onWheel={scrollChangesValues ? togglePower : undefined}
+          />
+        </div>
+        <div className="mb-tool-plate">
+          <BarKey
+            id="annotate"
+            icon
+            off={isReadOnly}
+            ariaLabel={painting ? "Stop painting" : "Annotations"}
+            tip={painting ? "Stop painting" : "Add a sticky note or other markup"}
+            tipSub={painting ? "Esc" : undefined}
+            menuAnchor={painting ? undefined : "dialog"}
+            open={painting || Boolean(markupAnchor && markup)}
+            onClick={(event) => {
+              if (painting) {
+                markup.onPaintModeChange(undefined);
+                return;
+              }
+              setArrangeMenu(undefined);
+              setOptionsAnchor(undefined);
+              event.currentTarget.focus({ preventScroll: true });
+              setMarkupAnchor(markupAnchor ? undefined : chromeAnchorOf(event.currentTarget));
+            }}
+          >
+            {painting ? <X size={12} aria-hidden /> : <PixelIcon name="pencil" />}
+          </BarKey>
+          {markupAnchor && markup && !isReadOnly ? (
+            <MenuPortal
+              anchor={markupAnchor}
+              align="right"
+              width={222}
+              maxHeight={420}
+              label="Markup tools"
+              role="dialog"
+              onClose={() => setMarkupAnchor(undefined)}
+            >
+              <div className="cm-scroll">
+                <BoardMarkup tools={markup} onClose={() => setMarkupAnchor(undefined)} />
+              </div>
+            </MenuPortal>
+          ) : null}
+          <BarKey
+            id="plan-options"
+            icon
+            ariaLabel="Plan options"
+            tip="Plan options"
+            menuAnchor="dialog"
+            open={optionsAnchor !== undefined}
+            onClick={(event) => {
+              setMarkupAnchor(undefined);
+              if (optionsAnchor) {
+                setOptionsAnchor(undefined);
+              } else {
+                setArrangeMenu(undefined);
+                event.currentTarget.focus({ preventScroll: true });
+                setOptionsAnchor(chromeAnchorOf(event.currentTarget));
+              }
+            }}
+          >
+            <Eye size={12} aria-hidden />
+          </BarKey>
+          {optionsAnchor ? (
+            <PlanOptions
+              anchor={optionsAnchor}
+              onClose={() => setOptionsAnchor(undefined)}
+            />
+          ) : null}
+        </div>
       </div>
     </>
   );

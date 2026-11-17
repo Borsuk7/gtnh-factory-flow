@@ -641,10 +641,8 @@
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
-/* The board's toolbar: no band. It floats over the board's top edge (BoardToolbar sits inside the board's box), keys
-   only: the strip lets the board take every press, the two groups (left: Non-recipe, undo, redo; right: Arrange, Fit,
-   the rate, EU/t, Avg) catch their own. When the groups do not fit one row the right one drops to a second row, still
-   at the right; a board too narrow for the right group alone wraps its keys, so none is cut off. A task board's header floats the same way. */
+/* The board toolbar floats over the board. Its two groups can stack, and the right group
+   can wrap between plates to keep related keys together. A task board's header floats the same way. */
 .mb.mb-strip {
   position: absolute;
   top: 0;
@@ -673,8 +671,22 @@
   margin-left: auto;
   justify-content: flex-end;
 }
-.mb-strip .mb-group > .mb-key.mb-gap {
-  margin-left: 0;
+.mb-tool-plate {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid;
+  border-color: var(--mc-highlight) var(--mc-ring) var(--mc-key-edge) var(--mc-ring);
+  background: var(--mc-frame);
+  box-shadow:
+    inset 1px 1px 0 var(--mc-highlight),
+    inset -1px -1px 0 var(--mc-shadow),
+    1px 2px 2px rgb(0 0 0 / 35%);
+}
+.mb-strip .mb-group:has(> .mb-tool-plate) {
+  gap: 4px;
 }
 .mb-strip .mb-key {
   box-shadow:
