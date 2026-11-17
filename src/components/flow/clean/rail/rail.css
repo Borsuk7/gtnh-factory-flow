@@ -39,6 +39,20 @@
   border-left: 1px solid #0c0d10;
 }
 
+.rail-header {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.rail-root[data-selection] .rail-header::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--rail-selection-extension)) 0;
+  border: 1px solid var(--cc-select);
+  pointer-events: none;
+  z-index: 1;
+}
 .rail-head {
   flex: none;
   display: flex;

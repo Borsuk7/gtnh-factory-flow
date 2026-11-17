@@ -425,31 +425,38 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
         }
       }}
     >
-      <div className="rail-head">
-        <span className="rail-head-title">{inSelection ? "SELECTION" : "OVERVIEW"}</span>
-        {inSelection && (
-          <span className="rail-selection-count">
-            {selectionSummary.filter(([count]) => count > 0)
-              .map(([count, label]) => `${count} ${label}${count === 1 ? "" : "s"}`).join(", ")}
-          </span>
-        )}
-        <RailKey
-          label="Fold the overview"
-          className="rail-key-fold"
-          onClick={() => writeRailView({ open: false })}
-          tip={() => ({ title: "Fold the overview" })}
-        >
-          <FoldGlyph direction={side} />
-        </RailKey>
+      <div
+        className="rail-header"
+        style={inSelection ? {
+          "--rail-selection-extension": `${Math.max(0, layout.resourcesHeight - scrollTop - 2)}px`,
+        } as CSSProperties : undefined}
+      >
+        <div className="rail-head">
+          <span className="rail-head-title">{inSelection ? "SELECTION" : "OVERVIEW"}</span>
+          {inSelection && (
+            <span className="rail-selection-count">
+              {selectionSummary.filter(([count]) => count > 0)
+                .map(([count, label]) => `${count} ${label}${count === 1 ? "" : "s"}`).join(", ")}
+            </span>
+          )}
+          <RailKey
+            label="Fold the overview"
+            className="rail-key-fold"
+            onClick={() => writeRailView({ open: false })}
+            tip={() => ({ title: "Fold the overview" })}
+          >
+            <FoldGlyph direction={side} />
+          </RailKey>
+        </div>
+        <input
+          className="rail-filter"
+          placeholder="Filter resources..."
+          value={filter}
+          spellCheck={false}
+          onChange={(event) => setFilter(event.target.value)}
+          aria-label="Filter resources"
+        />
       </div>
-      <input
-        className="rail-filter"
-        placeholder="Filter resources..."
-        value={filter}
-        spellCheck={false}
-        onChange={(event) => setFilter(event.target.value)}
-        aria-label="Filter resources"
-      />
       <div
         ref={scroller}
         className="rail-list"

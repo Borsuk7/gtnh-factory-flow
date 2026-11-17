@@ -72,7 +72,7 @@ export function lineHeight(setterCount: number): number {
   return ROW_H + Math.max(0, setterCount - 1) * SETTER_H;
 }
 
-export function layoutRail(input: LayoutInput): { placed: Placed[]; height: number } {
+export function layoutRail(input: LayoutInput): { placed: Placed[]; height: number; resourcesHeight: number } {
   const { rail, spares, filter, folded, peak, selection } = input;
   const placed: Placed[] = [];
   let y = 0;
@@ -147,6 +147,7 @@ export function layoutRail(input: LayoutInput): { placed: Placed[]; height: numb
     resources("INTERNAL", "internal", totals.internal, "Nothing internal.");
   }
 
+  const resourcesHeight = y;
   // A folded section keeps its sliders reachable: they are not drawn, but a held bar is found by key.
   const groupsOf = new Map<string, RailMachine[]>();
   for (const entry of rail.machines) {
@@ -167,7 +168,7 @@ export function layoutRail(input: LayoutInput): { placed: Placed[]; height: numb
   );
   if (machinesFolded) {
     y += GAP;
-    return { placed, height: y };
+    return { placed, height: y, resourcesHeight };
   }
   const used = peak ? rail.power.peak : rail.power.average;
   if (rail.power.hasMade) {
@@ -182,7 +183,7 @@ export function layoutRail(input: LayoutInput): { placed: Placed[]; height: numb
       "e:MACHINES",
     );
     y += GAP;
-    return { placed, height: y };
+    return { placed, height: y, resourcesHeight };
   }
   for (const [name, entries] of groupsOf) {
     push({ t: "group", name, entries }, ROW_H, `g:${name}`);
@@ -190,7 +191,7 @@ export function layoutRail(input: LayoutInput): { placed: Placed[]; height: numb
     y += 1;
   }
   y += GAP;
-  return { placed, height: y };
+  return { placed, height: y, resourcesHeight };
 }
 
 /** The items overlapping [from, to]. */
