@@ -742,18 +742,32 @@
   color: var(--cc-gold);
 }
 
-/* One thing selected: no ring (the mod's showsSelected); the lit and accepting rings stay. */
-.react-flow__nodes:not(:has(> .react-flow__node.selected ~ .react-flow__node.selected)) .cd[data-selected]:not([data-lit]):not([data-accepts]) .cd-edge {
-  box-shadow: 6px 8px 7px rgba(0, 0, 0, 0.36);
+/* The glow follows the drawer silhouette, including clipped corners. */
+.react-flow__node[data-overview-lit] .cd:not([data-accepts]) {
+  --cd-overview-selection: transparent;
 }
-.react-flow__nodes:not(:has(> .react-flow__node.selected ~ .react-flow__node.selected)) .cd[data-selected][data-lit] .cd-edge {
+.react-flow__node[data-overview-lit] .cd[data-selected]:not([data-accepts]) {
+  --cd-overview-selection: var(--cc-select);
+}
+.react-flow__node[data-overview-lit] .cd:not([data-accepts], [data-kind="trash"], [data-kind="buffer"]) .cd-edge {
+  outline: 2px solid var(--glow-line);
+  outline-offset: 2px;
   box-shadow:
-    0 0 0 1px rgba(255, 210, 87, 0.086),
-    0 0 0 2px rgba(255, 210, 87, 0.086),
-    0 0 0 3px rgba(255, 210, 87, 0.086),
+    0 0 0 2px var(--cd-overview-selection),
+    0 0 9px 4px var(--glow-halo),
     6px 8px 7px rgba(0, 0, 0, 0.36);
 }
-.react-flow__nodes:not(:has(> .react-flow__node.selected ~ .react-flow__node.selected)) .cd[data-kind="trash"][data-selected]:not([data-lit]),
-.react-flow__nodes:not(:has(> .react-flow__node.selected ~ .react-flow__node.selected)) .cd[data-kind="buffer"][data-selected]:not([data-lit]) {
-  filter: drop-shadow(6px 8px 7px rgba(0, 0, 0, 0.36));
+.react-flow__node[data-overview-lit] .cd:is([data-kind="trash"], [data-kind="buffer"]):not([data-accepts]) {
+  filter: drop-shadow(2px 0 0 var(--glow-line)) drop-shadow(-2px 0 0 var(--glow-line))
+    drop-shadow(0 2px 0 var(--glow-line)) drop-shadow(0 -2px 0 var(--glow-line))
+    drop-shadow(0 0 7px var(--glow-halo));
+}
+.react-flow__node[data-overview-lit] .cd:is([data-kind="trash"], [data-kind="buffer"])[data-selected] .cd-edge {
+  background: var(--cc-select);
+}
+.react-flow__node[data-overview-lit] .cd-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 210, 87, 0.14);
 }

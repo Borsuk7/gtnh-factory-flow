@@ -11,7 +11,7 @@ modes keep it.
   11.2 from the solver's notes). `rail-data.ts` shares one computation per (project, solve).
 - Selecting machines, drawers, or a board with either scopes the shared resource list to that selection.
   The rates use the current solve's wires, open ports, forced ports, and drawer boundaries. Clearing the
-  selection restores the full Overview.
+  selection restores the full Overview. The machine list stays at the bottom and continues to cover the plan.
 - Edits go through `rail-actions.ts`: the store's own actions (one undo step each), except a spare's split while its bar
   is in hand (`previewSpare`: re-solves, no history; `endSpareDrag`: one undo step made from the project as it was
   taken, or none if the split did not move). Wheel steps are held on screen and committed once the wheel is still

@@ -102,6 +102,17 @@ it("opens with INTERNAL folded, as the mod does", () => {
   expect(folded).toEqual(["INTERNAL"]);
 });
 
+it("keeps the whole-plan machine list below the selected resources", () => {
+  load(mockLeftovers);
+  const { container } = render(<OverviewRail />);
+  act(() => useFactoryStore.getState().setSelectedBoardIds(["crush"]));
+  expect(screen.getByText("1 machine")).toBeTruthy();
+  const titles = [...container.querySelectorAll(".rail-sec-title")].map((e) => e.textContent);
+  expect(titles).toEqual(["INPUTS", "OUTPUTS", "INTERNAL", "MACHINES"]);
+  expect(container.querySelectorAll(".rail-machine")).toHaveLength(4);
+  act(() => useFactoryStore.getState().setSelectedBoardIds([]));
+});
+
 it("folds to a strip and remembers it per device", () => {
   load(mockLeftovers);
   const { container } = render(<OverviewRail />);

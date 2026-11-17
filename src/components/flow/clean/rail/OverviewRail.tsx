@@ -267,7 +267,8 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
   const view = useRailView();
   const { rail, spares } = useRailData();
   const selection = useRailSelection();
-  const selectedRail = selection?.rail;
+  const selectedResources = selection?.resources;
+  const inSelection = Boolean(selection);
   const workspace = useWorkspaceView();
   const peak = !workspace.averageMachineDraw;
   const [filter, setFilter] = useState("");
@@ -299,14 +300,13 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
   const folded = useMemo(() => new Set(view.folded), [view.folded]);
   const layout = useMemo(
     () => layoutRail({
-      rail: selectedRail ?? rail,
-      spares: selectedRail ? [] : spares,
-      selection: Boolean(selectedRail),
+      rail,
+      spares: inSelection ? [] : spares,
+      selection: inSelection ? { resources: selectedResources } : undefined,
       filter, folded, peak,
     }),
-    [selectedRail, rail, spares, filter, folded, peak],
+    [inSelection, selectedResources, rail, spares, filter, folded, peak],
   );
-  const inSelection = Boolean(selection);
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = 0;
   }, [inSelection]);
@@ -458,9 +458,8 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
           anchorKey.current = null;
         }}
       >
-        {selection?.pending && <div className="rail-empty" role="status">Calculating plan…</div>}
         <div className="rail-canvas" style={{ height: layout.height }}>
-          {!selection?.pending && visible.map((placed) => (
+          {visible.map((placed) => (
             <div
               key={placed.key}
               className="rail-item"
@@ -499,7 +498,7 @@ const ItemView = memo(function ItemView({
     case "section":
       return <SectionBar item={item} euText={euText} peak={peak} />;
     case "empty":
-      return <div className="rail-empty">{item.text}</div>;
+      return <div className="rail-empty" role={item.pending ? "status" : undefined}>{item.text}</div>;
     case "line":
       return <LineRow item={item} state={state} />;
     case "spare":

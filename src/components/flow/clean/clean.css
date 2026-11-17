@@ -1135,16 +1135,33 @@
     0 0 0 min(max(5px, calc(8px / var(--board-zoom, 1))), 32px) var(--cc-red);
 }
 
-/* A selection outline shows only when several things are selected (the mod's BoardSession.showsSelected): with one
-   selected (no selected node followed by another), the card wears no ring; "cannot run" keeps its red. */
-.react-flow__nodes:not(:has(> .react-flow__node.selected ~ .react-flow__node.selected))
-  .cc-card[data-selected]::before {
-  box-shadow: none;
-}
-.react-flow__nodes:not(:has(> .react-flow__node.selected ~ .react-flow__node.selected))
-  .cc-card[data-selected][data-cannot-run]::before {
-  box-shadow: 0 0 0 2px var(--cc-red);
-}
 .factory-flow-board .react-flow__node[data-overview-lit] {
   z-index: 1500 !important;
+}
+
+/* Keep the gold resource ring separate from the cyan selection ring. */
+.react-flow__node[data-overview-lit] .cc-card {
+  --cc-overview-ring: 3px;
+  --cc-overview-outset: 4px;
+  --cc-overview-blur: 15px;
+  outline: var(--cc-overview-ring) solid var(--glow-line);
+  outline-offset: var(--cc-overview-outset);
+}
+.factory-flow-board[data-detail-level="glance"] .react-flow__node[data-overview-lit] .cc-card {
+  --cc-overview-ring: clamp(3px, calc(3px / var(--board-zoom, 1)), 14px);
+  --cc-overview-outset: 0px;
+  --cc-overview-blur: clamp(15px, calc(12px / var(--board-zoom, 1)), 36px);
+}
+.factory-flow-board[data-detail-level="glance"] .react-flow__node[data-overview-lit] .cc-card[data-selected] {
+  --cc-overview-outset: clamp(8px, calc(10px / var(--board-zoom, 1)), 35px);
+}
+.react-flow__node[data-overview-lit]:not([data-drop-fit="yes"]) .cc-card:not([data-snapped])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: rgba(255, 210, 87, 0.14);
+  box-shadow:
+    0 0 var(--cc-overview-blur) calc(var(--cc-overview-outset) + var(--cc-overview-ring)) var(--glow-halo);
 }

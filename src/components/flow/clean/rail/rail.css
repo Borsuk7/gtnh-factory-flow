@@ -68,7 +68,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rail-root[data-selection] .rail-controls {
+.rail-root[data-selection] .rail-line .rail-controls {
   display: none;
 }
 

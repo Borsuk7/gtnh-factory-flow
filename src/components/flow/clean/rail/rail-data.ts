@@ -5,7 +5,7 @@ import { expandPocketSelection } from "@/lib/model/pocket-connections";
 import type { FactoryProject, ThroughputResult } from "@/lib/model/types";
 import { measureSelectionFlow } from "@/lib/solver/selection-flow";
 import { useFactoryStore } from "@/store/factory-store";
-import { buildRailModel, buildResourceLookup, EMPTY_RAIL, RAIL_EPS, type RailLine, type RailModel } from "./rail-model";
+import { buildRailModel, buildResourceLookup, RAIL_EPS, type RailLine, type RailModel } from "./rail-model";
 import { buildSpares, type SpareView } from "./spare-model";
 
 /**
@@ -55,8 +55,8 @@ export function useRailSelection() {
   }, [project, ids]);
   const hasSelection = Boolean(selection);
   const lookup = useMemo(() => hasSelection ? buildResourceLookup(project) : undefined, [hasSelection, project]);
-  const rail = useMemo(() => {
-    if (!selection || !lookup || result.stale) return EMPTY_RAIL;
+  const resources = useMemo(() => {
+    if (!selection || !lookup || result.stale) return undefined;
     const flow = measureSelectionFlow(project, result, selection.itemIds);
     const lines = (rows: typeof flow.inputs): RailLine[] => rows
       .filter((row) => row.amountPerSecond > RAIL_EPS)
@@ -73,8 +73,8 @@ export function useRailSelection() {
           open: [],
         };
       });
-    return { ...EMPTY_RAIL, inputs: lines(flow.inputs), outputs: lines(flow.outputs), internal: lines(flow.internal) };
+    return { inputs: lines(flow.inputs), outputs: lines(flow.outputs), internal: lines(flow.internal) };
   }, [project, result, selection, lookup]);
   const pending = result.stale || liveResult.stale;
-  return selection ? { machines: selection.machines, drawers: selection.drawers, rail, pending } : undefined;
+  return selection ? { machines: selection.machines, drawers: selection.drawers, resources: pending ? undefined : resources } : undefined;
 }

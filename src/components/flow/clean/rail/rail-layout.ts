@@ -29,7 +29,7 @@ export type Setter = RailDrawer | RailPin;
 
 export type RailItem =
   | { t: "section"; id: SectionId; count: number; shown: number; folded: boolean }
-  | { t: "empty"; text: string }
+  | { t: "empty"; text: string; pending?: boolean }
   | {
       t: "line";
       section: "inputs" | "outputs" | "internal";
@@ -56,7 +56,7 @@ export interface LayoutInput {
   filter: string;
   folded: ReadonlySet<string>;
   peak: boolean;
-  selection?: boolean;
+  selection?: { resources?: Pick<RailModel, "inputs" | "outputs" | "internal"> };
 }
 
 const matches = (filter: string, label: string) => {
@@ -137,10 +137,15 @@ export function layoutRail(input: LayoutInput): { placed: Placed[]; height: numb
     y += GAP;
   };
 
-  resources("INPUTS", "inputs", rail.inputs, selection ? "No inputs." : "Nothing missing.");
-  resources("OUTPUTS", "outputs", rail.outputs, selection ? "No outputs." : "Nothing coming out yet.");
-  resources("INTERNAL", "internal", rail.internal, "Nothing internal.");
-  if (selection) return { placed, height: y };
+  if (selection && !selection.resources) {
+    push({ t: "empty", text: "Calculating plan…", pending: true }, ROW_H, "e:pending");
+    y += GAP;
+  } else {
+    const totals = selection?.resources ?? rail;
+    resources("INPUTS", "inputs", totals.inputs, selection ? "No inputs." : "Nothing missing.");
+    resources("OUTPUTS", "outputs", totals.outputs, selection ? "No outputs." : "Nothing coming out yet.");
+    resources("INTERNAL", "internal", totals.internal, "Nothing internal.");
+  }
 
   // A folded section keeps its sliders reachable: they are not drawn, but a held bar is found by key.
   const groupsOf = new Map<string, RailMachine[]>();
