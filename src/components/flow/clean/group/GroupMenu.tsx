@@ -14,7 +14,9 @@ import { requestGroupRename } from "./group-rename";
  * A group's right-click menu (docs/groups.md, "Menus"), the mod's rows and words: Rename, Collapse or Expand, Colour...,
  * Ungroup (keeps contents), and in red Delete group and contents. The mod's twin is `ui/group/GroupCard.openMenu`.
  */
-export function GroupMenu({ pocket, x, y, onClose }: { pocket: FactoryPocket; x: number; y: number; onClose: () => void }) {
+export function GroupMenu({ pocket, x, y, onClose, onSaveBlueprint }: {
+  pocket: FactoryPocket; x: number; y: number; onClose: () => void; onSaveBlueprint?: () => void;
+}) {
   const [view, setView] = useState<"main" | "colour">("main");
   const store = () => useFactoryStore.getState();
   const run = (action: () => void) => () => {
@@ -49,6 +51,7 @@ export function GroupMenu({ pocket, x, y, onClose }: { pocket: FactoryPocket; x:
         <MenuRow label="Expand" onClick={run(() => store().expandPocket(pocket.id))} />
       )}
       <MenuRow label="Colour..." onClick={() => setView("colour")} />
+      {onSaveBlueprint ? <MenuRow label="Save group as blueprint" onClick={onSaveBlueprint} /> : null}
       <MenuRow
         label="Ungroup (keeps contents)"
         onClick={run(() => {

@@ -85,6 +85,7 @@ import {
   TRASH_ANY_RESOURCE_ID,
 } from "@/lib/model/trash";
 import { optimizeMachineCountsForProject } from "@/lib/solver/machine-count-optimizer";
+import { planWithMachineSizes, type MachineSize } from "@/lib/solver/plan-sizing";
 import {
   BOARD_GRID,
   BOARD_WINDOW_DEFAULT_SIZE,
@@ -822,6 +823,7 @@ interface FactoryStore {
   autoConnectNode: (nodeId: string) => void;
   optimizeMachineCount: (nodeId: string) => void;
   optimizeMachineCounts: () => void;
+  applyPlanSizes: (base: FactoryProject, sizes: readonly MachineSize[]) => boolean;
   /** One wire, or a batch deleted together as a single undo entry. */
   deleteEdge: (edgeId: string | string[]) => void;
   setTargetRate: (targetRate?: TargetRate) => void;
@@ -3644,6 +3646,12 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
       const payloadRecipesById = new Map(payload.recipes.map((recipe) => [recipe.id, recipe]));
       const projectRecipeIds = new Set(state.project.recipes.map((recipe) => recipe.id));
       const addedRecipes: Recipe[] = [];
+      const carryRecipe = (id: string) => {
+        const recipe = payloadRecipesById.get(id);
+        if (!recipe || projectRecipeIds.has(id)) return;
+        addedRecipes.push(structuredClone(recipe));
+        projectRecipeIds.add(id);
+      };
       const idMap = new Map<string, string>();
       const groupMap = new Map((payload.productionGroups ?? []).map((group) => [group.id, createId("production-group")]));
       const productionGroups = (payload.productionGroups ?? []).map((group) => ({ ...structuredClone(group),
@@ -3691,18 +3699,15 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
         clone.pocketId = rehome(node.pocketId);
         clone.productionGroupId = node.productionGroupId ? groupMap.get(node.productionGroupId) : undefined;
         clone.position = placeAt(node.position, clone.pocketId);
-        // Custom rate nodes own their recipe (the dialed rate lives on it) -
-        // same rule as duplicateNode, or both cards would share one dial.
-        if (isCustomRateRecipe(recipe)) {
+        // The dial or baked power settings belong to this card's own recipe.
+        if (isCustomRateRecipe(recipe) || isPowerRecipe(recipe)) {
           const recipeClone = { ...structuredClone(recipe), id: createId("recipe") };
           clone.recipeId = recipeClone.id;
           addedRecipes.push(recipeClone);
-        } else if (!projectRecipeIds.has(recipe.id)) {
-          // Pasting into a design that has never seen this recipe: the
-          // clipboard carries the copy, exactly like plan import does.
-          addedRecipes.push(structuredClone(recipe));
-          projectRecipeIds.add(recipe.id);
+        } else {
+          carryRecipe(recipe.id);
         }
+        for (const section of clone.extraRecipes ?? []) carryRecipe(section.recipeId);
         nodes.push(clone);
       }
       const storages = payload.storages.map((storage) => {
@@ -4818,6 +4823,13 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
         lastResult: solveBooks(project),
       });
     });
+  },
+  applyPlanSizes: (base, sizes) => {
+    const state = get();
+    if (state.isReadOnly || state.checklistMode || state.project !== base || sizes.length === 0) return false;
+    const project = touchProject(planWithMachineSizes(base, sizes));
+    set(withProjectHistory(state, { project, lastResult: solveBooks(project) }));
+    return true;
   },
   optimizeMachineCount: (nodeId) => {
     set((state) => {

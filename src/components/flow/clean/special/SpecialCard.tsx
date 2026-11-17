@@ -603,6 +603,8 @@ export function SpecialCard({ model, recipe, node }: SpecialCardProps) {
           {listOpen && listAnchor ? (
             <MachineListMenu
               anchor={listAnchor}
+              recipe={context.nodeRecipe}
+              node={node}
               handlers={context.machineHandlers}
               selectedId={context.selectedMachineHandler?.id ?? ""}
               recipeMap={recipe.source?.recipeMap ?? recipe.machineType}

@@ -1,6 +1,7 @@
 import { isRecipeInputConsumed, makeResourceKey } from "../model/resources";
 import { applyRecipeInputOverrides } from "../model/recipe-input-overrides";
 import { applyMachineHandlerToRecipe } from "../model/recipe-rules";
+import { handleSection, listNodeSections, sectionHandleId } from "../model/shared-machine";
 import type { FactoryProject, FactoryStorage, ResourceKey } from "../model/types";
 import { getRuntimeCalculationOutputs } from "./runtime-calculation";
 
@@ -55,6 +56,7 @@ export function closeBoundaries(
   const storages: FactoryStorage[] = [...(project.storages ?? [])];
   const edges = [...project.edges];
   const storageIds = new Set(storages.map((storage) => storage.id));
+  const edgeIds = new Set(edges.map((edge) => edge.id));
 
   // Every slot that already has a wire on it, keyed by node and side. Read
   // from the ORIGINAL edges: the boundary edges this adds must not count as
@@ -62,14 +64,14 @@ export function closeBoundaries(
   const playerWired = new Set<string>();
   for (const edge of project.edges) {
     const key = makeResourceKey(edge.resourceKind, edge.resourceId);
-    playerWired.add(`${edge.target}|in|${key}`);
-    playerWired.add(`${edge.source}|out|${key}`);
+    playerWired.add(`${edge.target}|${handleSection(edge.targetHandle)}|in|${key}`);
+    playerWired.add(`${edge.source}|${handleSection(edge.sourceHandle)}|out|${key}`);
   }
   // What this function has already put down, so a recipe listing one resource
   // in two slots gets one drawer rather than two.
   const attached = new Set<string>();
-  const needsDrawer = (nodeId: string, side: "in" | "out", key: ResourceKey) => {
-    const slot = `${nodeId}|${side}|${key}`;
+  const needsDrawer = (nodeId: string, section: number, side: "in" | "out", key: ResourceKey) => {
+    const slot = `${nodeId}|${section}|${side}|${key}`;
     if (attached.has(slot)) {
       return false;
     }
@@ -104,60 +106,54 @@ export function closeBoundaries(
   let seq = 0;
   const attach = (
     nodeId: string,
+    section: number,
     side: "in" | "out",
     kind: FactoryStorage["kind"],
     resourceId: string,
   ) => {
     seq += 1;
     let id = `boundary-${side}-${seq}`;
-    while (storageIds.has(id)) {
+    while (storageIds.has(id) || edgeIds.has(`boundary-edge-${side}-${seq}`)) {
       seq += 1;
       id = `boundary-${side}-${seq}`;
     }
     storageIds.add(id);
+    const handle = sectionHandleId(section, `${side === "in" ? "input" : "output"}:${kind}:${encodeURIComponent(resourceId)}`);
     storages.push({ id, kind, resourceId, position: positionFor(nodeId, side) });
     edges.push({
       id: `boundary-edge-${side}-${seq}`,
       source: side === "in" ? id : nodeId,
       target: side === "in" ? nodeId : id,
+      ...(section > 0 ? (side === "in" ? { targetHandle: handle } : { sourceHandle: handle }) : {}),
       resourceKind: kind,
       resourceId,
     });
   };
 
-  for (const node of project.nodes) {
-    if (node.enabled === false) {
+  for (const card of project.nodes) {
+    if (card.enabled === false) {
       continue;
     }
-    const recipe = recipesById.get(node.recipeId);
-    if (!recipe) {
-      continue;
-    }
-    // The node's REAL ports, not the raw recipe's: an oredict slot pinned to
-    // a concrete item consumes that item, and a handler or a runtime variant
-    // can change what comes out. A drawer on a port the solve does not have
-    // is an edge the solve drops (a silent starve). Only the keys matter, not
-    // rates, so this can run before the solver.
-    const nodeRecipe = applyRecipeInputOverrides(recipe, node);
-    const effectiveRecipe = applyMachineHandlerToRecipe(nodeRecipe, node);
-    const outputs = getRuntimeCalculationOutputs(effectiveRecipe, node) ?? effectiveRecipe.outputs;
-    // Non-consumed inputs are not ingredients and never need a feeder.
-    for (const input of nodeRecipe.inputs) {
-      if (!isRecipeInputConsumed(input) || (input.amount ?? 0) <= 0) {
-        continue;
+    for (const { section, node } of listNodeSections(card)) {
+      const recipe = recipesById.get(node.recipeId);
+      if (!recipe) continue;
+      // A boundary drawer follows the port after the input overrides and machine are applied.
+      const nodeRecipe = applyRecipeInputOverrides(recipe, node);
+      const effectiveRecipe = applyMachineHandlerToRecipe(nodeRecipe, node);
+      const outputs = getRuntimeCalculationOutputs(effectiveRecipe, node) ?? effectiveRecipe.outputs;
+      for (const input of nodeRecipe.inputs) {
+        if (!isRecipeInputConsumed(input) || (input.amount ?? 0) <= 0) continue;
+        const key = makeResourceKey(input.kind, input.id);
+        if (needsDrawer(card.id, section, "in", key)) {
+          attach(card.id, section, "in", input.kind, input.id);
+        }
       }
-      const key = makeResourceKey(input.kind, input.id);
-      if (needsDrawer(node.id, "in", key)) {
-        attach(node.id, "in", input.kind as FactoryStorage["kind"], input.id);
-      }
-    }
-    for (const output of outputs) {
-      if ((output.amount ?? 0) <= 0) {
-        continue;
-      }
-      const key = makeResourceKey(output.kind, output.id);
-      if (needsDrawer(node.id, "out", key)) {
-        attach(node.id, "out", output.kind as FactoryStorage["kind"], output.id);
+      for (const output of outputs) {
+        if ((output.amount ?? 0) <= 0) continue;
+        const key = makeResourceKey(output.kind, output.id);
+        if (needsDrawer(card.id, section, "out", key)) {
+          attach(card.id, section, "out", output.kind, output.id);
+        }
       }
     }
   }

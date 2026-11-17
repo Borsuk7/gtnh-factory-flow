@@ -134,17 +134,20 @@ opens a short list with the current choice ticked; red rows lose something and s
 
 | Right-click on | Rows |
 | --- | --- |
-| The board | Add sticky note, Add box, Add arrow (website: New product drawer) |
-| A card (anywhere but an item) | the card's actions key rows: Clone node, (mod: Show in the world, Remove from the world, once placed), Delete node |
+| The board | Add sticky note, Add box, Add arrow (website: New product drawer, Place blueprint, Save selection as blueprint) |
+| A card (anywhere but an item) | the card's actions key rows: Clone node, (mod: Show in the world, Remove from the world, once placed), Delete node (website: Save card or selection as blueprint) |
 | A drawer | its rule key's rows (Any, At least, Exactly, At most, the current one ticked; Void it (trash) / Keep it (product)), Delete drawer |
 | A sticky note | Write on it, Colour..., Bigger text, Smaller text, Delete note |
 | A box or zone / an arrow | Colour..., Fill..., Border..., Marks..., Delete box / Colour..., Thickness..., Heads..., Delete arrow |
-| A group (title strip, border, summary card) | Rename, Collapse or Expand, Colour..., Ungroup (keeps contents), Delete group and contents |
+| A group (title strip, border, summary card) | Rename, Collapse or Expand, Colour..., Ungroup (keeps contents), Delete group and contents (website: Save group as blueprint) |
 | A wire (website) | Add a drawer here, Delete wire |
 | An item (a port's or a drawer's resource icon) | not a menu: it looks the item up, recipes (uses with Shift), as R and U do |
 
 There is no "Add to group" row anywhere: things go in and out of groups by dragging, and groups are made with the
 Group key or Ctrl+G.
+
+Blueprints on the website are saved on this device. Right-click on empty board space in any plan to place a saved
+blueprint there. A group carries its contents and internal wires. Each placement creates a new copy.
 
 ## Arrange
 

@@ -1,6 +1,7 @@
 import { getMachineBehaviour } from "@/lib/machines/machine-table";
 import { applyMachineHandlerToRecipe } from "@/lib/model/recipe-rules";
 import { getFusionMachine } from "@/lib/machines/fusion";
+import { energyHatchTypeExistsAtTier } from "@/lib/machines/energy-hatches";
 import {
   GT_VOLTAGE_TIERS,
   getRecipeMinimumVoltageTier,
@@ -8,7 +9,7 @@ import {
   getVoltageTierIndex,
   getVoltageTierMaxEuT,
 } from "@/lib/model/tiers";
-import type { FactoryNode, FactoryProject, Recipe } from "@/lib/model/types";
+import type { FactoryNode, FactoryProject, MachineHandler, Recipe } from "@/lib/model/types";
 import { getMachineStructuralParallels, getMachineEutMultiplier } from "./machine-effects";
 import { getHeatDiscountMultiplier } from "./heat";
 import {
@@ -20,6 +21,17 @@ import {
 
 /** Highest selectable amperage; raw EU/t remains an explicit power budget. */
 export const MAX_HATCH_AMPS = 16_777_216;
+
+export function machineSwitchPatch(recipe: Recipe, node: FactoryNode, next: MachineHandler): Partial<FactoryNode> {
+  return {
+    machineHandlerId: next.id,
+    overclockTier: next.minimumTier,
+    ...(energyHatchTypeExistsAtTier(node.energyHatchType, next.minimumTier)
+      ? undefined
+      : { energyHatchType: undefined }),
+    ...carryMachineVoltage({ recipe, node }, { recipe, machineHandlerId: next.id }),
+  };
+}
 
 /** Seed new cards at recipe minimum; preserve legacy operating voltage on load. */
 export function normalizeHatchInput(

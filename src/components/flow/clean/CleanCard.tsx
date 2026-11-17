@@ -1029,6 +1029,8 @@ export function CleanCard({ view, actions, context, recipe, node }: CleanCardPro
           {listOpen && listAnchor ? (
             <MachineListMenu
               anchor={listAnchor}
+              recipe={context.nodeRecipe}
+              node={node}
               handlers={context.machineHandlers}
               selectedId={context.selectedMachineHandler.id}
               recipeMap={recipe.source?.recipeMap ?? recipe.machineType}

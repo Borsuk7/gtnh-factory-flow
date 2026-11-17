@@ -1,8 +1,39 @@
 import { expandPocketSelection } from "../model/pocket-connections";
-import type { FactoryProject, ResourceBalance, ResourceKey } from "../model/types";
+import { withPinRule } from "../model/pin-rule";
+import type { FactoryProject, ResourceBalance, ResourceFlow, ResourceKey, ThroughputResult } from "../model/types";
 import { selectInternalBalances } from "./balances";
 import { closeBoundaries } from "./close-boundaries";
 import { calculateThroughput } from "./throughput";
+
+export function measureSelectionFlow(
+  project: FactoryProject,
+  result: ThroughputResult,
+  selectedIds: readonly string[],
+) {
+  const { itemIds } = expandPocketSelection(project, selectedIds);
+  const groups = {
+    inputs: new Map<ResourceKey, ResourceFlow>(),
+    outputs: new Map<ResourceKey, ResourceFlow>(),
+    internal: new Map<ResourceKey, ResourceFlow>(),
+  };
+  for (const edge of project.edges) {
+    const source = itemIds.has(edge.source);
+    const target = itemIds.has(edge.target);
+    if (!source && !target) continue;
+    const solved = result.edges[edge.id];
+    if (!solved || !(solved.transferredPerSecond > 0)) continue;
+    const rows = source && target ? groups.internal : target ? groups.inputs : groups.outputs;
+    const resource = solved.resource;
+    const rate = (rows.get(resource.key)?.amountPerSecond ?? 0) + solved.transferredPerSecond;
+    rows.set(resource.key, { ...resource, amountPerSecond: rate });
+  }
+  return {
+    itemIds,
+    inputs: [...groups.inputs.values()],
+    outputs: [...groups.outputs.values()],
+    internal: [...groups.internal.values()],
+  };
+}
 
 /**
  * The Need/Output/Internal books for a subset of the board.
@@ -21,6 +52,7 @@ export interface SelectionFlow {
   storageCount: number;
   /** The selection's own power draw, for the panel's EU-per-unit reading. */
   totalEuT: number;
+  unsized?: boolean;
 }
 
 /**
@@ -43,7 +75,17 @@ export interface SelectionFlow {
 export function calculateSelectionFlow(
   project: FactoryProject,
   selectedIds: readonly string[],
+  previewMachine?: { id: string; count: number },
 ): SelectionFlow | undefined {
+  const scenario = prepareSelectionFlow(project, selectedIds, previewMachine);
+  return scenario?.summarize(calculateThroughput(scenario.project, { generatedAt: "selection" }));
+}
+
+export function prepareSelectionFlow(
+  project: FactoryProject,
+  selectedIds: readonly string[],
+  previewMachine?: { id: string; count: number },
+) {
   if (selectedIds.length === 0) {
     return undefined;
   }
@@ -63,7 +105,9 @@ export function calculateSelectionFlow(
 
   const scoped: FactoryProject = {
     ...project,
-    nodes,
+    nodes: previewMachine && project.planMode
+      ? nodes.map((node) => node.id === previewMachine.id ? withPinRule(node, "exact", previewMachine.count) : node)
+      : nodes,
     storages,
     annotations: [],
     // Wires survive only with both feet inside, exactly as a copy or a
@@ -81,17 +125,17 @@ export function calculateSelectionFlow(
   //
   // Not cloned: the solver only reads the project, and a selection re-solves
   // often enough that a deep copy of every selected card would show.
-  const result = calculateThroughput(closeBoundaries(scoped), {
-    generatedAt: "selection",
-  });
-
   return {
-    resources: result.resources,
-    externalInputs: result.externalInputs,
-    unconsumedOutputs: result.unconsumedOutputs,
-    internal: selectInternalBalances(Object.values(result.resources)),
-    machineCount: nodes.length,
-    storageCount: storages.length,
-    totalEuT: result.totalEuT,
+    project: closeBoundaries(scoped),
+    summarize: (result: ThroughputResult): SelectionFlow => ({
+      resources: result.resources,
+      externalInputs: result.externalInputs,
+      unconsumedOutputs: result.unconsumedOutputs,
+      internal: selectInternalBalances(Object.values(result.resources)),
+      machineCount: nodes.length,
+      storageCount: storages.length,
+      totalEuT: result.totalEuT,
+      unsized: result.plan?.failure?.message === "NO_PIN" || result.plan?.unanchored.some((id) => itemIds.has(id)),
+    }),
   };
 }

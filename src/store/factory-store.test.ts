@@ -1914,6 +1914,26 @@ describe("recipe search wiring and refactor", () => {
 });
 
 describe("factory machine count optimization", () => {
+  it("applies a checked set of machine caps as one undo and rejects a stale preview", () => {
+    const store = useFactoryStore.getState();
+    store.setProject({ ...createRatioOptimizationProject(), planMode: true, solveMode: true });
+    const base = useFactoryStore.getState().project;
+    const sizes = [
+      { id: "dust-source", name: "Source", used: 1.5, count: 2 },
+      { id: "plate-target", name: "Target", used: 1.5, count: 2 },
+    ];
+    const historySize = useFactoryStore.getState().undoHistory.length;
+    expect(store.applyPlanSizes(base, sizes)).toBe(true);
+    expect(useFactoryStore.getState().undoHistory).toHaveLength(historySize + 1);
+    expect(useFactoryStore.getState().project.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "dust-source", solvePin: 2 }),
+      expect.objectContaining({ id: "plate-target", solvePin: 2 }),
+    ]));
+    expect(store.applyPlanSizes(base, sizes)).toBe(false);
+    store.undo();
+    expect(useFactoryStore.getState().project.nodes).toEqual(base.nodes);
+  });
+
   it("propagates suggested machine counts through connected recipe chains", () => {
     useFactoryStore.getState().setProject(createRatioOptimizationProject());
 
@@ -4051,13 +4071,16 @@ describe("board selection editing", () => {
 
   it("carries clipboard recipes into a design that lacks them", () => {
     const source = useFactoryStore.getState().project;
+    const primary = source.recipes.find((recipe) => recipe.id === "smelt")!;
     const payload = structuredClone({
-      nodes: source.nodes.filter((node) => node.id === "alpha"),
+      nodes: source.nodes.filter((node) => node.id === "alpha").map((node) => ({
+        ...node, extraRecipes: [{ recipeId: "second-smelt" }],
+      })),
       storages: [],
       annotations: [],
       pockets: [],
       edges: [],
-      recipes: source.recipes.filter((recipe) => recipe.id === "smelt"),
+      recipes: [primary, { ...primary, id: "second-smelt" }],
     });
 
     useFactoryStore.getState().setProject({
@@ -4073,8 +4096,9 @@ describe("board selection editing", () => {
 
     const project = useFactoryStore.getState().project;
     expect(pastedIds).toHaveLength(1);
-    expect(project.recipes.map((recipe) => recipe.id)).toEqual(["smelt"]);
+    expect(project.recipes.map((recipe) => recipe.id)).toEqual(["smelt", "second-smelt"]);
     expect(project.nodes[0]?.recipeId).toBe("smelt");
+    expect(project.nodes[0]?.extraRecipes?.[0]?.recipeId).toBe("second-smelt");
   });
 });
 

@@ -238,14 +238,14 @@ export function FactoryPlannerApp() {
   // their history because the right column happened to be closed, and every
   // path that re-solves lands in `lastResult` whether it came from the board,
   // an undo, or a dataset reload.
+  const trendDesign = useRef(activeDesignId);
   useEffect(() => {
-    recordResourceTrend(lastResult);
-  }, [lastResult]);
-
-  // A different design is a different story, so the chart starts over.
-  useEffect(() => {
-    resetResourceTrends();
-  }, [activeDesignId]);
+    if (trendDesign.current !== activeDesignId) {
+      resetResourceTrends();
+      trendDesign.current = activeDesignId;
+    }
+    if (!lastResult.stale) recordResourceTrend(lastResult);
+  }, [activeDesignId, lastResult]);
 
   useEffect(() => {
     let cancelled = false;

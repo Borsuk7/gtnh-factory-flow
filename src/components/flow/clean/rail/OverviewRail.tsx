@@ -79,6 +79,7 @@ import { SpareBlock } from "./SpareBlock";
 import { openAddToTask } from "@/components/tasks/AddToTask";
 import { cardsForTask } from "@/lib/tasks/make-task";
 import { isLiveConfigured } from "@/lib/live/live-config";
+import { OVERVIEW_VIEWS, PlanAnalysis, type OverviewView } from "./PlanAnalysis";
 
 /** Task boards come with live plans: no Add to a task without them. */
 const TASKS_ENABLED = isLiveConfigured();
@@ -269,6 +270,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
   const workspace = useWorkspaceView();
   const peak = !workspace.averageMachineDraw;
   const [filter, setFilter] = useState("");
+  const [scopeView, setScopeView] = useState<OverviewView>("plan");
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ drawer: RailDrawer; x: number; y: number } | null>(null);
   const [wheeled, setWheeled] = useState<Record<string, number>>({});
@@ -412,6 +414,18 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
     >
       <div className="rail-head">
         <span className="rail-head-title">OVERVIEW</span>
+        <select
+          className="rail-analysis-key rail-view-picker"
+          aria-label="Overview view"
+          value={scopeView}
+          onChange={(event) => {
+            hideTip();
+            setMenu(null);
+            setScopeView(event.target.value as OverviewView);
+          }}
+        >
+          {Object.entries(OVERVIEW_VIEWS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
         <RailKey
           label="Fold the overview"
           className="rail-key-fold"
@@ -423,6 +437,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
       </div>
       <input
         className="rail-filter"
+        hidden={scopeView !== "plan"}
         placeholder="Filter resources..."
         value={filter}
         spellCheck={false}
@@ -432,6 +447,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
       <div
         ref={scroller}
         className="rail-list"
+        hidden={scopeView !== "plan"}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
         onPointerLeave={() => {
           anchorKey.current = null;
@@ -453,6 +469,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
           ))}
         </div>
       </div>
+      {scopeView !== "plan" ? <PlanAnalysis view={scopeView} /> : null}
       {menu ? (
         <RuleMenu drawer={menu.drawer} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />
       ) : null}

@@ -8,7 +8,8 @@ import { DEFAULT_DATASET_MANIFEST_URL } from "@/lib/datasets/remote";
 import type { DatasetResourceIndexEntry } from "@/lib/datasets/types";
 import type { ResourceAmount } from "@/lib/model/types";
 import { getUiScale } from "@/lib/ui-scale";
-import { useFactoryStore } from "@/store/factory-store";
+import { captureBoardSelection, useFactoryStore } from "@/store/factory-store";
+import { BlueprintShelf, type BlueprintShelfRequest } from "./clean/menus/BlueprintShelf";
 import { AnnotationMenu } from "./clean/note/AnnotationMenu";
 import { BoardMenu, MenuLine, MenuRow } from "./clean/menus/BoardMenu";
 import { CardRows } from "./clean/menus/CardActionsMenu";
@@ -66,6 +67,7 @@ export function BoardContextMenu({
 }) {
   const [picking, setPicking] = useState(false);
   const [background, setBackground] = useState(false);
+  const [blueprint, setBlueprint] = useState<BlueprintShelfRequest>();
   const boardView = useBoardView();
   const annotation = useFactoryStore((state) =>
     target.kind === "annotation" ? state.project.annotations?.find((entry) => entry.id === target.id) : undefined,
@@ -74,6 +76,8 @@ export function BoardContextMenu({
     target.kind === "group" ? state.project.pockets?.find((entry) => entry.id === target.id) : undefined,
   );
   const planMode = useFactoryStore((state) => state.project.planMode === true);
+  const selectedIds = useFactoryStore((state) => state.selectedBoardIds);
+  const editable = useFactoryStore((state) => !state.isReadOnly && !state.checklistMode);
   const datasetManifestUrl = useFactoryStore((state) => state.datasetManifestUrl);
   const datasetManifest = useFactoryStore((state) => state.datasetManifest);
   const selectedDatasetVersionId = useFactoryStore((state) => state.selectedDatasetVersionId);
@@ -141,8 +145,15 @@ export function BoardContextMenu({
     );
   }
 
+  const saveBlueprint = (ids: readonly string[], name: string) => {
+    const payload = captureBoardSelection(useFactoryStore.getState().project, ids);
+    if (payload) setBlueprint({ kind: "save", payload, name });
+  };
+  if (blueprint) return <BlueprintShelf request={blueprint} onClose={onClose} />;
+
   if (target.kind === "group") {
-    return group ? <GroupMenu pocket={group} x={target.x} y={target.y} onClose={onClose} /> : null;
+    return group ? <GroupMenu pocket={group} x={target.x} y={target.y} onClose={onClose}
+      onSaveBlueprint={editable && planMode ? () => saveBlueprint([group.id], group.name) : undefined} /> : null;
   }
   if (target.kind === "annotation") {
     return annotation ? (
@@ -194,6 +205,9 @@ export function BoardContextMenu({
       ) : null}
       {target.kind === "pane" && planMode ? (
         <>
+          {editable && selectedIds.length ? <MenuRow label="Save selection as blueprint"
+            onClick={() => saveBlueprint(selectedIds, "")} /> : null}
+          {editable ? <MenuRow label="Place blueprint…" onClick={() => setBlueprint({ kind: "place", point: target.flow })} /> : null}
           <MenuRow label="Add sticky note" onClick={run(() => addStickyNoteAt(target.flow))} />
           <MenuRow label="Add box" onClick={run(() => addBoxAt(target.flow))} />
           <MenuRow label="Add arrow" onClick={run(() => addArrowAt(target.flow))} />
@@ -203,6 +217,10 @@ export function BoardContextMenu({
       {target.kind === "pane" ? <MenuRow label="New product drawer" onClick={() => setPicking(true)} /> : null}
       {target.kind === "pane" ? <MenuRow label="Background" onClick={() => setBackground(true)} /> : null}
       {target.kind === "node" ? (
+        <>
+        {editable && planMode ? <MenuRow label={selectedIds.includes(target.id) && selectedIds.length > 1
+          ? "Save selection as blueprint" : "Save card as blueprint"}
+          onClick={() => saveBlueprint(selectedIds.includes(target.id) ? selectedIds : [target.id], "")} /> : null}
         <CardRows
           nodeId={target.id}
           onClone={() => cloneWithSound(store().duplicateNode, target.id)}
@@ -214,6 +232,7 @@ export function BoardContextMenu({
           }
           close={onClose}
         />
+        </>
       ) : null}
       {target.kind === "storage" ? (
         <>

@@ -37,8 +37,7 @@ import { getNodePowerReport, getNodeSteamReport, hasPowerReport } from "@/lib/so
 import { isMultiblockRecipe } from "@/lib/solver/power";
 import { prefersCuratedMachineMath } from "@/lib/solver/runtime-calculation";
 import { getFusionMachine } from "@/lib/machines/fusion";
-import { energyHatchTypeExistsAtTier } from "@/lib/machines/energy-hatches";
-import { carryMachineVoltage } from "@/lib/solver/hatch-input";
+import { machineSwitchPatch } from "@/lib/solver/hatch-input";
 import { getVoltageTierMaxEuT } from "@/lib/model/tiers";
 import { makePortKey, parsePortKey } from "@/lib/solver/plan/port-key";
 import { parseSectionNodeId, sectionHandleId } from "@/lib/model/shared-machine";
@@ -250,6 +249,7 @@ export interface CleanCardActions {
 
 /** What the component needs besides the view: the menus' inputs. */
 export interface CleanCardContext {
+  nodeRecipe: Recipe;
   machineHandlers: ReturnType<typeof getRecipeMachineHandlers>;
   selectedMachineHandler: ReturnType<typeof getSelectedMachineHandler>;
   machineIcon?: MachineHandlerIcon;
@@ -1189,17 +1189,7 @@ export function useCleanCardModel(
       if (isLocked() || machineHandlers.length <= 1) return;
       const next = machineHandlers.find((handler) => handler.id === handlerId);
       if (!next || next.id === selectedMachineHandler.id) return;
-      updateNode(projectNode.id, {
-        machineHandlerId: next.id,
-        overclockTier: next.minimumTier,
-        ...(energyHatchTypeExistsAtTier(projectNode.energyHatchType, next.minimumTier)
-          ? undefined
-          : { energyHatchType: undefined }),
-        ...carryMachineVoltage(
-          { recipe: derived.nodeRecipe, node: projectNode },
-          { recipe: derived.nodeRecipe, machineHandlerId: next.id },
-        ),
-      });
+      updateNode(projectNode.id, machineSwitchPatch(derived.nodeRecipe, projectNode, next));
     },
     cycleMachine: (direction) => {
       if (isLocked() || machineHandlers.length <= 1) return;
@@ -1235,6 +1225,7 @@ export function useCleanCardModel(
   };
 
   const context: CleanCardContext = {
+    nodeRecipe: derived.nodeRecipe,
     machineHandlers,
     selectedMachineHandler,
     machineIcon,

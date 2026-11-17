@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { gtnhFuelProfiles } from "@/lib/model/fuels";
 import { PROJECT_SCHEMA_VERSION, type FactoryProject } from "@/lib/model/types";
 import { calculateThroughput } from "./throughput";
-import { calculateSelectionFlow } from "./selection-flow";
+import { calculateSelectionFlow, measureSelectionFlow } from "./selection-flow";
+import { planWithMachineSizes, suggestPlanSizes, verifyPlanSizes } from "./plan-sizing";
+import { closeBoundaries } from "./close-boundaries";
 
 /**
  * Two machines in a line: the smelter turns ore into ingots, the bender turns
@@ -97,8 +99,44 @@ function makeChainProject(): FactoryProject {
 const keys = (balances: { resourceId: string }[]) => balances.map((balance) => balance.resourceId);
 
 describe("calculateSelectionFlow", () => {
+  it("closes cut ports on each section of a shared machine", () => {
+    const project = makeChainProject();
+    project.nodes = [{ ...project.nodes[0], extraRecipes: [{ recipeId: "bend" }] }];
+    project.edges = [];
+    const scoped = closeBoundaries(project);
+    expect(scoped.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ target: "smelter", targetHandle: "r1:input:item:ingot" }),
+      expect.objectContaining({ source: "smelter", sourceHandle: "r1:output:item:plate" }),
+    ]));
+  });
+
+  it("measures existing wire rates across a selected group without opening its boundary", () => {
+    const project = makeChainProject();
+    project.nodes[0].machineCount = 0.5;
+    project.pockets = [{ id: "pocket", name: "Line", position: { x: 0, y: 0 } }];
+    project.nodes = project.nodes.map((node) => ({ ...node, pocketId: "pocket" }));
+    const solve = calculateThroughput(project, { generatedAt: "fixed" });
+    const measured = measureSelectionFlow(project, solve, ["pocket"]);
+    expect(keys(measured.inputs)).toEqual(["ore"]);
+    expect(keys(measured.internal)).toEqual(["ingot"]);
+    expect(keys(measured.outputs)).toEqual(["plate"]);
+    for (const [flow] of [measured.inputs, measured.internal, measured.outputs]) {
+      expect(flow?.amountPerSecond).toBeCloseTo(0.5);
+    }
+  });
+
   it("falls back to the plan when nothing is selected", () => {
     expect(calculateSelectionFlow(makeChainProject(), [])).toBeUndefined();
+  });
+
+  it("lets an unsized plan selection be previewed with one machine without editing it", () => {
+    const project = makeChainProject();
+    project.planMode = project.solveMode = true;
+    expect(calculateSelectionFlow(project, ["bender"])?.unsized).toBe(true);
+    const preview = calculateSelectionFlow(project, ["bender"], { id: "bender", count: 1 });
+    expect(preview?.externalInputs[0]?.importedPerSecond).toBeCloseTo(1);
+    expect(preview?.unconsumedOutputs[0]?.productPerSecond).toBeCloseTo(1);
+    expect(project.nodes[1].solvePin).toBeUndefined();
   });
 
   it("reads an upstream feed as a need when only the consumer is selected", () => {
@@ -201,4 +239,20 @@ describe("calculateSelectionFlow", () => {
     expect(selection!.resources["item:ingot"].producedPerSecond).toBe(0);
     expect(selection!.resources["item:ingot"].consumedPerSecond).toBeCloseTo(1);
   });
+});
+
+it("rounds automatic plan counts up and verifies that caps preserve wire rates", () => {
+  const project = makeChainProject();
+  project.planMode = project.solveMode = true;
+  project.nodes[0].solvePin = 3;
+  project.storages![1] = { ...project.storages![1]!, targetPerSecond: 1.5, targetMode: "exact" };
+  const result = calculateThroughput(project, { generatedAt: "fixed" });
+  const sizes = suggestPlanSizes(project, result);
+  expect(sizes).toEqual([{ id: "bender", name: "Bend", used: 1.5, count: 2 }]);
+  const preview = planWithMachineSizes(project, sizes);
+  expect(preview.nodes[0]).toBe(project.nodes[0]);
+  expect(preview.nodes[1]).toMatchObject({ solvePin: 2 });
+  expect(verifyPlanSizes(preview, result, calculateThroughput(preview))).toBe(true);
+  const tooSmall = planWithMachineSizes(project, [{ ...sizes[0]!, count: 1 }]);
+  expect(verifyPlanSizes(tooSmall, result, calculateThroughput(tooSmall))).toBe(false);
 });

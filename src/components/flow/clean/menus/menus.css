@@ -98,6 +98,50 @@
   color: #6f737c;
 }
 
+.cm-compare-key {
+  padding: 3px 7px;
+  color: inherit;
+  border: 1px solid #4a4c54;
+  background: #22242a;
+}
+.cm-compare-key:hover,
+.cm-compare-key[aria-pressed="true"] {
+  border-color: #ffd257;
+}
+.cm-compare-key:disabled {
+  opacity: 0.55;
+}
+.blueprint-shelf {
+  width: min(420px, 90%);
+  max-height: 75%;
+  margin: auto;
+  padding: 14px;
+  border: 1px solid #4a4c54;
+  background: #26282d;
+  color: #f5f5f5;
+  font-family: var(--cc-font);
+}
+.blueprint-shelf::backdrop {
+  background: #0009;
+}
+.blueprint-shelf header,
+.blueprint-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.blueprint-shelf form,
+.blueprint-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.blueprint-row > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
 /* ---- The gear sheet ---------------------------------------------------- */
 
 .cs {
