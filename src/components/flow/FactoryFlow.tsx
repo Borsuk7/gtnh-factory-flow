@@ -3062,10 +3062,15 @@ export function FactoryFlow() {
     [isCompact],
   );
 
-  // The wires follow an edit in a render of their own (deferred): rebuilding every wire is about 100 ms of a
-  // 1,000-card edit, and the board's first paint after a click no longer waits for it. They catch up at once.
-  const edgeProject = useDeferredValue(project);
-  const edgeResult = useDeferredValue(result);
+  // Defer the wire rebuild after an edit. On a plan switch the first card
+  // render needs the new plan's wires, including while its solve is pending.
+  const deferredProject = useDeferredValue(project);
+  const deferredResult = useDeferredValue(result);
+  const designId = useDesignStore((state) => state.publicView?.id ?? state.activeDesignId);
+  const deferredDesignId = useDeferredValue(designId);
+  const samePlan = deferredDesignId === designId && deferredProject.id === project.id;
+  const edgeProject = samePlan ? deferredProject : project;
+  const edgeResult = samePlan ? deferredResult : result;
   const edges = useMemo<ResourceFlowEdge[]>(() => {
     const project = edgeProject;
     const result = edgeResult;

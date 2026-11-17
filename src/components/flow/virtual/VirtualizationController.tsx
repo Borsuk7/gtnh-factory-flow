@@ -167,8 +167,14 @@ export const VirtualizationController = memo(function VirtualizationController({
       : undefined;
     wrapperObserver?.observe(nodesLayer!, { childList: true });
 
+    let prioritizedEdges: typeof boardEdges.shown | undefined;
     const pump = () => {
       frame = 0;
+      applyEdges();
+      if (prioritizedEdges !== boardEdges.shown) {
+        prioritizedEdges = boardEdges.shown;
+        boardVirtualizer.prioritizeWireEndpoints(prioritizedEdges);
+      }
       const started = performance.now();
       const again = boardVirtualizer.step(started);
       applyOthers();
@@ -177,7 +183,6 @@ export const VirtualizationController = memo(function VirtualizationController({
       stats.pumps += 1;
       stats.stepMs += took;
       stats.stepMax = Math.max(stats.stepMax, took);
-      applyEdges();
       if (again) {
         schedule();
       }

@@ -207,6 +207,17 @@ describe("CardVirtualizer", () => {
     expect(v.isDrawn("n3_3")).toBe(false);
   });
 
+  it("measures the ends of visible wires before other shells at the glance step", () => {
+    const v = new CardVirtualizer({ backgroundBatch: 2, idleMs: 0 });
+    const boxes = grid(10, 10);
+    v.setGeometry(boxes);
+    for (const [id] of boxes) v.register(id);
+    v.setView({ x: 0, y: 0, w: 800, h: 600 }, true);
+    v.prioritizeWireEndpoints([{ source: "n0_0", target: "n9_9" }]);
+    v.step(performance.now());
+    expect(v.mountedIds().sort()).toEqual(["n0_0", "n9_9"]);
+  });
+
   it("returns to the camera budget after measuring a crowded board", () => {
     const boxes = grid(20, 20);
     const virtualizer = new CardVirtualizer({ idleMs: 0 });

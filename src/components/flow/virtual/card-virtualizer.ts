@@ -99,6 +99,7 @@ export class CardVirtualizer {
   private cells = new Map<number, string[]>();
   /** Cards whose contents have been drawn since their layout last changed (their size and handles are real). */
   private drawn = new Set<string>();
+  private wireEndpoints = new Set<string>();
   /** The layout key each card had when its contents were last drawn (virtual/use-card-face.ts). */
   private keys = new Map<string, string>();
   /** The cards that mount their contents by this (drawers, notes and special cards do not). */
@@ -213,6 +214,7 @@ export class CardVirtualizer {
     this.geometry.clear();
     this.cells.clear();
     this.drawn.clear();
+    this.wireEndpoints.clear();
     this.visibleSet = new Set();
     this.visibleKnown = false;
     this.keys.clear();
@@ -254,6 +256,15 @@ export class CardVirtualizer {
 
   isDrawn(id: string): boolean {
     return this.drawn.has(id);
+  }
+
+  /** A wire in view needs React Flow to measure both of its ends before it can render. */
+  prioritizeWireEndpoints(edges: readonly { source: string; target: string }[]): void {
+    this.wireEndpoints.clear();
+    for (const { source, target } of edges) {
+      this.wireEndpoints.add(source);
+      this.wireEndpoints.add(target);
+    }
   }
 
   /** A card that is virtualised says so, so the background pass knows which cards to draw. */
@@ -445,19 +456,20 @@ export class CardVirtualizer {
     return out;
   }
 
-  /** Cards never drawn, nearest the middle of the screen first (the whole board when there is no camera yet). */
+  /** Cards never drawn, with on-screen wire endpoints first, then by distance to the camera. */
   private undrawn(): string[] {
     const view = this.view;
     const cx = view ? view.x + view.w / 2 : 0;
     const cy = view ? view.y + view.h / 2 : 0;
-    const found: Array<[number, string]> = [];
+    const found: Array<[boolean, number, string]> = [];
     for (const id of this.members) {
       const rect = this.geometry.get(id);
       if (!rect || this.drawn.has(id) || this.mountedSet.has(id)) continue;
-      found.push([Math.hypot(rect.x + rect.w / 2 - cx, rect.y + rect.h / 2 - cy), id]);
+      found.push([this.wireEndpoints.has(id), Math.hypot(rect.x + rect.w / 2 - cx, rect.y + rect.h / 2 - cy), id]);
     }
-    found.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : 1));
-    return found.map((entry) => entry[1]);
+    found.sort(([wiredA, distanceA, a], [wiredB, distanceB, b]) =>
+      Number(wiredB) - Number(wiredA) || distanceA - distanceB || (a < b ? -1 : 1));
+    return found.map((entry) => entry[2]);
   }
 
   /**

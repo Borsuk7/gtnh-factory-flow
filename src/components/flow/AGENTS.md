@@ -225,7 +225,8 @@ measurements, see the [performance review](../../../docs/history/performance-rev
 - The keep rectangle can retain cards within unused camera slots. Background measurements have a separate batch
   limit and release excess cards after drawing them. Pins and export holds can exceed the ordinary budget.
 - A shell does not run the card's model (`useCardFace`: count, picture, red ring, a layout key). A card never
-  drawn is drawn once in the background pass (a few a frame, nearest first, only while the camera rests) so React
+  drawn is drawn once in the background pass (a few a frame while the camera rests). Ends of visible wires go
+  first, then the nearest other cards. React
   Flow gets its real size and handle boxes; it is marked drawn when React Flow holds its handles, and not
   released before. A layout change while a card is away (`useCardLayoutKey`) draws it again.
 - A shown shell carries one empty marker per handle (`data-vstub`) at the last measured place: the measure a
@@ -246,5 +247,6 @@ measurements, see the [performance review](../../../docs/history/performance-rev
   `virtual/flow-portals.tsx` (FactoryFlow imports them under the same names).
 - Wires and the overview rail follow an edit in a deferred render (`useDeferredValue` of the project and the solve):
   the click paints the cards first. Anything that needs wires and project in the same render reads `edgeProject`.
+  Opening a plan uses its wires in the first render so they can draw as soon as their endpoints are ready.
 - `localStorage["gtnh-factory-flow.no-virtual"] = "1"` turns all of it off. `window.__gtnhVirtual` reads
   the counts (mounted, wires shown, pump cost, handle report) for the perf harness.
