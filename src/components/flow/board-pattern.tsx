@@ -175,6 +175,7 @@ export const RuledBackground = memo(function RuledBackground({
       <div
         ref={setElement}
         className="board-ruling"
+        data-board-paper=""
         style={layerStyle(gap, image, RULING_Z)}
         aria-hidden
       />
@@ -228,6 +229,7 @@ export const TiledBackground = memo(function TiledBackground({
       <div
         ref={setElement}
         className="board-ruling"
+        data-board-paper=""
         style={layerStyle(tile, image, RULING_Z, patternOffset)}
         aria-hidden
       />
@@ -269,6 +271,7 @@ function GrainLayer({ layer, opacity }: { layer: CanvasGrainLayer; opacity: numb
   return (
     <div
       ref={setElement}
+      data-board-paper=""
       style={layerStyle(layer.size, `url("${layer.uri}")`, GRAIN_Z, 0, opacity)}
       aria-hidden
     />

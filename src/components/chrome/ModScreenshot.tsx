@@ -6,27 +6,32 @@ import "./screenshot.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toBlob } from "html-to-image";
-import { computeCommunityPlanStats } from "@/lib/community/plan-stats";
+import { toBlob, toSvg } from "html-to-image";
+import { computeScreenshotPlanStats } from "@/lib/community/plan-stats";
 import { serializeFactoryProject } from "@/lib/import-export";
 import {
   FLOW_IMAGE_EXPORT_COMPLETE_EVENT,
   FLOW_IMAGE_EXPORT_EVENT,
+  dataUrlToText,
   embedProjectJsonInPng,
   embedProjectJsonInPngMetadata,
+  embedProjectJsonInSvg,
   type FlowExportCapture,
   type FlowExportRequest,
 } from "@/lib/import-export/plan-image";
 import { resolveExportFontCss } from "@/lib/import-export/export-fonts";
-import { compositeExportPng, computeCompositeLayout } from "@/lib/import-export/export-composite";
+import { composeExportSvg, compositeExportPng, computeCompositeLayout } from "@/lib/import-export/export-composite";
 import { randomUUID } from "@/lib/random-id";
 import { activateOnKey } from "@/lib/hooks/button-keys";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useFactoryStore } from "@/store/factory-store";
 import { useDesignStore } from "@/store/design-store";
 import { ExportFooter, resolveExportFooterWidth } from "@/components/export/ExportFooter";
+import { gifExportScale, renderPlanGif } from "@/components/export/gif-export";
 
 type Detail = "full" | "glance";
+const FORMATS = ["png", "svg", "gif"] as const;
+type ImageFormat = (typeof FORMATS)[number];
 const DETAILS: ReadonlyArray<{ id: Detail; label: string }> = [
   { id: "full", label: "Detailed" },
   { id: "glance", label: "Simple" },
@@ -34,6 +39,7 @@ const DETAILS: ReadonlyArray<{ id: Detail; label: string }> = [
 
 /** What was chosen last, kept while the page is open (the mod keeps it while the game runs). */
 let chosen = {
+  format: "png" as ImageFormat,
   detail: "full" as Detail,
   title: false,
   io: false,
@@ -63,6 +69,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     (state) => state.designs.find((design) => design.id === state.activeDesignId)?.name ?? "Untitled",
   );
   const rateUnit = useFactoryStore((state) => state.rateUnit);
+  const [format, setFormat] = useState(chosen.format);
   const [detail, setDetail] = useState<Detail>(chosen.detail);
   const [title, setTitle] = useState(chosen.title);
   const [io, setIo] = useState(chosen.io);
@@ -75,8 +82,8 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
   const planName = project.name || activeTabName || "My factory";
 
   useEffect(() => {
-    chosen = { detail, title, io, transparent, showAnnotations, embedPlan };
-  }, [detail, title, io, transparent, showAnnotations, embedPlan]);
+    chosen = { format, detail, title, io, transparent, showAnnotations, embedPlan };
+  }, [format, detail, title, io, transparent, showAnnotations, embedPlan]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -90,7 +97,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const stats = useMemo(
-    () => computeCommunityPlanStats(project, result, Number.POSITIVE_INFINITY),
+    () => computeScreenshotPlanStats(project, result),
     [project, result],
   );
 
@@ -114,13 +121,13 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
   }, []);
 
   const requestBoardCapture = useCallback(
-    (options: Pick<FlowExportRequest, "cardDetail" | "background" | "hideAnnotations">) =>
+    (format: FlowExportRequest["format"], options: Pick<FlowExportRequest, "cardDetail" | "background" | "hideAnnotations" | "animateWires">) =>
       new Promise<CaptureResult>((resolve) => {
         const requestId = randomUUID();
         pendingRef.current.set(requestId, resolve);
         window.dispatchEvent(
           new CustomEvent(FLOW_IMAGE_EXPORT_EVENT, {
-            detail: { format: "png", requestId, capture: true, ...options },
+            detail: { format, requestId, capture: true, ...options },
           }),
         );
         window.setTimeout(() => {
@@ -130,18 +137,21 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     [],
   );
 
-  const wantKey = `${detail}|${rateUnit}|${transparent}|${showAnnotations}`;
+  const animateWires = format === "gif";
+  const captureOptions = useMemo(() => ({
+    cardDetail: detail,
+    background: transparent ? "transparent" : undefined,
+    hideAnnotations: !showAnnotations,
+    animateWires,
+  }), [detail, transparent, showAnnotations, animateWires]);
+  const wantKey = `${detail}|${rateUnit}|${transparent}|${showAnnotations}|${animateWires}`;
   const capturing = taken?.key !== wantKey;
   const capture = taken?.capture;
   const problem = taken?.key === wantKey ? taken.problem : undefined;
   useEffect(() => {
     let cancelled = false;
     const attempt = (retriesLeft: number) => {
-      void requestBoardCapture({
-        cardDetail: detail,
-        background: transparent ? "transparent" : undefined,
-        hideAnnotations: !showAnnotations,
-      }).then((outcome) => {
+      void requestBoardCapture("png", captureOptions).then((outcome) => {
         if (cancelled) return;
         if (!outcome.capture?.blob) {
           if (retriesLeft > 0) {
@@ -160,7 +170,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
       cancelAnimationFrame(frame);
     };
     // The rate unit repaints the board, not the request: the photograph is taken again.
-  }, [requestBoardCapture, detail, transparent, showAnnotations, wantKey]);
+  }, [requestBoardCapture, captureOptions, wantKey]);
 
   const previewUrl = useMemo(() => (capture?.blob ? URL.createObjectURL(capture.blob) : undefined), [capture]);
   useEffect(() => () => (previewUrl ? URL.revokeObjectURL(previewUrl) : undefined), [previewUrl]);
@@ -204,27 +214,49 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     capture && layout && well.width > 8 && well.height > 8
       ? Math.min((well.width - 8) / capture.width, (well.height - 8) / layout.totalHeight)
       : 0;
-  const pixels =
-    capture && layout
-      ? `${Math.round(layout.boardWidth * capture.pixelRatio).toLocaleString("en-US")} x ${Math.round(layout.totalHeight * capture.pixelRatio).toLocaleString("en-US")} pixels`
-      : undefined;
+  const imageScale = capture && layout ? (format === "gif" ? gifExportScale(layout) : format === "svg" ? 1 : capture.pixelRatio) : 1;
+  const pixels = layout
+    ? `${Math.round(layout.boardWidth * imageScale).toLocaleString("en-US")} x ${Math.round(layout.totalHeight * imageScale).toLocaleString("en-US")} pixels`
+    : undefined;
 
   // ---- The picture itself --------------------------------------------------
 
-  const compose = async (includePlan: boolean): Promise<Blob> => {
+  const compose = async (output: ImageFormat, includePlan: boolean): Promise<Blob> => {
     if (!capture?.blob || !layout) throw new Error("The board capture is missing.");
-    const wantFooter = footerVisible && footerElement !== null && layout.footerHeight > 0;
-    const fontEmbedCSS = wantFooter && footerElement ? await resolveExportFontCss(footerElement) : undefined;
-    const footerBlob =
-      wantFooter && footerElement
-        ? ((await toBlob(footerElement, {
-            width: layout.footerWidth,
-            height: layout.footerHeight,
-            pixelRatio: layout.footerScale * capture.pixelRatio,
-            skipFonts: true,
-            fontEmbedCSS,
-          })) ?? undefined)
-        : undefined;
+    const footer = footerVisible && layout.footerHeight > 0 ? footerElement : null;
+    const footerOptions = footer ? {
+      width: layout.footerWidth,
+      height: layout.footerHeight,
+      pixelRatio: layout.footerScale * capture.pixelRatio,
+      skipFonts: true,
+      fontEmbedCSS: await resolveExportFontCss(footer),
+    } : undefined;
+    if (output === "svg") {
+      const { capture: svgCapture, error } = await requestBoardCapture("svg", captureOptions);
+      if (!svgCapture?.svgText) throw new Error(error ?? "The board could not be rendered as SVG.");
+      const footerSvg = footer ? dataUrlToText(await toSvg(footer, footerOptions)) : undefined;
+      const svgLayout = computeCompositeLayout(svgCapture.width, svgCapture.height, layout.footerWidth, layout.footerHeight);
+      const svg = composeExportSvg({
+        boardSvg: svgCapture.svgText,
+        footerSvg,
+        layout: svgLayout,
+        background: svgCapture.background,
+        mark: footerSvg ? undefined : MARK,
+      });
+      const content = includePlan ? embedProjectJsonInSvg(svg, serializeFactoryProject(project)) : svg;
+      return new Blob([content], { type: "image/svg+xml" });
+    }
+    const footerBlob = footer ? (await toBlob(footer, footerOptions)) ?? undefined : undefined;
+    if (output === "gif") {
+      return renderPlanGif({
+        boardBlob: footerBlob ? capture.blob : await stampMark(capture.blob, capture.pixelRatio),
+        footerBlob,
+        layout,
+        capture,
+        background: capture.background,
+        onProgress: (frame, total) => setStatus({ text: `Rendering frame ${frame} of ${total}`, good: true }),
+      });
+    }
     const composed = await compositeExportPng({
       boardBlob: capture.blob,
       footerBlob,
@@ -244,8 +276,8 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     setKeeping(true);
     setStatus(undefined);
     try {
-      const blob = await compose(embedPlan);
-      const name = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "factory"}.png`;
+      const blob = await compose(format, embedPlan);
+      const name = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "factory"}.${format}`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -267,7 +299,7 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
     setStatus(undefined);
     try {
       // Clipboard PNGs can lose metadata. The opaque export has a pixel fallback.
-      const blob = await compose(embedPlan && !transparent);
+      const blob = await compose("png", embedPlan && !transparent);
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       setStatus({ text: "Copied: paste it anywhere", good: true });
       playBoardSound("tick");
@@ -340,6 +372,28 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
           </div>
           <div className="mshot-col">
             <div className="mshot-row">
+              <span>Format</span>
+              <span className="ms-choices" role="radiogroup" aria-label="Format">
+                {FORMATS.map((value) => (
+                  <label key={value} className="ms-choice" data-picked={format === value ? "" : undefined}>
+                    <input
+                      className="sr-only"
+                      type="radio"
+                      name="screenshot-format"
+                      checked={format === value}
+                      disabled={keeping}
+                      onChange={() => {
+                        setFormat(value);
+                        setStatus(undefined);
+                        playBoardSound("tick");
+                      }}
+                    />
+                    {value.toUpperCase()}
+                  </label>
+                ))}
+              </span>
+            </div>
+            <div className="mshot-row">
               <span>Cards</span>
               <span className="ms-choices" role="radiogroup" aria-label="Cards">
                 {DETAILS.map((entry) => (
@@ -365,31 +419,36 @@ export function ModScreenshot({ onClose }: { onClose: () => void }) {
             <Toggle label="Inputs and outputs" on={io} onChange={setIo} />
             <Toggle label="Transparent background" on={transparent} onChange={setTransparent} />
             <Toggle label="Show annotations" on={showAnnotations} onChange={setShowAnnotations} />
-            <Toggle label="Embed plan" on={embedPlan} onChange={setEmbedPlan} />
-            {embedPlan && !showAnnotations ? (
+            {format !== "gif" ? <Toggle label="Embed plan" on={embedPlan} onChange={setEmbedPlan} /> : null}
+            {format !== "gif" && embedPlan && !showAnnotations ? (
               <div className="mshot-hint">The embedded plan includes annotations.</div>
             ) : null}
-            {embedPlan && transparent ? (
+            {format === "png" && embedPlan && transparent ? (
               <div className="mshot-hint">Use Save to embed the plan in a transparent PNG.</div>
+            ) : null}
+            {format === "gif" ? (
+              <div className="mshot-hint">Wires carrying material animate in the saved GIF.</div>
             ) : null}
             <div className="mshot-size">{pixels ?? "Taking the picture..."}</div>
             {status ? (
-              <div className="mshot-status" data-good={status.good ? "" : undefined}>
+              <div className="mshot-status" role="status" data-good={status.good ? "" : undefined}>
                 {status.text}
               </div>
             ) : null}
             <div className="mshot-keys">
-              <div
-                className="mb-key mshot-key"
-                role="button"
-                tabIndex={0}
-                aria-disabled={!ready}
-                data-off={ready ? undefined : ""}
-                onKeyDown={activateOnKey}
-                onClick={() => ready && void copy()}
-              >
-                Copy
-              </div>
+              {format === "png" ? (
+                <div
+                  className="mb-key mshot-key"
+                  role="button"
+                  tabIndex={0}
+                  aria-disabled={!ready}
+                  data-off={ready ? undefined : ""}
+                  onKeyDown={activateOnKey}
+                  onClick={() => ready && void copy()}
+                >
+                  Copy
+                </div>
+              ) : null}
               <div
                 className="mb-key mshot-key"
                 data-save=""

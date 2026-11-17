@@ -139,10 +139,11 @@ export function composeExportSvg(options: {
   layout: CompositeLayout;
   background?: string;
   border?: ExportBorder;
+  mark?: string;
 }): string {
-  const { boardSvg, footerSvg, layout, background, border } = options;
+  const { boardSvg, footerSvg, layout, background, border, mark } = options;
   const board = stripXmlProlog(boardSvg);
-  if (!footerSvg && !border) {
+  if (!footerSvg && !border && !mark) {
     return board;
   }
 
@@ -163,6 +164,9 @@ export function composeExportSvg(options: {
       `width="${width - border.width}" height="${height - border.width}" ` +
       `fill="none" stroke="${border.color}" stroke-width="${border.width}"/>`
     : "";
+  const markText = mark
+    ? `<text x="${width - 8}" y="${height - 6}" text-anchor="end" font-family="monospace" font-size="11" fill="#22d3ee">${mark.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</text>`
+    : "";
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
@@ -171,6 +175,7 @@ export function composeExportSvg(options: {
     board +
     footerSvgElement +
     borderRect +
+    markText +
     `</svg>`
   );
 }

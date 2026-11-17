@@ -1,4 +1,4 @@
-import type { FactoryProject, MachineTier, ThroughputResult } from "@/lib/model/types";
+import type { FactoryProject, MachineTier, ResourceKey, ThroughputResult } from "@/lib/model/types";
 import { GT_VOLTAGE_TIERS, getVoltageTierIndex } from "@/lib/model/tiers";
 import { getNodeMachineBuildCount } from "@/lib/model/passive-production";
 import { buildMachineList } from "@/lib/model/machine-list";
@@ -26,6 +26,19 @@ export function computeCommunityPlanStats(
   project: FactoryProject,
   result: ThroughputResult,
   resourceLimit: number = COMMUNITY_RESOURCE_STAT_LIMIT,
+): CommunityPlanStats {
+  return computePlanStats(project, result, resourceLimit, false);
+}
+
+export function computeScreenshotPlanStats(project: FactoryProject, result: ThroughputResult): CommunityPlanStats {
+  return computePlanStats(project, result, Number.POSITIVE_INFINITY, true);
+}
+
+function computePlanStats(
+  project: FactoryProject,
+  result: ThroughputResult,
+  resourceLimit: number,
+  includeForcedFlows: boolean,
 ): CommunityPlanStats {
   let highestTierIndex = -1;
   let highestTier: Exclude<MachineTier, "DEMO"> | undefined;
@@ -59,6 +72,11 @@ export function computeCommunityPlanStats(
   }
 
   const icons = buildResourceIconIndex(project);
+  const needs = toResourceStats(result.externalInputs, includeForcedFlows && result.plan ? "imported" : "consumed", icons, resourceLimit);
+  const outputs = toResourceStats(result.unconsumedOutputs, "produced", icons, resourceLimit);
+  if (includeForcedFlows) {
+    addForcedFlows(needs, outputs, result, icons);
+  }
   return {
     nodeCount: project.nodes.length,
     storageCount: (project.storages ?? []).length,
@@ -67,8 +85,8 @@ export function computeCommunityPlanStats(
     totalEuT: Number.isFinite(result.totalEuT) ? result.totalEuT : 0,
     highestTier,
     highestTierIndex,
-    needs: toResourceStats(result.externalInputs, "consumed", icons, resourceLimit),
-    outputs: toResourceStats(result.unconsumedOutputs, "produced", icons, resourceLimit),
+    needs,
+    outputs,
   };
 }
 
@@ -76,6 +94,43 @@ type ResourceIconInfo = Pick<
   PlanResourceStat,
   "displayName" | "iconPath" | "iconAtlas" | "dominantColor"
 >;
+
+/** Add flows through solver gates to the drawer totals. Buffer spills already appear in the output balances. */
+function addForcedFlows(
+  needs: PlanResourceStat[],
+  outputs: PlanResourceStat[],
+  result: ThroughputResult,
+  icons: Map<string, ResourceIconInfo>,
+): void {
+  const byKey = (rows: PlanResourceStat[]) => new Map(rows.map((row) => [`${row.kind}:${row.resourceId}`, row]));
+  const inputByKey = byKey(needs);
+  const outputByKey = byKey(outputs);
+  for (const flow of result.plan?.forced ?? []) {
+    if (!(flow.perSecond > 0) || !Number.isFinite(flow.perSecond)) continue;
+    const key = flow.resourceKey as ResourceKey;
+    const colon = key.indexOf(":");
+    const kind = key.slice(0, colon);
+    if (kind !== "item" && kind !== "fluid" && kind !== "aspect") continue;
+    const index = flow.side === "in" ? inputByKey : outputByKey;
+    const previous = index.get(key);
+    if (previous) {
+      previous.ratePerSecond += flow.perSecond;
+    } else {
+      const icon = icons.get(key);
+      const row: PlanResourceStat = {
+        ...icon,
+        kind,
+        resourceId: key.slice(colon + 1),
+        displayName: result.resources[key]?.displayName ?? icon?.displayName,
+        ratePerSecond: flow.perSecond,
+      };
+      index.set(key, row);
+      (flow.side === "in" ? needs : outputs).push(row);
+    }
+  }
+  needs.sort((a, b) => b.ratePerSecond - a.ratePerSecond);
+  outputs.sort((a, b) => b.ratePerSecond - a.ratePerSecond);
+}
 
 /**
  * Icon refs live on the recipe/storage resources inside the plan JSON, not on
@@ -122,7 +177,7 @@ function buildResourceIconIndex(project: FactoryProject): Map<string, ResourceIc
 
 function toResourceStats(
   balances: ThroughputResult["externalInputs"],
-  direction: "consumed" | "produced",
+  direction: "consumed" | "imported" | "produced",
   icons: Map<string, ResourceIconInfo>,
   limit: number = COMMUNITY_RESOURCE_STAT_LIMIT,
 ): PlanResourceStat[] {
@@ -139,7 +194,9 @@ function toResourceStats(
         ratePerSecond:
           direction === "consumed"
             ? Math.abs(balance.consumedPerSecond)
-            : Math.abs(balance.surplusPerSecond || balance.producedPerSecond),
+            : direction === "imported"
+              ? balance.importedPerSecond
+              : Math.abs(balance.surplusPerSecond || balance.producedPerSecond),
       };
     })
     .filter((stat) => stat.ratePerSecond > 0)

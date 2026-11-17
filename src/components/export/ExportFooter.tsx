@@ -176,7 +176,7 @@ export function ExportFooter({
             </div>
             <div className="mt-0.5 text-[12px]">
               <span style={{ color: palette.brand }} className="font-semibold">
-                gtnhplanner.com
+                GTNH Planner
               </span>
             </div>
           </div>

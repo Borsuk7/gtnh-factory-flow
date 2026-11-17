@@ -35,6 +35,8 @@ export interface FlowExportRequest {
    * tightens to the remaining cards.
    */
   hideAnnotations?: boolean;
+  /** Snapshot the flowing wire paths for an animated GIF. */
+  animateWires?: boolean;
 }
 
 /** One line's marching dashes, as replayable data for the GIF export. */

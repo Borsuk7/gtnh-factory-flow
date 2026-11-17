@@ -4751,7 +4751,7 @@ export function FactoryFlow() {
       const framedNodes = hideAnnotations
         ? flowNodes.filter((node) => node.type !== "annotationNode")
         : flowNodes;
-      const nodesBounds = getNodesBounds(framedNodes);
+      const nodesBounds = flowInstanceRef.current?.getNodesBounds(framedNodes) ?? getNodesBounds(framedNodes);
       const graphWidth = getExportImageSize(nodesBounds.width);
       const graphHeight = getExportImageSize(nodesBounds.height);
       // Cap the render surface: html-to-image's foreignObject rasterises
@@ -4772,9 +4772,7 @@ export function FactoryFlow() {
         1.8,
         EXPORT_IMAGE_PADDING / Math.max(imageWidth, imageHeight),
       );
-      // The active theme's paper by default; the dialog may swap in another
-      // colour or transparency. The screen-space texture lives on the
-      // container, not the viewport, so exports get the flat colour.
+      // Transparent captures omit the paper colour, ruling and grain.
       const background =
         request.background === "transparent" ? undefined : (request.background ?? canvasTheme.base);
       const pixelRatio = getExportPngPixelRatio(imageWidth, imageHeight);
@@ -4787,7 +4785,7 @@ export function FactoryFlow() {
           height: `${imageHeight}px`,
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
         },
-        filter: makeExportNodeFilter(hideAnnotations),
+        filter: makeExportNodeFilter(hideAnnotations, request.background === "transparent"),
         // With fontEmbedCSS present the skip is inert; without it (the scan
         // failed) the export falls back to a default font rather than paying
         // for a per-capture stylesheet walk. See export-fonts.ts.
@@ -4813,7 +4811,7 @@ export function FactoryFlow() {
           ...snapshotEdgeLabelBoxes(),
         ],
         occlusionDots: snapshotEdgeWaypointDots(),
-        pulses: snapshotEdgePulses(),
+        pulses: request.animateWires ? snapshotExportEdgePulses(viewportElement) : snapshotEdgePulses(),
       });
 
       let capture: FlowExportCapture | undefined;
@@ -4892,6 +4890,7 @@ export function FactoryFlow() {
             background?: unknown;
             cardDetail?: unknown;
             hideAnnotations?: unknown;
+            animateWires?: unknown;
           }
         | undefined;
 
@@ -4917,6 +4916,7 @@ export function FactoryFlow() {
             ? detail.cardDetail
             : "full",
         hideAnnotations: detail.hideAnnotations === true,
+        animateWires: detail.animateWires === true,
       });
     };
 
@@ -9229,6 +9229,7 @@ function ResourceEdgeComponent({
             }}
           />
           <BaseEdge
+            data-resource-edge-stroke={id}
             path={drawnPath}
             interactionWidth={0}
             pathLength={data?.timelapseDraw ? 1 : undefined}
@@ -13055,7 +13056,28 @@ function recipeContainsResourceKey(recipe: Recipe | undefined, resourceKey: stri
   );
 }
 
-function makeExportNodeFilter(hideAnnotations: boolean) {
+/** Read the drawn paths once during capture, after the board has mounted every wire. */
+function snapshotExportEdgePulses(viewport: HTMLElement): ReturnType<typeof snapshotEdgePulses> {
+  const edges = new Map((boardEdges.all as ResourceFlowEdge[]).map((edge) => [edge.id, edge]));
+  return [...viewport.querySelectorAll<SVGPathElement>("path[data-resource-edge-stroke]")].flatMap((route, index) => {
+    const edge = edges.get(route.dataset.resourceEdgeStroke ?? "");
+    const path = route.getAttribute("d");
+    if (!edge?.data || !path || edge.data.resourceKind === "power" || !(Number(edge.data.transferred) > RATE_DISPLAY_EPSILON)) {
+      return [];
+    }
+    const stroke = Number.parseFloat(route.style.strokeWidth) || FLOW_MODE_MIN_WIDTH;
+    return [{
+      path,
+      width: Math.max(2, stroke * 0.38),
+      dash: Math.round(Math.max(5, stroke * 0.9)),
+      gap: Math.round(Math.max(10, stroke * 1.9)),
+      velocity: PULSE_MIN_VELOCITY + (edge.data.flowRate?.heat ?? 0) * (PULSE_MAX_VELOCITY - PULSE_MIN_VELOCITY),
+      phase: (index * 0.618) % 1,
+    }];
+  });
+}
+
+function makeExportNodeFilter(hideAnnotations: boolean, hidePaper: boolean) {
   return (domNode: HTMLElement) => {
     const element = domNode instanceof Element ? domNode : undefined;
 
@@ -13064,6 +13086,7 @@ function makeExportNodeFilter(hideAnnotations: boolean) {
     }
 
     return !(
+      (hidePaper && element?.hasAttribute("data-board-paper")) ||
       element?.classList.contains("react-flow__edgeupdater") ||
       element?.classList.contains("react-flow__selection") ||
       element?.classList.contains("react-flow__nodesselection") ||

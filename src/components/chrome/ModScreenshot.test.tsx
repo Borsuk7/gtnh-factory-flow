@@ -32,18 +32,20 @@ beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 600 });
 });
 
-const asked: Array<Pick<FlowExportRequest, "cardDetail" | "hideAnnotations" | "background">> = [];
+const asked: Array<Pick<FlowExportRequest, "format" | "cardDetail" | "hideAnnotations" | "background" | "animateWires">> = [];
 const onExport = (event: Event) => {
-  const { requestId, cardDetail, hideAnnotations, background } = (event as CustomEvent<FlowExportRequest>).detail;
-  asked.push({ cardDetail, hideAnnotations, background });
+  const { requestId, format, cardDetail, hideAnnotations, background, animateWires } = (event as CustomEvent<FlowExportRequest>).detail;
+  asked.push({ format, cardDetail, hideAnnotations, background, animateWires });
   queueMicrotask(() =>
     window.dispatchEvent(
       new CustomEvent(FLOW_IMAGE_EXPORT_COMPLETE_EVENT, {
         detail: {
           requestId,
           capture: {
-            kind: "png",
-            blob: new Blob(["x"], { type: "image/png" }),
+            kind: format,
+            ...(format === "svg"
+              ? { svgText: '<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="628"/>' }
+              : { blob: new Blob(["x"], { type: "image/png" }) }),
             width: 1260,
             height: 628,
             pixelRatio: 2,
@@ -72,7 +74,7 @@ describe("the screenshot box", () => {
     render(<ModScreenshot onClose={vi.fn()} />);
     expect(screen.getByRole("dialog", { name: "Screenshot" })).toBeTruthy();
     await waitFor(() => expect(document.querySelector(".mshot-size")?.textContent).toBe("2,520 x 1,256 pixels"));
-    expect(asked[0]).toEqual({ cardDetail: "full", hideAnnotations: false });
+    expect(asked[0]).toMatchObject({ format: "png", cardDetail: "full", hideAnnotations: false, animateWires: false });
     expect([...document.querySelectorAll('[aria-label="Cards"] .ms-choice')].map((element) => element.textContent)).toEqual(["Detailed", "Simple"]);
     expect(screen.getByRole("switch", { name: "Plan name" }).getAttribute("aria-checked")).toBe("false");
     expect(screen.getByRole("switch", { name: "Inputs and outputs" }).getAttribute("aria-checked")).toBe("false");
@@ -125,6 +127,26 @@ describe("the screenshot box", () => {
       expect(embedProjectJsonInPngMetadata).toHaveBeenCalledTimes(1);
       expect(embedProjectJsonInPng).not.toHaveBeenCalled();
       expect(asked).toHaveLength(captureCount);
+    } finally {
+      download.mockRestore();
+    }
+  });
+
+  it("saves an SVG capture and requests flowing wires only for GIF", async () => {
+    const download = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      render(<ModScreenshot onClose={vi.fn()} />);
+      const save = screen.getByRole("button", { name: "Save" });
+      await waitFor(() => expect(save.getAttribute("aria-disabled")).toBe("false"));
+      fireEvent.click(screen.getByRole("radio", { name: "SVG" }));
+      fireEvent.click(save);
+      await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+      expect((download.mock.instances[0] as HTMLAnchorElement).download).toMatch(/\.svg$/);
+      expect(asked.at(-1)).toMatchObject({ format: "svg", animateWires: false });
+
+      fireEvent.click(screen.getByRole("radio", { name: "GIF" }));
+      expect(screen.queryByRole("switch", { name: "Embed plan" })).toBeNull();
+      await waitFor(() => expect(asked.at(-1)).toMatchObject({ format: "png", animateWires: true }));
     } finally {
       download.mockRestore();
     }

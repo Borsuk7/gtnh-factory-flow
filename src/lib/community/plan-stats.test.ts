@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FactoryNode, FactoryProject, Recipe, ThroughputResult } from "@/lib/model/types";
 import { PROJECT_SCHEMA_VERSION } from "@/lib/model/types";
-import { computeCommunityPlanStats } from "./plan-stats";
+import { computeCommunityPlanStats, computeScreenshotPlanStats } from "./plan-stats";
 
 function makeNode(overrides: Partial<FactoryNode>): FactoryNode {
   return {
@@ -156,5 +156,42 @@ describe("computeCommunityPlanStats", () => {
     expect(stats.needs.map((need) => need.resourceId)).toEqual(["copper", "iron"]);
     expect(stats.outputs).toHaveLength(1);
     expect(stats.outputs[0]).toMatchObject({ resourceId: "steel", ratePerSecond: 4 });
+  });
+
+  it("adds forced screenshot flows to measured drawer rates on each side independently", () => {
+    const balance = {
+      key: "item:mod:dust",
+      kind: "item",
+      resourceId: "mod:dust",
+      displayName: "Dust",
+      producedPerSecond: 20,
+      consumedPerSecond: 20,
+      netPerSecond: 0,
+      deficitPerSecond: 2,
+      surplusPerSecond: 4,
+      importedPerSecond: 2,
+      productPerSecond: 1,
+      byproductPerSecond: 0,
+      bufferFillPerSecond: 3,
+    } as const;
+    const result = makeResult({
+      resources: { [balance.key]: balance },
+      externalInputs: [balance],
+      unconsumedOutputs: [balance],
+      plan: {
+        forced: [
+          { nodeId: "a", portKey: "a|i|input:item:mod:dust", side: "in", resourceKey: balance.key, perSecond: 3 },
+          { nodeId: "b", portKey: "b|o|output:item:mod:dust", side: "out", resourceKey: balance.key, perSecond: 4 },
+          { nodeId: "b", portKey: "b|i|input:fluid:mod:water", side: "in", resourceKey: "fluid:mod:water", perSecond: 6 },
+        ],
+        leftovers: [], unneeded: [], unanchored: [], terminals: [], notes: [], openGates: 3,
+      },
+    });
+
+    const project = makeProject([]);
+    const stats = computeScreenshotPlanStats(project, result);
+    expect(stats.needs.map((row) => [row.resourceId, row.ratePerSecond])).toEqual([["mod:water", 6], ["mod:dust", 5]]);
+    expect(stats.outputs).toMatchObject([{ displayName: "Dust", ratePerSecond: 8 }]);
+    expect(computeCommunityPlanStats(project, result).needs).toMatchObject([{ ratePerSecond: 20 }]);
   });
 });

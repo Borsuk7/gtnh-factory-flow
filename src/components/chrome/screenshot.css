@@ -94,8 +94,12 @@
   color: var(--mc-muted);
   line-height: 10px;
 }
-.mshot-row:first-child {
+.mshot-row:not([role="switch"]) {
   cursor: default;
+}
+.mshot-row .ms-choice:focus-within {
+  outline: 1px solid var(--mc-cyan);
+  outline-offset: -1px;
 }
 .mshot-row:hover .ms-switch {
   background: #44464d;

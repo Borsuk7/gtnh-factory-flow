@@ -18,13 +18,14 @@ import { PULSE_STROKE } from "../flow/edge-pulse";
  * slower than half a cycle rounds UP to one, never down to frozen.
  */
 
-/** Discord renders embeds ~short; more width is file size, not legibility. */
-export const GIF_MAX_WIDTH = 1280;
+/** Bound both sides so tall boards stay within the same frame budget as wide boards. */
+const GIF_MAX_SIDE = 1280;
+export function gifExportScale(layout: CompositeLayout): number {
+  return Math.min(1, GIF_MAX_SIDE / Math.max(layout.boardWidth, layout.totalHeight));
+}
 const GIF_FRAME_COUNT = 24;
 const GIF_FRAME_DELAY_MS = 100;
 const GIF_LOOP_SECONDS = (GIF_FRAME_COUNT * GIF_FRAME_DELAY_MS) / 1000;
-/** What a transparent export sits on: GIF has no useful alpha to offer. */
-const GIF_FALLBACK_BACKGROUND = "#141414";
 
 export async function renderPlanGif(options: {
   boardBlob: Blob;
@@ -36,7 +37,7 @@ export async function renderPlanGif(options: {
   onProgress?: (frame: number, total: number) => void;
 }): Promise<Blob> {
   const { boardBlob, footerBlob, layout, capture, background, border, onProgress } = options;
-  const scale = Math.min(1, GIF_MAX_WIDTH / layout.boardWidth);
+  const scale = gifExportScale(layout);
   const width = Math.max(1, Math.round(layout.boardWidth * scale));
   const height = Math.max(1, Math.round(layout.totalHeight * scale));
   const boardHeight = Math.max(1, Math.round(layout.boardHeight * scale));
@@ -48,8 +49,10 @@ export async function renderPlanGif(options: {
 
   try {
     const base = makeCanvas(width, height);
-    base.context.fillStyle = background ?? GIF_FALLBACK_BACKGROUND;
-    base.context.fillRect(0, 0, width, height);
+    if (background) {
+      base.context.fillStyle = background;
+      base.context.fillRect(0, 0, width, height);
+    }
     base.context.imageSmoothingEnabled = true;
     base.context.imageSmoothingQuality = "high";
     base.context.drawImage(board, 0, 0, width, boardHeight);
@@ -76,6 +79,7 @@ export async function renderPlanGif(options: {
     const overlay = makeCanvas(width, boardHeight);
     const frame = makeCanvas(width, height);
     const gif = GIFEncoder();
+    const format = background ? "rgb565" : "rgba4444";
     let palette: ReturnType<typeof quantize> | undefined;
 
     for (let index = 0; index < frameCount; index += 1) {
@@ -116,15 +120,18 @@ export async function renderPlanGif(options: {
       }
       overlay.context.globalCompositeOperation = "source-over";
 
+      frame.context.clearRect(0, 0, width, height);
       frame.context.drawImage(base.canvas, 0, 0);
       frame.context.drawImage(overlay.canvas, 0, 0);
 
       const rgba = frame.context.getImageData(0, 0, width, height).data;
-      palette ??= quantize(rgba, 256);
-      const indexed = applyPalette(rgba, palette);
+      palette ??= quantize(rgba, 256, { format, oneBitAlpha: true });
+      const transparentIndex = palette.findIndex((color) => color[3] === 0);
+      const indexed = applyPalette(rgba, palette, format);
       gif.writeFrame(indexed, width, height, {
         palette,
         delay: frameCount === 1 ? 0 : GIF_FRAME_DELAY_MS,
+        ...(transparentIndex >= 0 ? { transparent: true, transparentIndex, dispose: 2 } : {}),
       });
 
       onProgress?.(index + 1, frameCount);
