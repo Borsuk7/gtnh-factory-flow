@@ -42,6 +42,7 @@ export interface ShellFace {
   bar?: GlanceBar;
   /** The count the glance face prints. */
   count: string;
+  countValue: number;
   /** The picture the glance face draws. */
   art?: string;
   /** The box to use when React Flow has not measured the card yet. */
@@ -152,6 +153,7 @@ export function useCardFace(
     loop,
     bar: glanceBar(count.upTo, loop),
     count: `×${formatSolvedMachines(count.value)}`,
+    countValue: count.value,
     art: art ?? machineIcon?.iconPath,
     fallbackWidth: CC_GEOMETRY.cardWidth,
     // The first paint of a card nobody has drawn: the rows its recipe would give it, before the solve says which

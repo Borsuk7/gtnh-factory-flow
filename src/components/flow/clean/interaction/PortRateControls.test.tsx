@@ -31,6 +31,7 @@ function port(over: Partial<CleanPortView> = {}): CleanPortView {
     side: "input",
     port: { kind: "item", currentPerSecond: 2.5, resource: {} } as unknown as CleanPortView["port"],
     number: "2.5",
+    perSecond: 2.5,
     unit: "/s",
     name: "Iron Ingot",
     title: "",

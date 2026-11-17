@@ -32,7 +32,7 @@ import { usePortRowBrowse } from "../../use-port-row-browse";
 import type { StorageNodeData } from "../../StorageNode";
 import { checklistLocked } from "../../RecipeNode";
 import { useFontEpoch } from "../text-measure";
-import { TO_PRODUCT, TO_TRASH, bufferThroughput, buildDrawerView } from "./drawer-model";
+import { TO_PRODUCT, TO_TRASH, bufferThroughput, buildDrawerView, formatRateParts } from "./drawer-model";
 import { DrawerIcon } from "./DrawerIcon";
 import { BoardMenu, MenuLine, MenuRow } from "../menus/BoardMenu";
 import { ensureInteractionHost, tipAttrs } from "../interaction";
@@ -42,6 +42,7 @@ import type { TargetMode } from "@/lib/model/storage-target";
 import { playEditSfx } from "@/lib/sound/sfx";
 import { wheelChangesValues } from "@/lib/device-settings";
 import { useOverviewHighlight } from "../overview-highlight";
+import { MotionNumberAttribute, MotionNumberText } from "../../board-motion";
 
 /** A press that moved this far (screen px) before release is a drag, not a click. */
 const CLICK_SLOP = 3;
@@ -207,6 +208,7 @@ export function CleanDrawer({
   const [menu, setMenu] = useState<DOMRect>();
   const [context, setContext] = useState<{ x: number; y: number }>();
   const keyRef = useRef<HTMLDivElement>(null);
+  const edgeRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   const [keyEl, setKeyEl] = useState<HTMLDivElement | null>(null);
   const slopDown = useRef({ x: 0, y: 0 });
@@ -389,12 +391,23 @@ export function CleanDrawer({
         {...tipAttrs(view.tips.bar)}
       >
         <div
+          ref={edgeRef}
           className="cd-edge"
           data-rate={view.glanceRate}
           data-zero={view.zero ? "" : undefined}
           style={{ "--cd-chars": view.glanceRate.length } as CSSProperties}
           aria-hidden
-        />
+        >
+          <MotionNumberAttribute
+            target={edgeRef}
+            attribute="data-rate"
+            value={view.perSecond}
+            format={(rate) => {
+              const sign = rate <= 0.000005 || view.kind === "buffer" ? "" : view.kind === "source" ? "-" : "+";
+              return `${sign}${formatRateParts(rate, storage.kind).number}`;
+            }}
+          />
+        </div>
         <div className="cd-fill" aria-hidden>
           <div className="cd-bar" />
         </div>
@@ -473,7 +486,10 @@ export function CleanDrawer({
             data-zero={view.zero ? "" : undefined}
             data-small={view.numberSmall ? "" : undefined}
           >
-            {view.number}
+            <MotionNumberText
+              values={[view.perSecond]}
+              render={([rate]) => formatRateParts(rate!, storage.kind).number}
+            />
           </span>
           <span
             className="cd-name"
@@ -577,7 +593,7 @@ export function CleanDrawer({
             onPointerLeave={() => setSpillHover(undefined)}
           >
             <span className="cd-forced-num" data-unit={view.spill.unit}>
-              {view.spill.number}
+              <MotionNumberText values={[spill]} render={([rate]) => formatRateParts(rate!, storage.kind).number} />
             </span>
             <span className="cd-forced-name">Forced out</span>
           </div>

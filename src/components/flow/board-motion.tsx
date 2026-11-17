@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useSyncExternalStore, type RefObject } from "react";
 
 import {
   lerpSampledPolylines,
@@ -472,4 +472,25 @@ export function MotionNumberText({
   const { valueMotion } = useBoardMotion();
   const shown = useMotionValues(values, valueMotion);
   return <>{render(shown)}</>;
+}
+
+/** Animate a CSS-generated reading without adding an element or repainting its React parent. */
+export function MotionNumberAttribute({
+  target,
+  attribute,
+  value,
+  format,
+}: {
+  target: HTMLElement | RefObject<HTMLElement | null> | null;
+  attribute: `data-${string}`;
+  value: number;
+  format: (shown: number) => string;
+}) {
+  const { valueMotion } = useBoardMotion();
+  const text = format(useMotionValue(value, valueMotion));
+  useLayoutEffect(() => {
+    const element = target && "current" in target ? target.current : target;
+    element?.setAttribute(attribute, text);
+  });
+  return null;
 }

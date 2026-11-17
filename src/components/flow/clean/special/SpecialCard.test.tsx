@@ -61,6 +61,7 @@ function port(
     side,
     port: rail,
     number: "900",
+    perSecond: rail.currentPerSecond,
     unit: "/hr",
     name: resource.displayName,
     title: resource.displayName,

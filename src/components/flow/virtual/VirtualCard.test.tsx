@@ -11,6 +11,7 @@ const face: ShellFace = {
   cannotRun: false,
   unset: true,
   count: "×1.5",
+  countValue: 1.5,
   art: "/art.png",
   fallbackWidth: 320,
   fallbackHeight: 180,

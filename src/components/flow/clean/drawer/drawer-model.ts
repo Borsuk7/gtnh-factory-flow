@@ -80,6 +80,7 @@ export interface CleanDrawerView {
   /** The resource's name. */
   label: string;
   number: string;
+  perSecond: number;
   unit: string;
   zero: boolean;
   numberSmall: boolean;
@@ -262,6 +263,7 @@ export function buildDrawerView(input: DrawerViewInput): CleanDrawerView {
     kind,
     label,
     number,
+    perSecond: net,
     unit,
     zero,
     numberSmall: measureRowFigure(number, unit) > (spilling ? SPILL_WORDS : WORDS),

@@ -12,6 +12,7 @@ function port(over: Partial<CleanPortView> = {}): CleanPortView {
     side: "input",
     port: { resource: { alternatives: [] } } as unknown as CleanPortView["port"],
     number: "12",
+    perSecond: 12,
     unit: "/s",
     name: "Iron Ingot",
     title: "Iron Ingot",
@@ -92,10 +93,10 @@ describe("the card's tip wording", () => {
   });
 
   it("forced row: ships out or comes in", () => {
-    const out = forcedTip(port({ side: "output", forced: { number: "3", unit: "/s" } }));
+    const out = forcedTip(port({ side: "output", forced: { number: "3", unit: "/s", perSecond: 3 } }));
     expect(out.title).toBe("Forced output: Iron Ingot");
     expect(out.rows?.[0]).toEqual({ label: "Ships out here", value: "3 /s" });
-    expect(forcedTip(port({ forced: { number: "3", unit: "/s" } })).rows?.[0]?.label).toBe("Comes in here");
+    expect(forcedTip(port({ forced: { number: "3", unit: "/s", perSecond: 3 } })).rows?.[0]?.label).toBe("Comes in here");
   });
 
   const view = {

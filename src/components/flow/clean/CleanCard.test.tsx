@@ -7,6 +7,7 @@ import type { FactoryNode, Recipe, ResourceKind } from "@/lib/model/types";
 import type { RailPort } from "../node-verdict";
 import { CleanCard, StripChip } from "./CleanCard";
 import { writeDeviceSettings } from "@/lib/device-settings";
+import { readBoardMotionSnapshot, writeBoardMotion } from "../board-motion";
 import type {
   CleanCardActions,
   CleanCardContext,
@@ -67,6 +68,7 @@ function port(side: "input" | "output", n: number, kind: ResourceKind = "item"):
     side,
     port: rail,
     number: "900",
+    perSecond: 1.5,
     unit: "/hr",
     name: resource.displayName,
     title: resource.displayName,
@@ -179,10 +181,46 @@ function renderCard(view: CleanCardView, actions: CleanCardActions = actionsSpy(
   );
 }
 
+it("animates a solved count and port rate, then snaps when Live numbers is turned off", () => {
+  vi.useFakeTimers();
+  const originalMotion = readBoardMotionSnapshot();
+  writeBoardMotion({ valueMotion: true });
+  try {
+    const view = referenceView();
+    const { container, rerender, unmount } = renderCard(view);
+    const updated = {
+      ...view,
+      count: count("any", undefined, 6),
+      outputs: [{ ...view.outputs[0]!, number: "5", perSecond: 5 }, ...view.outputs.slice(1)],
+    };
+    rerender(
+      <ReactFlowProvider>
+        <CleanCard view={updated} actions={actionsSpy()} context={context} recipe={recipe} node={node} />
+      </ReactFlowProvider>,
+    );
+    const reading = container.querySelector('[data-side="output"] .cc-num')!;
+    const countBox = container.querySelector(".cc-count")!;
+    expect(countBox.getAttribute("data-run")).toBe("×1.2");
+    expect(reading.textContent).toBe("1.5");
+    act(() => vi.advanceTimersByTime(250));
+    expect(Number(countBox.getAttribute("data-run")!.slice(1))).toBeGreaterThan(1.2);
+    expect(Number(countBox.getAttribute("data-run")!.slice(1))).toBeLessThan(6);
+    expect(Number(reading.textContent)).toBeGreaterThan(1.5);
+    expect(Number(reading.textContent)).toBeLessThan(5);
+    act(() => writeBoardMotion({ valueMotion: false }));
+    expect(countBox.getAttribute("data-run")).toBe("×6");
+    expect(reading.textContent).toBe("5");
+    unmount();
+  } finally {
+    writeBoardMotion(originalMotion);
+    vi.useRealTimers();
+  }
+});
+
 it("lights a spill's Forced tile with the rest of the spill, and lights the rest from its own row", () => {
   const view = referenceView();
   view.outputs = [
-    { ...view.outputs[0]!, forced: { number: "5", unit: "/s" }, spillTo: "buf" },
+    { ...view.outputs[0]!, forced: { number: "5", unit: "/s", perSecond: 5 }, spillTo: "buf" },
     ...view.outputs.slice(1),
   ];
   const { container } = renderCard(view);
@@ -510,7 +548,7 @@ it("outlines a problem card in its bar's tone, and leaves Any and a full card al
   cleanup();
   const exactCount = count("exact", 24, 24);
   const fed = [
-    { ...view.inputs[0]!, forced: { number: "720", unit: "L/s" } },
+    { ...view.inputs[0]!, forced: { number: "720", unit: "L/s", perSecond: 720 } },
     ...view.inputs.slice(1),
   ];
   const forced = renderCard({

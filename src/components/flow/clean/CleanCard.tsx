@@ -15,6 +15,8 @@ import {
   type WheelEvent,
 } from "react";
 import type { FactoryNode, Recipe } from "@/lib/model/types";
+import { powerDisplayFromEuT } from "@/lib/model/rate-unit";
+import { formatCompact, formatPowerValue } from "@/lib/model/resources";
 import {
   fluidArtPixels,
   getFallbackFluidColor,
@@ -27,6 +29,8 @@ import { useCardTaskStatus } from "@/lib/tasks/task-link-index";
 import { TASK_STATUS_COLOR } from "@/lib/tasks/task-links";
 import { buildPortFlowScope } from "../flow-scope";
 import { usePortRowBrowse } from "../use-port-row-browse";
+import { MotionNumberAttribute, MotionNumberText } from "../board-motion";
+import { formatEnergyPerUnitParts, formatSlotRateBare, portReadsEnergy } from "../flow-explainers";
 import { isWiringConnection } from "../connection-drag";
 import { CardActionsMenu } from "./menus/CardActionsMenu";
 import { openAddToTask } from "@/components/tasks/AddToTask";
@@ -44,11 +48,14 @@ import type {
   CleanCardContext,
   CleanCardView,
   CleanChipView,
+  CleanCountView,
   CleanFootView,
   CleanPortView,
+  CleanPowerView,
 } from "./clean-model";
 import {
   circuitNumber,
+  formatSolvedMachines,
   frameTone,
   LIVE_TYPE_MS,
   parseCountText,
@@ -294,7 +301,10 @@ export function CleanPortRow({
         >
           {port.resource ? <PortIcon resource={port.resource} iconProps={iconProps} /> : null}
           <span className="cc-num" data-unit={p.forced.unit}>
-            {p.forced.number}
+            <MotionNumberText
+              values={[p.forced.perSecond]}
+              render={([rate]) => rate === p.forced!.perSecond ? p.forced!.number : formatSlotRateBare(rate!, port.kind)}
+            />
           </span>
           <span className="cc-pname">Forced</span>
         </div>
@@ -366,6 +376,8 @@ function PortIcon({
 /** Icon, figure, name: the three things a row says. */
 function Words({ p, iconProps }: { p: CleanPortView; iconProps: Record<string, unknown> }) {
   const { port } = p;
+  const energy = portReadsEnergy(port);
+  const reading = energy ? port.energyPerUnit! : p.perSecond;
   return (
     <>
       {port.kind === "power" ? (
@@ -380,7 +392,14 @@ function Words({ p, iconProps }: { p: CleanPortView; iconProps: Record<string, u
         data-gold={p.gold ? "" : undefined}
         data-small={p.numberSmall ? "" : undefined}
       >
-        {p.number}
+        <MotionNumberText
+          key={energy ? "energy" : "rate"}
+          values={[reading]}
+          render={([value]) => {
+            if (value === reading) return p.number;
+            return energy ? formatEnergyPerUnitParts(value!, port.kind).value : formatSlotRateBare(value!, port.kind);
+          }}
+        />
       </span>
       <span
         className="cc-pname"
@@ -393,12 +412,32 @@ function Words({ p, iconProps }: { p: CleanPortView; iconProps: Record<string, u
   );
 }
 
+function RunningCountText({ view }: { view: Pick<CleanCountView, "value" | "text"> }) {
+  return <MotionNumberText
+    values={[view.value]}
+    render={([value]) => formatRunningCount(view, value!)}
+  />;
+}
+
+export function formatRunningCount(view: Pick<CleanCountView, "value" | "text">, value: number) {
+  return value === view.value ? view.text : `${view.text.startsWith("×") ? "×" : ""}${formatSolvedMachines(value)}`;
+}
+
+export function PowerNumberText({ view }: { view: CleanPowerView }) {
+  const { reading } = view;
+  if (!reading) return <>{view.number}</>;
+  return <MotionNumberText
+    key={reading.steam ? "steam" : "power"}
+    values={[reading.value]}
+    render={([value]) => reading.steam ? formatCompact(value!) : formatPowerValue(powerDisplayFromEuT(value!, reading.tier))}
+  />;
+}
+
 /**
- * The count under the machine (docs/up-to.md): what runs, big and white (`::before`, from `data-run`), and under it
+ * The count under the machine (docs/up-to.md): what runs in large text from `data-run`, and under it
  * what is set, as the overview's machine lines say it: the rule word, always (a click opens Any, Up to, Exactly), and
  * the set box (`::after`, from `data-set`): the number in gold, or "Set" with no count. A click anywhere else types a
- * count (Any becomes Up to), the wheel steps it, the middle button clears it (Any). Two elements: the block and the rule
- * word.
+ * count (Any becomes Up to), the wheel steps it, the middle button clears it (Any).
  */
 export function CountBox({
   view,
@@ -521,10 +560,15 @@ export function CountBox({
       }}
     >
       {view.unit ? (
-        <div className="cc-run" data-unit={view.unit}>
-          {view.text}
-        </div>
-      ) : null}
+        <div className="cc-run" data-unit={view.unit}><RunningCountText view={view} /></div>
+      ) : (
+        <MotionNumberAttribute
+          target={block}
+          attribute="data-run"
+          value={view.value}
+          format={(value) => formatRunningCount(view, value)}
+        />
+      )}
       <div
         role={view.ruleFixed ? undefined : "button"}
         tabIndex={view.ruleFixed ? undefined : 0}
@@ -881,6 +925,7 @@ export function CleanCard({ view, actions, context, recipe, node }: CleanCardPro
   // A task board somewhere on this device is about this card: the most pressing one's colour, a dot before the name.
   const taskStatus = useCardTaskStatus(view.nodeId);
   const rootRef = useRef<HTMLDivElement>(null);
+  const glanceRef = useRef<HTMLDivElement>(null);
   useEffect(() => ensureInteractionHost(), []);
   // Every prompt on the board shares one phase however late it mounted.
   useEffect(() => {
@@ -1079,7 +1124,7 @@ export function CleanCard({ view, actions, context, recipe, node }: CleanCardPro
           >
             <span className="cc-bolt" />
             <span className="cc-num" data-unit={view.power.unit}>
-              {view.power.number}
+              <PowerNumberText view={view.power} />
             </span>
             <span className="cc-pname">{view.power.name}</span>
           </div>
@@ -1147,6 +1192,7 @@ export function CleanCard({ view, actions, context, recipe, node }: CleanCardPro
       {view.foot ? <CardFoot nodeId={view.nodeId} foot={view.foot} /> : null}
 
       <div
+        ref={glanceRef}
         className="cc-glance"
         data-node-detail="glance"
         data-count={view.count.text}
@@ -1157,6 +1203,12 @@ export function CleanCard({ view, actions, context, recipe, node }: CleanCardPro
         style={glance.style}
       >
         {glance.text}
+        <MotionNumberAttribute
+          target={glanceRef}
+          attribute="data-count"
+          value={view.count.value}
+          format={(value) => formatRunningCount(view.count, value)}
+        />
       </div>
 
       {sheetAnchor ? (

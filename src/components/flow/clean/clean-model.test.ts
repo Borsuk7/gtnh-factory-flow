@@ -64,6 +64,7 @@ function port(
     side,
     port: { side, kind: "item", resourceId: id, displayName: name } as unknown as RailPort,
     number: "1",
+    perSecond: 1,
     unit: "/s",
     name,
     title: name,
@@ -75,7 +76,7 @@ function port(
     wired: true,
     choice: false,
     resourceKey: `item:${id}`,
-    forced,
+    forced: forced ? { ...forced, perSecond: Number(forced.number) } : undefined,
   };
 }
 

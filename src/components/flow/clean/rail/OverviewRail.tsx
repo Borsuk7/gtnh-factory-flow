@@ -21,6 +21,7 @@ import {
 } from "react";
 import { machineArtPixels } from "../../MachinePicker";
 import { FoldGlyph } from "../fold/FoldKey";
+import { MotionNumberText } from "../../board-motion";
 import { BoardMenu, MenuRow } from "../menus/BoardMenu";
 import { useMachineHandlerIcons } from "../../machine-icons";
 import { getFallbackFluidColor, ResourceIcon } from "@/components/nei/ResourceIcon";
@@ -406,7 +407,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
   );
 
   const visible = visibleSlice(layout.placed, scrollTop - 200, scrollTop + viewport + 200);
-  const euText = `${formatCompact(powerDisplayFromEuT(peak ? rail.power.peak.used : rail.power.average.used))} ${powerDisplaySuffix()}`;
+  const usedEuT = peak ? rail.power.peak.used : rail.power.average.used;
   const selectionSummary = selection
     ? [[selection.machines, "machine"], [selection.drawers, "drawer"]] as const
     : [];
@@ -477,7 +478,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
                 if (placed.item.t === "spare") anchorTop.current = placed.top;
               }}
             >
-              <ItemView placed={placed} state={state} euText={euText} peak={peak} />
+              <ItemView placed={placed} state={state} usedEuT={usedEuT} peak={peak} />
             </div>
           ))}
         </div>
@@ -493,19 +494,19 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
 const ItemView = memo(function ItemView({
   placed,
   state,
-  euText,
+  usedEuT,
   peak,
 }: {
   placed: Placed;
   state: RailState;
-  euText: string;
+  usedEuT: number;
   peak: boolean;
 }) {
   useRateDisplayUnits();
   const { item } = placed;
   switch (item.t) {
     case "section":
-      return <SectionBar item={item} euText={euText} peak={peak} />;
+      return <SectionBar item={item} usedEuT={usedEuT} peak={peak} />;
     case "empty":
       return <div className="rail-empty" role={item.pending ? "status" : undefined}>{item.text}</div>;
     case "line":
@@ -521,8 +522,11 @@ const ItemView = memo(function ItemView({
               color: item.label === "Made" ? "#FCD34D" : item.value >= 0 ? CC.ok : CC.red,
             }}
           >
-            {item.label === "Net" ? (item.value >= 0 ? "+" : "-") : ""}
-            {formatCompact(powerDisplayFromEuT(Math.abs(item.value)))} {powerDisplaySuffix()}
+            <MotionNumberText
+              key={peak ? "peak" : "average"}
+              values={[item.value]}
+              render={([euT]) => `${item.label === "Net" ? (euT! >= 0 ? "+" : "-") : ""}${formatCompact(powerDisplayFromEuT(Math.abs(euT!)))} ${powerDisplaySuffix()}`}
+            />
           </b>
         </div>
       );
@@ -537,11 +541,11 @@ const ItemView = memo(function ItemView({
 
 function SectionBar({
   item,
-  euText,
+  usedEuT,
   peak,
 }: {
   item: Extract<Placed["item"], { t: "section" }>;
-  euText: string;
+  usedEuT: number;
   peak: boolean;
 }) {
   const shown = item.shown !== item.count;
@@ -573,7 +577,13 @@ function SectionBar({
       <span className="rail-sec-end">
         {item.id === "MACHINES" ? (
           <>
-            <span>{euText}</span>
+            <span>
+              <MotionNumberText
+                key={peak ? "peak" : "average"}
+                values={[usedEuT]}
+                render={([euT]) => `${formatCompact(powerDisplayFromEuT(euT!))} ${powerDisplaySuffix()}`}
+              />
+            </span>
             <RailKey
               label={peak ? "Peak power" : "Average power"}
               onClick={() => writeWorkspaceView({ averageMachineDraw: peak })}
@@ -679,7 +689,10 @@ const LineRow = memo(function LineRow({
         <ResourceGlyph line={line} />
         <span className="rail-name">{line.label}</span>
         <span className="rail-num" data-zero={amount > 0 ? undefined : ""}>
-          {number}
+          <MotionNumberText
+            values={[amount]}
+            render={([rate]) => `${rate! > 0 ? SIGN[section] : ""}${formatCompact(rate! * mult)}`}
+          />
           {unitText ? <i>{unitText}</i> : null}
         </span>
         <div className="rail-controls">
@@ -1154,15 +1167,14 @@ const MachineRow = memo(function MachineRow({
     3 -
     (tierLabel ? measureClean(tierLabel, RAIL_FONT, 600) + 10 : 0) -
     measureClean(countText, RAIL_FONT);
-  const withUnit = (number: string, unit: string) =>
-    measureClean(`${number} ${unit}`, RAIL_FONT) <= room ? `${number} ${unit}` : number;
-  let eu = "";
-  if (tooLow) eu = "TIER!";
-  else if (made !== undefined && made > 0)
-    eu = withUnit(`+${formatCompact(powerDisplayFromEuT(made))}`, powerDisplaySuffix());
-  else if (steam !== undefined) eu = withUnit(formatCompact(steam), "L/s");
-  else if (used !== undefined)
-    eu = withUnit(formatCompact(powerDisplayFromEuT(used)), powerDisplaySuffix());
+  const making = made !== undefined && made > 0;
+  const draw = making ? made : steam ?? used;
+  const usingSteam = !making && steam !== undefined;
+  const drawUnit = usingSteam ? "L/s" : powerDisplaySuffix();
+  const drawNumber = (value: number) => `${making ? "+" : ""}${formatCompact(usingSteam ? value : powerDisplayFromEuT(value))}`;
+  const showDrawUnit = draw !== undefined && measureClean(`${drawNumber(draw)} ${drawUnit}`, RAIL_FONT) <= room;
+  const drawText = (value: number) => `${drawNumber(value)}${showDrawUnit ? ` ${drawUnit}` : ""}`;
+  const eu = tooLow ? "TIER!" : draw === undefined ? "" : drawText(draw);
   const togglePin = () => stepPinRule(entry.nodeId, base);
   const go = () => frameCards([entry.nodeId]);
   const wheelCount = (direction: 1 | -1) => {
@@ -1232,14 +1244,20 @@ const MachineRow = memo(function MachineRow({
           data-make={made && made > 0 ? "" : undefined}
           data-low={tooLow ? "" : undefined}
         >
-          {eu}
+          {tooLow || draw === undefined ? eu : (
+            <MotionNumberText
+              key={`${peak}:${making ? "made" : usingSteam ? "steam" : "used"}`}
+              values={[draw]}
+              render={([value]) => drawText(value!)}
+            />
+          )}
         </span>
         <span
           className="rail-count"
           data-reason={reason}
           style={reason ? { color: UP_TO_COLOR[reason] } : undefined}
         >
-          {countText}
+          <MotionNumberText values={[entry.count]} render={([count]) => `×${machinesText(count!)}`} />
         </span>
         <div className="rail-controls" onClick={(event) => event.stopPropagation()}>
           <RuleKey

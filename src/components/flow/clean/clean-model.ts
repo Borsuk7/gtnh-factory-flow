@@ -67,7 +67,7 @@ import { mcTextWidth, measureClean, measureRowFigure, measureRowName, useFontEpo
 
 type VoltageTier = Parameters<typeof getVoltageTierIndex>[0];
 
-/** What one port row prints. All strings are final; the row does no formatting. */
+/** A port's settled strings and the raw readings used for motion. */
 export interface CleanPortView {
   key: string;
   nodeId: string;
@@ -75,6 +75,7 @@ export interface CleanPortView {
   side: "input" | "output";
   port: RailPort;
   number: string;
+  perSecond: number;
   unit: string;
   name: string;
   /** The tooltip: the name, plus the chance an output comes with. */
@@ -94,7 +95,7 @@ export interface CleanPortView {
   choice: boolean;
   resourceKey: string;
   /** What the solve sends out of / brings into the plan at this port with no drawer. */
-  forced?: { number: string; unit: string };
+  forced?: { number: string; unit: string; perSecond: number };
   /** The buffer this port's forced row spills into (a maker making more than the buffer's users take). */
   spillTo?: string;
   /** The row an Up to card's reason names (STARVED, CLOGGED, UNUSED): lit in the reason's colour. */
@@ -119,6 +120,7 @@ export interface CleanChipView {
 
 export interface CleanPowerView {
   number: string;
+  reading?: { value: number; tier?: VoltageTier; steam?: boolean };
   unit: string;
   name: string;
   stalled: boolean;
@@ -390,6 +392,7 @@ export function buildPortView(
     side: port.side,
     port,
     number,
+    perSecond: shown,
     unit,
     name: port.displayName,
     title: chanceText
@@ -413,6 +416,7 @@ export function buildPortView(
         ? {
             number: formatSlotRateBare(forcedRate, port.kind),
             unit: rateSuffixForKind(port.kind).trim(),
+            perSecond: forcedRate,
           }
         : undefined,
     ...(spillTo !== undefined && forcedRate !== undefined && forcedRate > 0 ? { spillTo } : {}),
@@ -1061,12 +1065,14 @@ export function useCleanCardModel(
   let power: CleanPowerView | undefined;
   if (powerReport) {
     const stalled = powerReport.state !== "ok";
+    const draw = powerReport.drawEuT * machines * drawScale;
     power = {
       number: stalled
         ? "TIER!"
         : formatPowerValue(
-            powerDisplayFromEuT(powerReport.drawEuT * machines * drawScale, powerReport.tier),
+            powerDisplayFromEuT(draw, powerReport.tier),
           ),
+      reading: stalled ? undefined : { value: draw, tier: powerReport.tier },
       unit: stalled ? "" : powerDisplaySuffix(powerReport.tier),
       name: "Power",
       stalled,
@@ -1075,8 +1081,10 @@ export function useCleanCardModel(
         : `${powerReport.tier} machine, ${formatCompact(powerReport.amps)}A`,
     };
   } else if (steamReport) {
+    const draw = steamReport.drawSteamPerTick * 20 * machines * drawScale;
     power = {
-      number: formatCompact(steamReport.drawSteamPerTick * 20 * machines * drawScale),
+      number: formatCompact(draw),
+      reading: { value: draw, steam: true },
       unit: "L/s",
       name: steamReport.highPressure ? "HP steam" : "Steam",
       stalled: false,

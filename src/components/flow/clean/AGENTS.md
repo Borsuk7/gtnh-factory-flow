@@ -34,8 +34,9 @@ holder, a crop card. Bees, the Extreme Entity Crusher and every other machine ar
 
 - `tokens.ts` + `clean.css` own the palette and geometry. Others read them; `colors.ts` has `mixHex`
   (the mod's float32 `Hyb.mix`, so drawer and forced-row mixes match their Java twins).
-- `clean-model.ts` turns a node and the solve into a `CleanCardView` (every string final) and the
-  actions; `CleanCard.tsx` only draws it. The card's height is a pure function of the data: the strip
+- `clean-model.ts` turns a node and the solve into a `CleanCardView` with settled display strings and
+  raw values for Live numbers. The readouts use the shared motion clock and keep each animation in its
+  own leaf. The card's height is a pure function of the data: the strip
   lays its chips out itself (`layoutStrip`, `text-measure.ts`), nothing is measured from the DOM. A row's fit
   checks measure its words as drawn (`ROW_TYPE`, pinned to clean.css and drawer.css by `text-measure.test.ts`), and
   every width is measured again when a face of the app's font loads.

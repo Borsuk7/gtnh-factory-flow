@@ -21,8 +21,11 @@ import {
   StripChip,
   TierChip,
   AmpsChip,
+  PowerNumberText,
+  formatRunningCount,
   glyph,
 } from "../CleanCard";
+import { MotionNumberAttribute } from "../../board-motion";
 import { frameTone, type CleanCardView, type CleanChipView } from "../clean-model";
 import { glanceFace } from "../glance";
 import { ensureInteractionHost, tipAttrs, useClickSlop, type TipSpec } from "../interaction";
@@ -374,6 +377,7 @@ export function SpecialCard({ model, recipe, node }: SpecialCardProps) {
   // A task board somewhere on this device is about this card: a dot before the name, as on the plain card.
   const taskStatus = useCardTaskStatus(view.nodeId);
   const rootRef = useRef<HTMLDivElement>(null);
+  const glanceRef = useRef<HTMLDivElement>(null);
   useEffect(() => ensureInteractionHost(), []);
   useEffect(() => {
     // Every prompt on the board, and a ring's outline, blinks off one clock (virtual/prompt-phase.ts).
@@ -464,7 +468,7 @@ export function SpecialCard({ model, recipe, node }: SpecialCardProps) {
   const powerRow = shared && view.power ? lastRailRow + 1 : undefined;
   const pictureEnd = (powerRow ?? lastRailRow) + 1;
   const stripRow = pictureEnd;
-  const countText = view.count?.text ?? "";
+  const count = view.count;
   const glance = glanceFace(
     view.glyph === "gauge" ? GAUGE_URL : view.glanceArt ? `url(${view.glanceArt})` : undefined,
     view.glance,
@@ -480,7 +484,7 @@ export function SpecialCard({ model, recipe, node }: SpecialCardProps) {
     >
       <span className="cc-bolt" />
       <span className="cc-num" data-unit={view.power.unit}>
-        {view.power.number}
+        <PowerNumberText view={view.power} />
       </span>
       <span className="cc-pname">{view.power.name}</span>
     </div>
@@ -714,9 +718,10 @@ export function SpecialCard({ model, recipe, node }: SpecialCardProps) {
       {view.foot ? <CardFoot nodeId={view.nodeId} foot={view.foot} gridRow={stripRow + 2} /> : null}
 
       <div
+        ref={glanceRef}
         className="cc-glance"
         data-node-detail="glance"
-        data-count={countText}
+        data-count={count?.text ?? ""}
         data-name={glanceNames ? view.name : undefined}
         data-bar={glance["data-bar"]}
         data-tone={glance["data-tone"]}
@@ -724,6 +729,12 @@ export function SpecialCard({ model, recipe, node }: SpecialCardProps) {
         style={glance.style}
       >
         {glance.text}
+        {count ? <MotionNumberAttribute
+          target={glanceRef}
+          attribute="data-count"
+          value={count.value}
+          format={(value) => formatRunningCount(count, value)}
+        /> : null}
       </div>
 
       {menu ? (

@@ -14,6 +14,8 @@ import "./virtual.css";
 import { applyZoomTo } from "./zoom-var";
 import { syncPromptPhase } from "./prompt-phase";
 import { glanceFace } from "../clean/glance";
+import { formatSolvedMachines } from "../clean/clean-model";
+import { MotionNumberAttribute } from "../board-motion";
 import { boardVirtualizer, virtualizationEnabled } from "./card-virtualizer";
 import type { ShellFace } from "./use-card-face";
 
@@ -158,6 +160,7 @@ export function CardShell({
 }) {
   const storeApi = useStoreApi();
   const ref = useRef<HTMLDivElement>(null);
+  const glanceRef = useRef<HTMLDivElement>(null);
   // Markers while a shell has just been shown again: decided while rendering, so they are in the same commit as
   // the un-hiding (the measure it provokes comes after layout).
   const [wasFar, setWasFar] = useState(far);
@@ -251,6 +254,7 @@ export function CardShell({
       style={style}
     >
       <div
+        ref={glanceRef}
         className="cc-glance"
         data-node-detail="glance"
         data-count={face.count}
@@ -260,6 +264,12 @@ export function CardShell({
         style={glance.style}
       >
         {glance.text}
+        <MotionNumberAttribute
+          target={glanceRef}
+          attribute="data-count"
+          value={face.countValue}
+          format={(value) => `×${formatSolvedMachines(value)}`}
+        />
       </div>
       {handles?.source?.map((h) => marker("source", h))}
       {handles?.target?.map((h) => marker("target", h))}
