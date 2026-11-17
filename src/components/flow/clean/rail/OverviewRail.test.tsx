@@ -11,6 +11,7 @@ import { formatCompact } from "@/lib/model/resources";
 import type { PlanNote } from "@/lib/solver/plan/types";
 import { useFactoryStore } from "@/store/factory-store";
 import { writeDeviceSettings } from "@/lib/device-settings";
+import { writeWorkspaceView } from "@/lib/workspace-view";
 import { OverviewRail } from "./OverviewRail";
 import { pinCount } from "./rail-actions";
 import { PlanNoticeStack } from "./NoticeBar";
@@ -71,6 +72,7 @@ function load(mock: typeof mockLeftovers, result: ThroughputResult = mock.result
 beforeEach(() => {
   window.localStorage.clear();
   resetRailViewForTests();
+  writeWorkspaceView({ averageMachineDraw: true });
   useFactoryStore.getState().setRateUnit("second");
   useFactoryStore.getState().setPowerDisplayUnit("eu");
 });
@@ -120,6 +122,51 @@ it("repaints memoized machine power when the power unit changes", () => {
   expect(power.textContent).toContain("A LV");
   act(() => useFactoryStore.getState().setPowerDisplayUnit("eu"));
   expect(power.textContent).toContain("EU/t");
+});
+
+it("switches machine draw, Made and Net between running and configured counts without solving", () => {
+  const project = structuredClone(mockUnneeded.project);
+  const result = structuredClone(mockUnneeded.result);
+  const comp = project.nodes.find((node) => node.id === "comp")!;
+  const recipe = project.recipes.find((entry) => entry.id === comp.recipeId)!;
+  project.nodes.push({ ...comp, id: "generator", recipeId: "generator", solvePin: 4 });
+  project.recipes.push({
+    ...recipe,
+    id: "generator",
+    eut: 0,
+    inputs: [],
+    outputs: [],
+    power: { sourceId: "test-generator", euPerTick: 16, stats: [] },
+  });
+  result.nodes.comp!.theoreticalMachinesRequired = 3;
+  result.nodes.comp!.utilization = 0.5;
+  result.nodes.generator = {
+    ...result.nodes.comp!,
+    nodeId: "generator",
+    recipeId: "generator",
+    theoreticalMachinesRequired: 2,
+    inputs: {},
+    outputs: {},
+  };
+  load({ ...mockUnneeded, project }, result);
+  const { container } = render(<OverviewRail />);
+  const used = screen.getByText("MACHINES").closest(".rail-sec")!.querySelector(".rail-sec-end > span")!;
+  const compDraw = container.querySelector('[data-rail-machine="comp"] .rail-eu')!;
+  const power = () => [...container.querySelectorAll(".rail-power b")].map((row) => row.textContent);
+
+  expect(used.textContent).toBe("90 EU/t");
+  expect(compDraw.textContent).toMatch(/^90(?: |$)/);
+  expect(power()).toEqual(["32 EU/t", "-58 EU/t"]);
+
+  fireEvent.click(screen.getByRole("button", { name: "Average power" }));
+  expect(used.textContent).toBe("180 EU/t");
+  expect(compDraw.textContent).toMatch(/^180(?: |$)/);
+  expect(power()).toEqual(["64 EU/t", "-116 EU/t"]);
+  expect(useFactoryStore.getState().project).toBe(project);
+  expect(useFactoryStore.getState().lastResult).toBe(result);
+
+  fireEvent.click(screen.getByRole("button", { name: "Peak power" }));
+  expect(used.textContent).toBe("90 EU/t");
 });
 
 it("lists the plan's sections, lines and machines", () => {

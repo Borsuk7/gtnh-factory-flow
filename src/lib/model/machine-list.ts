@@ -104,6 +104,11 @@ export function buildMachineList(
     // Parallel processing affects draw, never the number of physical machines.
     const parallel = Math.max(1, node.parallel);
     const runningCount = solving || usage > 0 ? count : 0;
+    // The plan runs only the solved share of a capped card on average. Peak
+    // uses its full configured count while the card is producing anything.
+    const peakCount = project.planMode && solving && runningCount > 0 && !crop
+      ? Math.max(runningCount, nonnegative(node.solvePin ?? 0))
+      : runningCount;
     const report = sections[0]?.report;
     const steam = sections[0]?.steam;
     const peakDraw = Math.max(0, ...sections.map((part) => part.report?.drawEuT ?? 0));
@@ -124,28 +129,23 @@ export function buildMachineList(
         ? (cropsNhManagerEuPerHarvest(crop) * seeds) / ticks
         : 0;
     })();
+    const cropDraw = cropEuT === undefined ? undefined : solving || usage > 0 ? cropEuT : 0;
     const powerEuT = recipe.power?.euPerTick;
-    const madeEuT =
-      powerEuT !== undefined && powerEuT >= 0 ? powerEuT * runningCount * parallel : undefined;
+    const generation = powerEuT !== undefined && powerEuT >= 0 ? powerEuT : undefined;
+    const powerDraw = powerEuT !== undefined && powerEuT < 0 ? -powerEuT : undefined;
+    const averageUsage = solving ? 1 : usage;
+    const peakScale = peakCount * parallel;
+    const averageScale = runningCount * parallel * averageUsage;
     const euT = report
-      ? peakDraw * runningCount * parallel
-      : cropEuT !== undefined
-        ? solving || usage > 0
-          ? cropEuT
-          : 0
-        : powerEuT !== undefined && powerEuT < 0
-          ? -powerEuT * runningCount * parallel
-          : undefined;
+      ? peakDraw * peakScale
+      : cropDraw ?? (powerDraw === undefined ? undefined : powerDraw * peakScale);
     const avgEuT = report
       ? average((part) => part.report?.drawEuT ?? 0)
-      : euT !== undefined
-        ? euT * (solving ? 1 : usage)
-        : undefined;
+      : cropDraw !== undefined
+        ? cropDraw * averageUsage
+        : powerDraw === undefined ? undefined : powerDraw * averageScale;
     const steamLs = steam
-      ? Math.max(...sections.map((part) => part.steam?.drawSteamPerTick ?? 0)) *
-        20 *
-        runningCount *
-        parallel
+      ? Math.max(...sections.map((part) => part.steam?.drawSteamPerTick ?? 0)) * 20 * peakScale
       : undefined;
     const avgSteamLs = steam
       ? average((part) => (part.steam?.drawSteamPerTick ?? 0) * 20)
@@ -178,8 +178,8 @@ export function buildMachineList(
       avgEuT,
       steamLs,
       avgSteamLs,
-      madeEuT,
-      avgMadeEuT: madeEuT !== undefined ? madeEuT * (solving ? 1 : usage) : undefined,
+      madeEuT: generation === undefined ? undefined : generation * peakScale,
+      avgMadeEuT: generation === undefined ? undefined : generation * averageScale,
       pressure: steam ? (steam.highPressure ? "high-pressure" : "bronze") : undefined,
       state: report?.state ?? "ok",
     });
