@@ -40,16 +40,18 @@ export function LibraryMenu({
   // Shell pixels: a body portal wearing .ui-zoom positions in shell pixels, so
   // the real-pixel anchor and window are divided by the interface scale.
   const scale = getUiScale();
-  const clampedLeft = Math.min(left / scale, window.innerWidth / scale - MENU_WIDTH - 8);
-  const clampedTop = Math.min(top / scale, window.innerHeight / scale - 360);
+  const width = Math.min(MENU_WIDTH, window.innerWidth / scale - 16);
+  const maxHeight = Math.min(340, window.innerHeight / scale - 16);
+  const clampedLeft = Math.max(8, Math.min(left / scale, window.innerWidth / scale - width - 8));
+  const clampedTop = Math.max(8, Math.min(top / scale, window.innerHeight / scale - maxHeight - 8));
 
   return createPortal(
     <div
       ref={menuRef}
       role="menu"
       aria-label={label}
-      style={{ left: clampedLeft, top: Math.max(8, clampedTop), width: MENU_WIDTH }}
-      className="ui-zoom fixed z-[100] max-h-[340px] overflow-y-auto border-2 border-[var(--mc-15)] bg-[var(--mc-47)] py-0.5 shadow-[6px_6px_0_rgba(0,0,0,0.45)]"
+      style={{ left: clampedLeft, top: clampedTop, width, maxHeight }}
+      className="ui-zoom fixed z-[100] overflow-y-auto overscroll-contain border-2 border-[var(--mc-15)] bg-[var(--mc-47)] py-0.5 shadow-[6px_6px_0_rgba(0,0,0,0.45)]"
     >
       {children}
     </div>,
@@ -91,7 +93,7 @@ export function MenuItem({
       disabled={disabled}
       onClick={onClick}
       className={[
-        "flex w-full items-center gap-1.5 whitespace-nowrap px-2 py-1.5 text-left text-xs hover:bg-[var(--mc-61)] disabled:opacity-50",
+        "flex w-full items-center gap-1.5 whitespace-nowrap px-2 py-1.5 text-left text-xs hover:bg-[var(--mc-61)] disabled:opacity-50 compact:min-h-10 compact:text-[13px]",
         indent ? "pl-4" : "",
         tone === "danger" ? "text-red-400" : "text-[var(--mc-ink)]",
       ].join(" ")}

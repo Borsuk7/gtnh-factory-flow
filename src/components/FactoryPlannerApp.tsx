@@ -47,7 +47,6 @@ import { AddToTaskMenu } from "./tasks/AddToTask";
 import { BoardToolbar } from "./chrome/BoardToolbar";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { BlueprintSaveDialog } from "./BlueprintSaveDialog";
-import { PowerSourceOverlay } from "./PowerSourceOverlay";
 import { FactoryFlow } from "./flow/FactoryFlow";
 import { useBoardSoundEffects } from "./flow/use-board-sound-effects";
 import { InspectorPanel } from "./InspectorPanel";
@@ -341,7 +340,7 @@ export function FactoryPlannerApp() {
       )}
       {/* The power source picker portals to the body, so it works from either
           layout and outranks the drawers on compact. */}
-      {isCompact ? <PowerSourceOverlay /> : <ModPowerPicker />}
+      <ModPowerPicker compact={isCompact} />
       {/* Every pocket-to-shelf path (card save, share-a-pocket,
           overwrite) confirms through this one dialog. */}
       <BlueprintSaveDialog />
@@ -638,16 +637,18 @@ export function CompactWorkspace({ workspace, onLoadDatasetVersion }: WorkspaceP
       className="relative min-h-0 flex-1 overflow-hidden"
     >
       <BoardColumn />
-      <PanelDrawer
-        side={planLayout ? "right" : "left"}
-        label="items"
-        width={ITEMS_WIDTH}
-        open={itemsOpen}
-        onOpen={openLeft}
-        onClose={() => writeWorkspaceView({ leftPanelOpen: false })}
-      >
-        <ViewerAwareBrowser onLoadDatasetVersion={onLoadDatasetVersion} />
-      </PanelDrawer>
+      {covering ? null : (
+        <PanelDrawer
+          side={planLayout ? "right" : "left"}
+          label="items"
+          width={ITEMS_WIDTH}
+          open={itemsOpen}
+          onOpen={openLeft}
+          onClose={() => writeWorkspaceView({ leftPanelOpen: false })}
+        >
+          <ViewerAwareBrowser onLoadDatasetVersion={onLoadDatasetVersion} />
+        </PanelDrawer>
+      )}
       {covering || worksheet ? null : (
         <PanelDrawer
           side={planLayout ? "left" : "right"}

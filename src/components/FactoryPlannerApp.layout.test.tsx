@@ -17,7 +17,7 @@ vi.mock("./PlanIdentityDrawer", () => ({ PlanIdentityDrawer: () => null }));
 vi.mock("./TabConflictNotice", () => ({ TabConflictNotice: () => null }));
 vi.mock("./library/LibraryPage", () => ({ LibraryPage: () => null }));
 vi.mock("./welcome/WelcomePage", () => ({ WelcomePage: () => null }));
-vi.mock("./PowerSourceOverlay", () => ({ PowerSourceOverlay: () => null }));
+vi.mock("./chrome/ModPowerPicker", () => ({ ModPowerPicker: () => null }));
 vi.mock("./BlueprintSaveDialog", () => ({ BlueprintSaveDialog: () => null }));
 
 class ResizeObserverStub { observe() {} unobserve() {} disconnect() {} }
@@ -28,6 +28,7 @@ import { ColumnWorkspace, CompactWorkspace } from "./FactoryPlannerApp";
 import { DEFAULT_WORKSPACE_VIEW, readWorkspaceViewSnapshot, writeWorkspaceView } from "@/lib/workspace-view";
 import { writeDeviceSettings } from "@/lib/device-settings";
 import { leaveWelcomeTab } from "@/lib/welcome/welcome-tab";
+import { leaveLibrary, openLibrary } from "@/lib/library/library-tab";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
 
@@ -62,6 +63,7 @@ describe("workspace layout", () => {
 
   afterEach(() => {
     cleanup();
+    leaveLibrary();
   });
 
   it("keeps the classic layout on boards that are not in plan mode", () => {
@@ -167,6 +169,17 @@ describe("workspace layout", () => {
       expect(readWorkspaceViewSnapshot()).toMatchObject({ rightPanelOpen: true, leftPanelOpen: false });
       fireEvent.click(screen.getByRole("button", { name: "Show items" }));
       expect(readWorkspaceViewSnapshot()).toMatchObject({ rightPanelOpen: false, leftPanelOpen: true });
+    });
+
+    it("keeps the items drawer behind the library and restores it on return", () => {
+      act(() => writeWorkspaceView({ leftPanelOpen: true, rightPanelOpen: false }));
+      renderCompact();
+      expect(screen.getByTestId("items")).toBeTruthy();
+      act(() => openLibrary({ kind: "all" }));
+      expect(screen.queryByTestId("items")).toBeNull();
+      expect(screen.getByTestId("board")).toBeTruthy();
+      act(leaveLibrary);
+      expect(screen.getByTestId("items")).toBeTruthy();
     });
   });
 });

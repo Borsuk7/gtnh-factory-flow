@@ -146,15 +146,16 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
   one into the other. Without live plans every row and label is as before. The + tab menu has New task board.
   `PlanIdentityDrawer`, `DesignTabs` and `BoardActions` keep their live keys but are not on the desktop board.
 - The active plan's identity strip sits above the canvas, within the board column. Its inline title and description
-  and icon picker also work from Edit plan details in the desktop Library. The Library lists collections beside
-  the tiles and accepts dropped plans through the same move and favorite actions as the tile menu.
+  and icon picker also work from Edit plan details in the Library. Collections sit beside the desktop tiles
+  and in a scrollable row above them in compact mode. The tile menu supports filing plans by touch.
 - What edits or views the board is the BOARD TOOLBAR (`chrome/BoardToolbar.tsx`): no band. Its keys float over the
   board's top edge (it sits inside the board's box, so the board fills the whole middle column and nothing is reserved;
   not while the Library or Welcome covers it). Both bars share the key and fit hook in `chrome/bar-parts.tsx`.
   Too narrow for one row, the right group drops to a second row, still right. The strip takes no presses
   (`pointer-events: none`), only the keys do. A task board shows its own header the same way (title and count as plain
   words left; Board / Chain and New task right; `TaskBoard` leaves room at its top). The Non-recipe picker opens below the
-  keys (`header[data-board-toolbar]`). Arrange is its label's width, 90 only while it shows progress.
+  keys (`header[data-board-toolbar]`) on desktop and fills the available screen in compact mode. The same catalog and
+  filters serve both. Arrange is its label's width, 90 only while it shows progress.
   The toolbar frames Non-recipe, undo and redo, Arrange and Fit, rate and power units, and markup and Plan options
   on separate plates. Narrow layouts wrap between plates.
   A key has a cyan inset border and tinted face while its panel is open or its tool is active.
@@ -174,7 +175,7 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
   Plans are in the account from the moment they exist (`src/store/AGENTS.md`), so it never waits on a save. Changes arrive
   through the live room too (`members`).
 - The Library's Shared with me (a third shelf of `chrome/ModLibrary.tsx`, always there when signed in, "Nothing shared
-  with you yet" when empty; a rail entry of the compact `LibraryPage`) lists plans others shared with you (from the
+  with you yet" when empty; the Shared tab of the compact `LibraryPage`) lists plans others shared with you (from the
   account sync, refreshed at once by the live service's `shared` and `unshared` frames), each tile naming its owner,
   with everyone's faces; opening one makes or reuses this device's copy and it opens live (`lib/library/open-shared.ts`).
   Copies never show among My plans. The same frame shows the notice "<owner> shared <plan> with you" with an Open key

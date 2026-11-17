@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Factory, Folder, FolderPlus, LayoutGrid, Star, Users } from "lucide-react";
+import { Folder, FolderPlus, LayoutGrid, Star, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { getUiScale } from "@/lib/ui-scale";
 import { useCommunityUser } from "@/components/community/auth";
 import { IconPicker, iconSuggestionsFromProject } from "@/components/IconPicker";
+import { ListedPlanIdentity } from "@/components/chrome/PlanIdentityStrip";
 import { formatRelativeDate } from "@/components/shelf-cards";
 import { deleteCommunityPlan, listCommunityPlans, patchCommunityPlan } from "@/lib/community/client";
 import { sharedPlanLink } from "@/lib/community/shared-link";
@@ -21,7 +22,7 @@ import type { DesignSummary } from "@/lib/designs/design-library";
 import { readDesign } from "@/lib/designs/design-storage";
 import type { FactoryProject } from "@/lib/model/types";
 import { SETUPS_CHANGED_EVENT, notifySetupsChanged, requestShareDialog } from "@/lib/setups-tab";
-import { setLibraryView, useLibraryTab } from "@/lib/library/library-tab";
+import { leaveLibrary, setLibraryView, useLibraryTab, type LibraryView } from "@/lib/library/library-tab";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useSavedSetups } from "@/lib/library/saved-setups";
 import { useDesignStore } from "@/store/design-store";
@@ -70,6 +71,7 @@ export function LibraryPage() {
   const sharedCount = useCloudLibraryStore((state) => state.shared?.length);
   const folders = useDesignStore((state) => state.folders);
   const switchToDesign = useDesignStore((state) => state.switchToDesign);
+  const addDesign = useDesignStore((state) => state.addDesign);
   const copyDesign = useDesignStore((state) => state.copyDesign);
   const renameDesign = useDesignStore((state) => state.renameDesign);
   const closeDesign = useDesignStore((state) => state.closeDesign);
@@ -93,7 +95,8 @@ export function LibraryPage() {
   const [armed, setArmed] = useState<{ id: string; what: "delete" }>();
   const [renamingId, setRenamingId] = useState<string>();
   const [renamingFolderId, setRenamingFolderId] = useState<string>();
-  const [namingFolder, setNamingFolder] = useState(false);
+  const [collectionName, setCollectionName] = useState<string>();
+  const [creatingCollection, setCreatingCollection] = useState(false);
   const [copiedId, setCopiedId] = useState<string>();
   const [error, setError] = useState<string>();
   /** Our own drag: the ghost card, where it is, and what it is over. */
@@ -104,6 +107,8 @@ export function LibraryPage() {
   const [bulkDeleteArmed, setBulkDeleteArmed] = useState(false);
   /** The design whose preview page is up, if any. */
   const [detailId, setDetailId] = useState<string>();
+  const [editingDetails, setEditingDetails] = useState<string>();
+  const hasBoard = useDesignStore((state) => Boolean(state.activeDesignId || state.publicView));
   const [storedDetail, setStoredDetail] = useState<{ id: string; project: FactoryProject }>();
   const activeDetail = useDesignStore((state) => Boolean(detailId) && state.activeDesignId === detailId);
   const activeDescription = useFactoryStore((state) => activeDetail ? state.project.description : undefined);
@@ -121,6 +126,32 @@ export function LibraryPage() {
   const { posts: myPosts, signedIn } = useMyPosts();
   const showShared = isLiveConfigured() && signedIn;
   const savedIds = useSavedSetups();
+  const shelves: { kind: "all" | "shared" | "public" | "saved"; label: string; count?: number }[] = [
+    { kind: "all", label: "My plans", count: designs.length },
+    ...(showShared ? [{ kind: "shared" as const, label: "Shared", count: sharedCount }] : []),
+    { kind: "public", label: "Community" },
+    { kind: "saved", label: "Saved", count: savedIds.length },
+  ];
+  const kind = library.view.kind;
+  const activeShelf = kind === "public" || kind === "saved" || kind === "shared" ? kind : "all";
+  const changeView = (view: LibraryView) => {
+    setDetailId(undefined);
+    setEditingDetails(undefined);
+    setCollectionName(undefined);
+    setLibraryView(view);
+  };
+  const createCollection = async (name: string) => {
+    setCreatingCollection(true);
+    setError(undefined);
+    try {
+      const folder = await createFolder(name);
+      changeView({ kind: "folder", folderId: folder.id });
+    } catch {
+      setError("Could not create the collection.");
+    } finally {
+      setCreatingCollection(false);
+    }
+  };
 
   // The library has the search's voice for its pages: a page turned for
   // every view and every focus page. Arriving and leaving are silent,
@@ -408,76 +439,54 @@ export function LibraryPage() {
     : undefined;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-[#101215] text-[var(--mc-ink)]">
-      <div className="min-h-0 flex-1">
-        {/* The frame is the recipe search's: 4px, one shade off the floor,
-            an accent by contrast rather than colour, flush to the board. */}
-        <div className="flex h-full min-h-0 overflow-hidden border-4 border-[#23262d] bg-[#101215] shadow-[inset_2px_2px_0_rgba(255,255,255,0.05),inset_-2px_-2px_0_rgba(0,0,0,0.6)] compact:flex-col compact:border-0 compact:shadow-none">
-          {/* THE RAIL: all, then folders. On a phone, one row of chips. */}
-          {/* On a phone the rail is one dropdown rather than a sideways-scrolling row. */}
-          <div className="hidden shrink-0 border-b border-[var(--mc-33)] px-2 py-1.5 compact:block">
-            <select
-              value={railValue(library.view)}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === "new") {
-                  const name = window.prompt("Name the collection");
-                  if (name?.trim()) {
-                    void createFolder(name).then((folder) =>
-                      setLibraryView({ kind: "folder", folderId: folder.id }),
-                    );
-                  }
-                  return;
-                }
-                playBoardSound("shelfTick");
-                setLibraryView(railView(value));
-              }}
-              aria-label="Where in Plans"
-              className="h-9 w-full border-2 border-[var(--mc-33)] bg-[#17191d] px-2 text-[13px] font-bold text-neutral-100 outline-none shadow-[inset_2px_2px_0_#30343b,inset_-2px_-2px_0_#050607]"
+    <div className="ml-compact mx" data-compact-library="">
+      <div className="ml-head">
+        <div className="ml-compact-shelves" role="tablist" aria-label="Plans library">
+          {shelves.map((shelf) => (
+            <button
+              key={shelf.kind}
+              type="button"
+              role="tab"
+              className="ml-tab"
+              aria-selected={activeShelf === shelf.kind}
+              data-on={activeShelf === shelf.kind ? "" : undefined}
+              onClick={() => changeView({ kind: shelf.kind })}
             >
-              <option value="all">My designs ({designs.length})</option>
-              <option value="favorites">
-                Favorites ({designs.filter((design) => design.favorite).length})
-              </option>
-              {folders.map((folder) => (
-                <option key={folder.id} value={`folder:${folder.id}`}>
-                  {folder.name} ({perFolder.get(folder.id) ?? 0})
-                </option>
-              ))}
-              <option value="new">New collection…</option>
-              {showShared ? (
-                <option value="shared">Shared with me ({sharedCount ?? 0})</option>
-              ) : null}
-              <option value="public">Community</option>
-              <option value="saved">Saved ({savedIds.length})</option>
-            </select>
-          </div>
-          <aside className="flex w-[184px] shrink-0 flex-col gap-1 overflow-y-auto bg-[#101215] px-2 py-2 compact:hidden">
+              {shelf.label}
+              {shelf.count !== undefined ? <i>{shelf.count}</i> : null}
+            </button>
+          ))}
+        </div>
+        {hasBoard ? (
+          <button type="button" className="mb-key ml-close" aria-label="Close the panel" onClick={leaveLibrary}>
+            <X size={16} aria-hidden />
+          </button>
+        ) : null}
+      </div>
+      {activeShelf === "all" && !detailDesign ? (
+        <>
+          <nav className="ml-compact-collections" aria-label="Collections">
             <RailItem
               icon={LayoutGrid}
-              label="My designs"
+              label="All plans"
               count={designs.length}
               selected={library.view.kind === "all"}
-              onClick={() => setLibraryView({ kind: "all" })}
+              onClick={() => changeView({ kind: "all" })}
             />
-            {/* Favorites ships with the library: a collection that is a star,
-                not a name, and cannot be deleted or renamed. */}
             <RailItem
               icon={Star}
               label="Favorites"
-              nested
               count={designs.filter((design) => design.favorite).length}
               selected={library.view.kind === "favorites"}
               highlighted={drag?.over === "favorites"}
               dropTarget="favorites"
-              onClick={() => setLibraryView({ kind: "favorites" })}
+              onClick={() => changeView({ kind: "favorites" })}
             />
             {folders.map((folder) => (
               <RailItem
                 key={folder.id}
                 icon={Folder}
                 label={folder.name}
-                nested
                 count={perFolder.get(folder.id) ?? 0}
                 selected={viewFolderId === folder.id}
                 highlighted={drag?.over === `folder:${folder.id}`}
@@ -488,7 +497,7 @@ export function LibraryPage() {
                   void renameFolder(folder.id, name);
                 }}
                 onCancelRename={() => setRenamingFolderId(undefined)}
-                onClick={() => setLibraryView({ kind: "folder", folderId: folder.id })}
+                onClick={() => changeView({ kind: "folder", folderId: folder.id })}
                 onDoubleClick={() => setRenamingFolderId(folder.id)}
                 onMenu={(left, top) => {
                   closeMenus();
@@ -496,318 +505,315 @@ export function LibraryPage() {
                 }}
               />
             ))}
-            {namingFolder ? (
-              <div className="ml-3 flex h-7 items-center gap-1.5 px-2 compact:ml-0">
-                <Folder className="h-3.5 w-3.5 shrink-0 text-[var(--mc-ink-muted)]" aria-hidden />
-                <InlineName
-                  initialName=""
-                  placeholder="Collection name"
-                  onCommit={(name) => {
-                    setNamingFolder(false);
-                    if (name.trim()) {
-                      void createFolder(name).then((folder) =>
-                        setLibraryView({ kind: "folder", folderId: folder.id }),
-                      );
-                    }
-                  }}
-                  onCancel={() => setNamingFolder(false)}
-                />
-              </div>
-            ) : null}
             <button
               type="button"
+              className="ml-collection-row ml-collection-add"
               data-drop-target="new"
-              onClick={() => setNamingFolder(true)}
-              className={[
-                "ml-3 flex h-8 shrink-0 items-center gap-1.5 border-2 border-dashed px-2 hover:border-[var(--mc-61)] hover:text-[var(--mc-ink)] compact:ml-0",
-                drag?.over === "new"
-                  ? "border-cyan-400 text-[var(--mc-ink)]"
-                  : "border-[var(--mc-47)] text-[var(--mc-ink-muted)]",
-              ].join(" ")}
+              data-drop-active={drag?.over === "new" ? "" : undefined}
+              onClick={() => setCollectionName("")}
             >
-              <FolderPlus className="h-3.5 w-3.5" aria-hidden />
-              <span className="whitespace-nowrap text-[12px] font-bold">New collection</span>
+              <FolderPlus size={14} aria-hidden />
+              <span>New collection</span>
             </button>
-
-            {showShared ? (
-              <RailItem
-                icon={Users}
-                label="Shared with me"
-                count={sharedCount}
-                selected={library.view.kind === "shared"}
-                onClick={() => setLibraryView({ kind: "shared" })}
+          </nav>
+          {collectionName !== undefined ? (
+            <form
+              className="ml-compact-new-collection"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!creatingCollection && collectionName.trim()) void createCollection(collectionName.trim());
+              }}
+            >
+              <input
+                autoFocus
+                className="ml-search"
+                value={collectionName}
+                aria-label="Collection name"
+                placeholder="Collection name"
+                disabled={creatingCollection}
+                onChange={(event) => setCollectionName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && !creatingCollection) {
+                    event.stopPropagation();
+                    setCollectionName(undefined);
+                  }
+                }}
               />
-            ) : null}
-
-            <div className="mx-1 my-2 border-t-2 border-[#23262d] compact:mx-2 compact:my-0 compact:h-4 compact:border-l compact:border-t-0" />
-            <RailItem
-              icon={Factory}
-              label="Community"
-              selected={library.view.kind === "public"}
-              onClick={() => setLibraryView({ kind: "public" })}
-            />
-            <RailItem
-              icon={Bookmark}
-              label="Saved"
-              nested
-              count={savedIds.length}
-              selected={library.view.kind === "saved"}
-              onClick={() => setLibraryView({ kind: "saved" })}
-            />
-          </aside>
-
-          {/* THE PAGE. */}
-          <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {library.view.kind === "shared" ? (
-              <SharedWithMe />
-            ) : library.view.kind === "public" ? (
-              <SetupsGrid scope="network" presetQuery={library.view.search} />
-            ) : library.view.kind === "saved" ? (
-              <SetupsGrid scope="saved" />
-            ) : detailDesign ? (
-              <LibraryDetail
-                entry={{
-                  name: detailDesign.name,
-                  icon: detailIcon,
-                  creator: folders.find((folder) => folder.id === detailDesign.folderId)?.name,
-                  when: `edited ${formatRelativeDate(detailDesign.updatedAt)}`,
-                  tier: detailDesign.stats?.tier,
-                  machines: detailDesign.stats?.machines,
-                  euT: detailDesign.stats?.euT,
-                  description: (activeDetail ? activeDescription : storedProject?.description) ?? detailPost?.description,
-                  tags: detailPost?.tags,
-                  needs: detailPost?.needs,
-                  outputs: detailPost?.outputs,
-                  previewUrl: detailPost ? previewUrlFor(detailPost.id) : undefined,
-                  marks: {
-                    open: !detailDesign.closed,
-                    posted: Boolean(detailPost),
-                    privatePost: detailPost ? !detailPost.isPublic : false,
-                  },
-                  commentsPlanId: detailPost?.id,
-                  primary: {
-                    label: "Open",
-                    onClick: () => {
-                      setDetailId(undefined);
-                      open(detailDesign.id);
-                    },
-                  },
-                  onEdit: !activeDetail && !storedProject ? undefined : async (patch) => {
-                    await updateDesignIdentity(detailDesign.id, {
+              <button type="submit" className="mb-key" disabled={creatingCollection || !collectionName.trim()}>Create</button>
+              <button type="button" className="mb-key" aria-label="Cancel new collection" disabled={creatingCollection} onClick={() => setCollectionName(undefined)}>
+                <X size={14} aria-hidden />
+              </button>
+            </form>
+          ) : null}
+        </>
+      ) : null}
+      {/* THE PAGE. */}
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {library.view.kind === "shared" ? (
+          <SharedWithMe />
+        ) : library.view.kind === "public" ? (
+          <SetupsGrid scope="network" presetQuery={library.view.search} />
+        ) : library.view.kind === "saved" ? (
+          <SetupsGrid scope="saved" />
+        ) : detailDesign ? (
+          <LibraryDetail
+            entry={{
+              name: detailDesign.name,
+              icon: detailIcon,
+              creator: folders.find((folder) => folder.id === detailDesign.folderId)?.name,
+              when: `edited ${formatRelativeDate(detailDesign.updatedAt)}`,
+              tier: detailDesign.stats?.tier,
+              machines: detailDesign.stats?.machines,
+              euT: detailDesign.stats?.euT,
+              description: (activeDetail ? activeDescription : storedProject?.description) ?? detailPost?.description,
+              tags: detailPost?.tags,
+              needs: detailPost?.needs,
+              outputs: detailPost?.outputs,
+              previewUrl: detailPost ? previewUrlFor(detailPost.id) : undefined,
+              marks: {
+                open: !detailDesign.closed,
+                posted: Boolean(detailPost),
+                privatePost: detailPost ? !detailPost.isPublic : false,
+              },
+              commentsPlanId: detailPost?.id,
+              primary: {
+                label: "Open",
+                onClick: () => {
+                  setDetailId(undefined);
+                  open(detailDesign.id);
+                },
+              },
+              onEdit: !activeDetail && !storedProject ? undefined : async (patch) => {
+                await updateDesignIdentity(detailDesign.id, {
+                  name: patch.name,
+                  description: patch.description,
+                });
+                setStoredDetail((current) => current?.id === detailDesign.id
+                  ? { ...current, project: { ...current.project, description: patch.description } }
+                  : current);
+                if (detailPost) {
+                  try {
+                    await patchCommunityPlan(detailPost.id, {
                       name: patch.name,
                       description: patch.description,
+                      tags: patch.tags,
                     });
-                    setStoredDetail((current) => current?.id === detailDesign.id
-                      ? { ...current, project: { ...current.project, description: patch.description } }
-                      : current);
-                    if (detailPost) {
-                      try {
-                        await patchCommunityPlan(detailPost.id, {
-                          name: patch.name,
-                          description: patch.description,
-                          tags: patch.tags,
-                        });
-                        notifySetupsChanged();
-                      } catch (thrown) {
-                        setError(thrown instanceof Error ? thrown.message : "Saving the post failed.");
-                      }
-                    }
-                  },
-                  editTags: Boolean(detailPost),
-                  onPickIcon: () => {
-                    const project = activeDetail ? useFactoryStore.getState().project : storedProject;
-                    if (project) setIconEdit({ id: detailDesign.id, suggestions: iconSuggestionsFromProject(project) });
-                  },
-                  keys: [
-                    ...(detailPost
-                      ? [
-                          {
-                            label: "Copy the share link",
-                            icon: "link" as const,
-                            onClick: () => void copyLink(detailDesign),
-                          },
-                          {
-                            label: detailPost.isPublic ? "Make it private" : "Make it public",
-                            icon: detailPost.isPublic ? ("private" as const) : ("public" as const),
-                            onClick: () => void setPostVisibility(detailDesign, !detailPost.isPublic),
-                          },
-                        ]
-                      : signedIn
-                        ? [
-                            {
-                              label: "Post as a public setup",
-                              icon: "post" as const,
-                              onClick: () => {
-                                setDetailId(undefined);
-                                void postDesign(detailDesign.id);
-                              },
-                            },
-                          ]
-                        : []),
-                    {
-                      label: "Delete this design",
-                      icon: "delete" as const,
-                      confirm: detailPost
-                        ? `Delete "${detailDesign.name}"? Its post comes down with it. This cannot be undone.`
-                        : `Delete "${detailDesign.name}" from Plans? This cannot be undone.`,
-                      onClick: () => {
-                        setDetailId(undefined);
-                        void deleteDesign(detailDesign.id);
+                    notifySetupsChanged();
+                  } catch (thrown) {
+                    setError(thrown instanceof Error ? thrown.message : "Saving the post failed.");
+                  }
+                }
+              },
+              editTags: Boolean(detailPost),
+              onPickIcon: () => {
+                const project = activeDetail ? useFactoryStore.getState().project : storedProject;
+                if (project) setIconEdit({ id: detailDesign.id, suggestions: iconSuggestionsFromProject(project) });
+              },
+              keys: [
+                ...(detailPost
+                  ? [
+                      {
+                        label: "Copy the share link",
+                        icon: "link" as const,
+                        onClick: () => void copyLink(detailDesign),
                       },
-                    },
-                  ],
-                }}
-                onClose={() => setDetailId(undefined)}
-              />
-                  ) : (
-              <>
-                <SetupsFilterBar
-                  filters={filters}
-                  placeholder="Search your designs (#tag)"
-                  sortOptions={SORTS}
-                  knownTags={knownTags}
-                />
+                      {
+                        label: detailPost.isPublic ? "Make it private" : "Make it public",
+                        icon: detailPost.isPublic ? ("private" as const) : ("public" as const),
+                        onClick: () => void setPostVisibility(detailDesign, !detailPost.isPublic),
+                      },
+                    ]
+                  : signedIn
+                    ? [
+                        {
+                          label: "Post as a public setup",
+                          icon: "post" as const,
+                          onClick: () => {
+                            setDetailId(undefined);
+                            void postDesign(detailDesign.id);
+                          },
+                        },
+                      ]
+                    : []),
+                {
+                  label: "Delete this design",
+                  icon: "delete" as const,
+                  confirm: detailPost
+                    ? `Delete "${detailDesign.name}"? Its post comes down with it. This cannot be undone.`
+                    : `Delete "${detailDesign.name}" from Plans? This cannot be undone.`,
+                  onClick: () => {
+                    setDetailId(undefined);
+                    void deleteDesign(detailDesign.id);
+                  },
+                },
+              ],
+            }}
+            onClose={() => setDetailId(undefined)}
+          />
+        ) : (
+          <>
+            <SetupsFilterBar
+              filters={filters}
+              placeholder="Search your plans (#tag)"
+              sortOptions={SORTS}
+              knownTags={knownTags}
+            />
 
-                {visibleSelected.size > 0 ? (
-                  <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--mc-33)] bg-cyan-500/10 px-4 text-xs text-[var(--mc-ink)] compact:px-2">
-                    <span className="font-bold text-cyan-200">{visibleSelected.size} selected</span>
-                    <span className="text-[var(--mc-ink-muted)] compact:hidden">
-                      Ctrl-click to add, Shift-click for a run
-                    </span>
-                    <span className="ml-auto flex items-center gap-1.5">
-                      {selectedIds.some((id) => !designs.find((d) => d.id === id)?.closed) ? (
-                        <BarButton onClick={() => void closeSelected()}>Close tabs</BarButton>
-                      ) : null}
-                      {folders.length > 0 ? (
-                        <select
-                          value=""
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            if (value) {
-                              void fileSelected(value === "none" ? undefined : value);
-                            }
-                          }}
-                          aria-label="Add the selection to a collection"
-                          className="h-6 border-2 border-[var(--mc-33)] bg-[#17191d] px-1 text-xs text-neutral-100 outline-none shadow-[inset_2px_2px_0_#30343b,inset_-2px_-2px_0_#050607]"
-                        >
-                          <option value="">Add to collection…</option>
-                          {folders.map((folder) => (
-                            <option key={folder.id} value={folder.id}>
-                              {folder.name}
-                            </option>
-                          ))}
-                          <option value="none">No collection</option>
-                        </select>
-                      ) : null}
-                      <BarButton
-                        tone="danger"
-                        onClick={() => {
-                          if (bulkDeleteArmed) {
-                            void deleteSelected();
-                          } else {
-                            setBulkDeleteArmed(true);
-                          }
-                        }}
-                      >
-                        {bulkDeleteArmed ? `Confirm delete ${visibleSelected.size}` : "Delete"}
-                      </BarButton>
-                      <BarButton onClick={clearSelection}>Clear</BarButton>
-                    </span>
-                  </div>
-                ) : null}
+            {visibleSelected.size > 0 ? (
+              <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--mc-33)] bg-cyan-500/10 px-4 text-xs text-[var(--mc-ink)] compact:px-2">
+                <span className="font-bold text-cyan-200">{visibleSelected.size} selected</span>
+                <span className="text-[var(--mc-ink-muted)] compact:hidden">
+                  Ctrl-click to add, Shift-click for a run
+                </span>
+                <span className="ml-auto flex items-center gap-1.5">
+                  {selectedIds.some((id) => !designs.find((d) => d.id === id)?.closed) ? (
+                    <BarButton onClick={() => void closeSelected()}>Close tabs</BarButton>
+                  ) : null}
+                  {folders.length > 0 ? (
+                    <select
+                      value=""
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value) {
+                          void fileSelected(value === "none" ? undefined : value);
+                        }
+                      }}
+                      aria-label="Add the selection to a collection"
+                      className="h-6 border-2 border-[var(--mc-33)] bg-[#17191d] px-1 text-xs text-neutral-100 outline-none shadow-[inset_2px_2px_0_#30343b,inset_-2px_-2px_0_#050607]"
+                    >
+                      <option value="">Add to collection…</option>
+                      {folders.map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </option>
+                      ))}
+                      <option value="none">No collection</option>
+                    </select>
+                  ) : null}
+                  <BarButton
+                    tone="danger"
+                    onClick={() => {
+                      if (bulkDeleteArmed) {
+                        void deleteSelected();
+                      } else {
+                        setBulkDeleteArmed(true);
+                      }
+                    }}
+                  >
+                    {bulkDeleteArmed ? `Confirm delete ${visibleSelected.size}` : "Delete"}
+                  </BarButton>
+                  <BarButton onClick={clearSelection}>Clear</BarButton>
+                </span>
+              </div>
+            ) : null}
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 compact:px-2">
-                  {error ? <p className="mb-2 text-[11px] text-red-400">{error}</p> : null}
-                  {shown.length === 0 ? (
-                    <p className="px-0.5 pt-1 text-[12px] leading-relaxed text-[var(--mc-ink-muted)]">
-                      {search || maxTier
-                        ? "No designs match."
-                        : viewFolderId
-                          ? "Nothing here yet. Drag a design onto this collection, or use Add to collection in its menu."
-                          : favoritesOnly
-                            ? "Nothing starred yet. Click the star on a design to put it here."
-                            : "Nothing here yet. Press + on the tab strip to start one."}
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-2">
-                      {shown.map((design) => {
-                        const post = design.communityPlanId
-                          ? myPosts?.get(design.communityPlanId)
-                          : undefined;
-                        // A design opened as a copy of someone else's post is YOURS: it
-                        // posts, edits and wears marks like anything you made from scratch.
-                        return (
-                          <LibraryTile
-                            key={design.id}
-                            onDragPress={(event) => beginTileDrag(design, event)}
-                            selected={visibleSelected.has(design.id)}
-                            onSelect={(mode) => selectTile(design.id, mode)}
-                            icon={design.icon}
-                            name={design.name}
-                            creator={
-                              viewFolderId
-                                ? undefined
-                                : folders.find((folder) => folder.id === design.folderId)?.name
-                            }
-                            when={
-                              copiedId === design.id
-                                ? "link copied"
-                                : formatRelativeDate(design.updatedAt)
-                            }
-                            tier={design.stats?.tier}
-                            onTier={
-                              design.stats && design.stats.tierIndex >= 0
-                                ? () => setMaxTier(String(design.stats?.tierIndex))
-                                : undefined
-                            }
-                            machines={design.stats?.machines}
-                            euT={design.stats?.euT}
-                            marks={{
-                              open: !design.closed,
-                              posted: Boolean(post),
-                              privatePost: post ? !post.isPublic : false,
-                            }}
-                            favorite={design.favorite === true}
-                            onFavorite={() => void toggleFavorite(design.id)}
-                            onPost={
-                              !post && signedIn
-                                ? () => void postDesign(design.id)
-                                : undefined
-                            }
-                            onCopyLink={post ? () => void copyLink(design) : undefined}
-                            menuOpen={tileMenu?.designId === design.id}
-                            onOpen={() => {
-                              if (suppressClickRef.current) {
-                                return;
-                              }
-                              setDetailId(design.id);
-                            }}
-                            onMenu={(left, top) => {
-                              closeMenus();
-                              setTileMenu({ designId: design.id, left, top });
-                            }}
-                            renaming={
-                              renamingId === design.id
-                                ? {
-                                    onCommit: (name) => {
-                                      setRenamingId(undefined);
-                                      void renameDesign(design.id, name);
-                                    },
-                                    onCancel: () => setRenamingId(undefined),
-                                  }
-                                : undefined
-                            }
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 compact:px-2">
+              {error ? <p className="mb-2 text-[11px] text-red-400">{error}</p> : null}
+              {editingDetails && designs.some((design) => design.id === editingDetails) ? (
+                <div className="ml-plan-details">
+                  <ListedPlanIdentity key={editingDetails} designId={editingDetails} />
+                  <button type="button" className="mb-key" aria-label="Close plan details" onClick={() => setEditingDetails(undefined)}>
+                    <X size={14} aria-hidden />
+                  </button>
                 </div>
-              </>
-            )}
-          </section>
-        </div>
-      </div>
+              ) : null}
+              {shown.length === 0 && kind !== "all" ? (
+                <p className="px-0.5 pt-1 text-[12px] leading-relaxed text-[var(--mc-ink-muted)]">
+                  {search || maxTier
+                    ? "No designs match."
+                    : viewFolderId
+                      ? "Nothing here yet. Drag a design onto this collection, or use Add to collection in its menu."
+                      : favoritesOnly
+                        ? "Nothing starred yet. Click the star on a design to put it here."
+                        : "Nothing here yet. Press + on the tab strip to start one."}
+                </p>
+              ) : (
+                <div className="ml-compact-grid">
+                  {kind === "all" ? (
+                    <button type="button" className="ml-compact-new-plan" onClick={() => void addDesign()}>
+                      + New plan
+                    </button>
+                  ) : null}
+                  {shown.length === 0 && (search || maxTier) ? (
+                    <p className="ml-plan-message">No designs match.</p>
+                  ) : null}
+                  {shown.map((design) => {
+                    const post = design.communityPlanId
+                      ? myPosts?.get(design.communityPlanId)
+                      : undefined;
+                    // A design opened as a copy of someone else's post is YOURS: it
+                    // posts, edits and wears marks like anything you made from scratch.
+                    return (
+                      <LibraryTile
+                        key={design.id}
+                        onDragPress={(event) => beginTileDrag(design, event)}
+                        selected={visibleSelected.has(design.id)}
+                        onSelect={(mode) => selectTile(design.id, mode)}
+                        icon={design.icon}
+                        name={design.name}
+                        creator={
+                          viewFolderId
+                            ? undefined
+                            : folders.find((folder) => folder.id === design.folderId)?.name
+                        }
+                        when={
+                          copiedId === design.id
+                            ? "link copied"
+                            : formatRelativeDate(design.updatedAt)
+                        }
+                        tier={design.stats?.tier}
+                        onTier={
+                          design.stats && design.stats.tierIndex >= 0
+                            ? () => setMaxTier(String(design.stats?.tierIndex))
+                            : undefined
+                        }
+                        machines={design.stats?.machines}
+                        euT={design.stats?.euT}
+                        marks={{
+                          open: !design.closed,
+                          posted: Boolean(post),
+                          privatePost: post ? !post.isPublic : false,
+                        }}
+                        favorite={design.favorite === true}
+                        onFavorite={() => void toggleFavorite(design.id)}
+                        onPost={
+                          !post && signedIn
+                            ? () => void postDesign(design.id)
+                            : undefined
+                        }
+                        onCopyLink={post ? () => void copyLink(design) : undefined}
+                        menuOpen={tileMenu?.designId === design.id}
+                        showOptions
+                        onOpen={() => {
+                          if (suppressClickRef.current) {
+                            return;
+                          }
+                          setDetailId(design.id);
+                        }}
+                        onMenu={(left, top) => {
+                          closeMenus();
+                          setTileMenu({ designId: design.id, left, top });
+                        }}
+                        renaming={
+                          renamingId === design.id
+                            ? {
+                                onCommit: (name) => {
+                                  setRenamingId(undefined);
+                                  void renameDesign(design.id, name);
+                                },
+                                onCancel: () => setRenamingId(undefined),
+                              }
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </section>
 
       {tileMenu && menuDesign ? (
         <LibraryMenu
@@ -837,6 +843,13 @@ export function LibraryPage() {
             onClick={() => {
               closeMenus();
               setRenamingId(menuDesign.id);
+            }}
+          />
+          <MenuItem
+            label="Edit plan details"
+            onClick={() => {
+              closeMenus();
+              setEditingDetails(menuDesign.id);
             }}
           />
           <MenuItem
@@ -1033,30 +1046,6 @@ function BarButton({
   );
 }
 
-/** The rail dropdown's value for a view, and back. */
-function railValue(view: ReturnType<typeof useLibraryTab>["view"]): string {
-  switch (view.kind) {
-    case "folder":
-      return `folder:${view.folderId}`;
-    case "public":
-    case "saved":
-    case "favorites":
-    case "all":
-    case "shared":
-      return view.kind;
-  }
-}
-
-function railView(value: string): Parameters<typeof setLibraryView>[0] {
-  if (value.startsWith("folder:")) {
-    return { kind: "folder", folderId: value.slice("folder:".length) };
-  }
-  if (value === "public" || value === "saved" || value === "favorites" || value === "shared") {
-    return { kind: value };
-  }
-  return { kind: "all" };
-}
-
 function sortDesignsBy(designs: DesignSummary[], sort: SortKey): DesignSummary[] {
   const sorted = [...designs];
   switch (sort) {
@@ -1159,7 +1148,6 @@ function RailItem({
   onDoubleClick,
   onMenu,
   dropTarget,
-  nested,
 }: {
   icon: typeof Folder;
   label: string;
@@ -1174,8 +1162,6 @@ function RailItem({
   onMenu?: (left: number, top: number) => void;
   /** Named, the chip takes a dropped tile. */
   dropTarget?: string;
-  /** Under a head entry: stepped in, so the rail reads as a tree. */
-  nested?: boolean;
 }) {
   return (
     <div
@@ -1184,11 +1170,15 @@ function RailItem({
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onKeyDown={(event) => {
-        if (event.key === "Enter") {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
           onClick();
         }
       }}
       data-drop-target={dropTarget}
+      data-drop-active={highlighted ? "" : undefined}
+      aria-label={label}
+      aria-pressed={selected}
       onContextMenu={
         onMenu
           ? (event) => {
@@ -1197,14 +1187,7 @@ function RailItem({
             }
           : undefined
       }
-      className={[
-        "group flex h-8 shrink-0 cursor-pointer items-center gap-1.5 border-2 px-2 text-[12px] font-bold compact:h-8",
-        selected
-          ? "border-[var(--mc-61)] bg-[var(--mc-47)] text-[var(--mc-ink)]"
-          : "border-[var(--mc-47)] bg-[var(--mc-33)] text-[var(--mc-ink)] opacity-55 hover:opacity-100",
-        highlighted ? "border-cyan-400 opacity-100" : "",
-        nested ? "ml-3 compact:ml-0" : "",
-      ].join(" ")}
+      className="ml-collection-row"
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       {renaming && onRename && onCancelRename ? (
@@ -1213,7 +1196,7 @@ function RailItem({
         <span className="min-w-0 flex-1 truncate text-left text-[12px] font-bold">{label}</span>
       )}
       {count !== undefined ? (
-        <span className="shrink-0 text-[12px] font-bold tabular-nums text-[var(--mc-ink-muted)]">{count}</span>
+        <span className="ml-collection-count" aria-hidden>{count}</span>
       ) : null}
       {onMenu ? (
         <button
@@ -1224,7 +1207,7 @@ function RailItem({
             const rect = event.currentTarget.getBoundingClientRect();
             onMenu(rect.left, rect.bottom + 4);
           }}
-          className="-mr-1 shrink-0 px-1 text-[var(--mc-ink-muted)] opacity-0 hover:bg-[var(--mc-33)] hover:text-[var(--mc-ink)] focus:opacity-100 group-hover:opacity-100"
+          className="mb-key ml-compact-collection-options"
         >
           ⋯
         </button>

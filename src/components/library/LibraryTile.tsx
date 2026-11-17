@@ -5,6 +5,7 @@ import {
   Bookmark,
   Download,
   EyeOff,
+  Ellipsis,
   Factory,
   Globe,
   LayoutGrid,
@@ -86,6 +87,7 @@ export interface LibraryTileProps {
   onCopyLink?: () => void;
   busy?: boolean;
   menuOpen?: boolean;
+  showOptions?: boolean;
   onOpen: () => void;
   onMenu: (left: number, top: number) => void;
   /**
@@ -122,6 +124,7 @@ export function LibraryTile({
   onCopyLink,
   busy,
   menuOpen,
+  showOptions,
   onOpen,
   onMenu,
   onDragPress,
@@ -174,6 +177,7 @@ export function LibraryTile({
       role="button"
       tabIndex={0}
       data-selected={selected ? "true" : undefined}
+      data-library-tile=""
       onClick={(event) => {
         if (renaming || busy || (event.target as HTMLElement).closest("button, input, a")) {
           return;
@@ -189,7 +193,7 @@ export function LibraryTile({
         onOpen();
       }}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && !renaming && !busy) {
+        if (event.target === event.currentTarget && event.key === "Enter" && !renaming && !busy) {
           onOpen();
         }
       }}
@@ -344,6 +348,21 @@ export function LibraryTile({
                 </span>
               ) : null}
             </>
+          ) : null}
+          {showOptions ? (
+            <button
+              type="button"
+              className="mb-key ml-compact-tile-options"
+              aria-label={`Options for ${name}`}
+              aria-haspopup="menu"
+              aria-expanded={Boolean(menuOpen)}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                onMenu(rect.right, rect.bottom);
+              }}
+            >
+              <Ellipsis className="h-4 w-4" aria-hidden />
+            </button>
           ) : null}
         </span>
       </div>

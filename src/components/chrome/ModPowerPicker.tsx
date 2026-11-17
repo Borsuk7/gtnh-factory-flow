@@ -59,7 +59,7 @@ const TIER_FILTERS = GT_VOLTAGE_TIERS.map((entry) => entry.tier).filter((tier) =
  * larger picture beside the tile the mouse has rested on. Typing searches the machines and everything they burn or
  * make, so "benzene" finds every machine that runs on it and places it with that fuel set.
  */
-export function ModPowerPicker() {
+export function ModPowerPicker({ compact = false }: { compact?: boolean }) {
   const open = useFactoryStore((state) => state.powerMenuOpen);
   const closePowerMenu = useFactoryStore((state) => state.closePowerMenu);
   const addPowerSourceNode = useFactoryStore((state) => state.addPowerSourceNode);
@@ -102,6 +102,10 @@ export function ModPowerPicker() {
   useEffect(() => {
     if (!open) return;
     const measure = () => {
+      if (compact) {
+        setFrame({ left: 0, right: 0, top: 0, zoom: getUiScale() * CHROME_SCREEN_K });
+        return;
+      }
       const main = document.querySelector<HTMLElement>("main[data-items-side]");
       // Below the board's toolbar when there is one: its Non-recipe key closes the picker again.
       const strip = document.querySelector<HTMLElement>("header[data-board-toolbar]");
@@ -122,7 +126,7 @@ export function ModPowerPicker() {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [open]);
+  }, [open, compact]);
 
   const entries = useMemo<Entry[]>(() => {
     if (!open) return [];
@@ -186,6 +190,7 @@ export function ModPowerPicker() {
     <Tile
       key={entry.kind === "other" ? `other:${entry.card.id}` : entry.hit.source.id}
       entry={entry}
+      compact={compact}
       onPlace={place}
       onRest={(rect) => setPreview(rect ? { entry, rect } : undefined)}
     />
@@ -194,6 +199,7 @@ export function ModPowerPicker() {
   return createPortal(
     <div
       className="mp-backdrop"
+      data-compact={compact ? "" : undefined}
       style={{ left: frame.left, right: frame.right, top: frame.top, zoom: frame.zoom }}
       onPointerDown={closePowerMenu}
     >
@@ -211,7 +217,7 @@ export function ModPowerPicker() {
           <span className="mp-title">NON-RECIPE MACHINES</span>
           <span className="mb-grow" />
           <input
-            autoFocus
+            autoFocus={!compact}
             className="ml-search mp-search"
             placeholder="Machine, fuel, or product..."
             aria-label="Machine, fuel, or product"
@@ -228,9 +234,9 @@ export function ModPowerPicker() {
             open={menu?.kind === "tier"}
             onOpen={(anchor) => setMenu((current) => (current?.kind === "tier" ? undefined : { kind: "tier", anchor }))}
           />
-          <div className="mb-key mp-close" role="button" aria-label="Close" onClick={closePowerMenu}>
+          <button type="button" className="mb-key mp-close" aria-label="Close" onClick={closePowerMenu}>
             x
-          </div>
+          </button>
         </div>
         <div className="mp-body" onScroll={() => setPreview(undefined)}>
           {entries.length === 0 ? (
@@ -256,7 +262,7 @@ export function ModPowerPicker() {
           )}
         </div>
       </div>
-      {preview ? <Preview entry={preview.entry} rect={preview.rect} scale={frame.zoom} /> : null}
+      {preview && !compact ? <Preview entry={preview.entry} rect={preview.rect} scale={frame.zoom} /> : null}
       {menu ? (
         <ChromeMenu
           anchor={menu.anchor}
@@ -273,9 +279,9 @@ export function ModPowerPicker() {
 
 function PickerKey({ label, open, onOpen }: { label: string; open: boolean; onOpen: (anchor: ChromeAnchor) => void }) {
   return (
-    <div
+    <button
       className="mb-key ml-drop"
-      role="button"
+      type="button"
       data-open={open ? "" : undefined}
       {...{ [MENU_ANCHOR_ATTR]: "" }}
       onClick={(event) => {
@@ -287,27 +293,33 @@ function PickerKey({ label, open, onOpen }: { label: string; open: boolean; onOp
       <svg width="5" height="3" viewBox="0 0 5 3" shapeRendering="crispEdges" aria-hidden fill="currentColor">
         <path d="M0 0h5v1h-5zM1 1h3v1h-3zM2 2h1v1h-1z" />
       </svg>
-    </div>
+    </button>
   );
 }
 
 /** The 800 ms the tips wait: the larger picture shows once the mouse has rested on a tile. */
 const REST_MS = 800;
 
-function Tile({ entry, onPlace, onRest }: { entry: Entry; onPlace: (entry: Entry) => void; onRest: (rect: DOMRect | undefined) => void }) {
+function Tile({ entry, compact, onPlace, onRest }: {
+  entry: Entry;
+  compact: boolean;
+  onPlace: (entry: Entry) => void;
+  onRest: (rect: DOMRect | undefined) => void;
+}) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const name = entry.kind === "other" ? entry.card.name : entry.hit.source.name;
   const tier = entry.kind === "other" ? undefined : entry.hit.source.unlock;
   const via = entry.kind === "source" ? entry.hit.via : undefined;
   return (
-    <div
+    <button
       className="mp-tile"
-      role="button"
+      type="button"
       data-via={via ? "" : undefined}
       data-source={entry.kind === "other" ? entry.card.id : entry.hit.source.id}
       onClick={() => onPlace(entry)}
       onMouseEnter={(event) => {
+        if (compact) return;
         const element = event.currentTarget;
         clearTimeout(timer.current);
         timer.current = setTimeout(() => onRest(element.getBoundingClientRect()), REST_MS);
@@ -320,10 +332,10 @@ function Tile({ entry, onPlace, onRest }: { entry: Entry; onPlace: (entry: Entry
       <span className="mp-art">
         <MachineArt entry={entry} size={24} />
       </span>
-      <NameLines name={name} tier={tier} />
+      {compact ? <span className="mp-name">{name}</span> : <NameLines name={name} tier={tier} />}
       {tier ? <TierTag tier={tier} /> : null}
       {via ? <span className="mp-via">{via.direction === "takes" ? "Takes " : "Makes "}{via.name}</span> : null}
-    </div>
+    </button>
   );
 }
 

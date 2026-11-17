@@ -70,6 +70,16 @@ describe("the non-recipe machines picker", () => {
     expect(added.tank).toHaveBeenCalledTimes(1);
   });
 
+  it("offers planning cards in the compact sheet without focusing search", () => {
+    render(<ModPowerPicker compact />);
+    const sheet = screen.getByRole("dialog", { name: "Non-recipe machines" });
+    expect(sheet.closest(".mp-backdrop")?.hasAttribute("data-compact")).toBe(true);
+    expect(document.activeElement).not.toBe(screen.getByRole("textbox", { name: "Machine, fuel, or product" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crop Farm" }));
+    expect(added.crop).toHaveBeenCalledTimes(1);
+    expect(useFactoryStore.getState().powerMenuOpen).toBe(false);
+  });
+
   it("picking Crop Farm asks the store for a crop farm and closes the picker", () => {
     render(<ModPowerPicker />);
     fireEvent.click(document.querySelector('[data-source="crop-farm"]')!);
