@@ -84,7 +84,7 @@ it("previews the full split on hover and keeps every percentage live while scrol
   expect(within(preview).getByRole("img", { name: "Mouse wheel" })).toBeTruthy();
   expect(within(preview).getByText("↑ +1% · ↓ −1%")).toBeTruthy();
   fireEvent.wheel(output, { deltaY: -100 });
-  expect(within(outgoing).getByText("51%")).toBeTruthy();
+  expect(await within(outgoing).findByText("51%")).toBeTruthy();
   expect(within(outgoing).getByText("49%")).toBeTruthy();
   expect(screen.getByRole("tooltip")).toBe(preview);
   fireEvent.mouseLeave(output.closest("[data-tooltip-root]")!);
@@ -110,7 +110,7 @@ it("opens the same overview from Setup output and updates it as export changes",
   fireEvent.mouseMove(output, { clientX: 300, clientY: 300, buttons: 0 });
   const preview = await screen.findByRole("tooltip");
   fireEvent.wheel(output, { deltaY: -100, shiftKey: true });
-  expect(within(preview).getByText("10%")).toBeTruthy();
+  expect(await within(preview).findByText("10%")).toBeTruthy();
   expect(within(preview).getAllByText("45%")).toHaveLength(2);
 });
 
