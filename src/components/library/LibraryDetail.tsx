@@ -130,7 +130,7 @@ export function LibraryDetail({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !(event.target instanceof Element && event.target.closest("[data-icon-picker]"))) {
         event.stopPropagation();
         if (editing) {
           setEditing(undefined);

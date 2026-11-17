@@ -34,6 +34,7 @@ import { useWelcomeTab } from "@/lib/welcome/welcome-tab";
 import { AppHeader } from "./AppHeader";
 import { LibraryPage } from "./library/LibraryPage";
 import { ModLibrary } from "./chrome/ModLibrary";
+import { PlanIdentityStrip } from "./chrome/PlanIdentityStrip";
 import { ModPowerPicker } from "./chrome/ModPowerPicker";
 import { WelcomePage } from "./welcome/WelcomePage";
 import { SharedAddressSync } from "./SharedAddressSync";
@@ -412,6 +413,7 @@ const BoardColumn = memo(function BoardColumn() {
   return (
     <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
       <div className="min-w-0">
+        {!covering && !isTaskBoard ? <PlanIdentityStrip /> : null}
         {covering ? null : publicView ? <PublicViewBar key={publicView.id} /> : null}
         {covering ? null : <TabConflictNotice />}
         <LiveNotice />

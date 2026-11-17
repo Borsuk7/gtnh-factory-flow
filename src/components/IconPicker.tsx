@@ -2,6 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { DEFAULT_DATASET_MANIFEST_URL } from "@/lib/datasets";
 import {
   queryRecipeDatasetResources,
@@ -9,8 +10,12 @@ import {
 } from "@/lib/datasets/browser-loader";
 import type { EntryIcon, PlanResourceStat } from "@/lib/community/types";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { applyRecipeInputOverrides } from "@/lib/model/recipe-input-overrides";
+import { listNodeSections } from "@/lib/model/shared-machine";
+import type { FactoryProject } from "@/lib/model/types";
 import { useFactoryStore } from "@/store/factory-store";
 import { ResourceIcon } from "./nei/ResourceIcon";
+import { MinecraftTooltip } from "./nei/MinecraftTooltip";
 
 const PICKER_PAGE = 60;
 
@@ -45,6 +50,45 @@ export function iconSuggestionsFromStats(
   return suggestions;
 }
 
+export function iconSuggestionsFromProject(project: FactoryProject): EntryIcon[] {
+  const recipes = new Map(project.recipes.map((recipe) => [recipe.id, recipe]));
+  const suggestions = new Map<string, EntryIcon>();
+  const add = (resource: {
+    kind: string;
+    resourceId: string;
+    displayName?: string;
+    iconPath?: string;
+    iconAtlas?: EntryIcon["iconAtlas"];
+    dominantColor?: string;
+  }) => {
+    const { kind, resourceId, displayName, iconPath, iconAtlas, dominantColor } = resource;
+    if (kind !== "item" && kind !== "fluid") return;
+    const key = `${kind}:${resourceId}`;
+    const existing = suggestions.get(key);
+    suggestions.set(key, {
+      kind,
+      resourceId,
+      displayName: existing?.displayName ?? displayName,
+      iconPath: existing?.iconPath ?? iconPath,
+      iconAtlas: existing?.iconAtlas ?? iconAtlas,
+      dominantColor: existing?.dominantColor ?? dominantColor,
+    });
+  };
+  for (const drawer of project.storages ?? []) add(drawer);
+  for (const card of project.nodes) {
+    for (const { node } of listNodeSections(card)) {
+      const recipe = recipes.get(node.recipeId);
+      if (!recipe) continue;
+      const { inputs, outputs } = applyRecipeInputOverrides(recipe, node);
+      for (const resource of [...outputs, ...inputs]) add({ ...resource, resourceId: resource.id });
+    }
+  }
+  for (const edge of project.edges) {
+    add({ kind: edge.resourceKind, resourceId: edge.resourceId, displayName: edge.label });
+  }
+  return Array.from(suggestions.values());
+}
+
 /**
  * The one-item face chooser: search the dataset the same way the item
  * browser does, click an icon, done. A small modal so it works from
@@ -52,13 +96,15 @@ export function iconSuggestionsFromStats(
  */
 export function IconPicker({
   title = "Pick an icon",
+  portaled = false,
   suggestions,
   onPick,
   onClear,
   onClose,
 }: {
   title?: string;
-  /** The build's own ins and outs — the likely faces, offered up top. */
+  portaled?: boolean;
+  /** Resources used by the build, shown above the catalog. */
   suggestions?: EntryIcon[];
   onPick: (icon: EntryIcon) => void;
   /** Present when the caller already has an icon that can be removed. */
@@ -111,10 +157,14 @@ export function IconPicker({
 
   // Aspects have icons too, but they aren't things a factory makes.
   const resources = (result?.resources ?? []).filter((entry) => entry.kind !== "aspect");
+  const needle = query.trim().toLowerCase();
+  const buildResources = suggestions?.filter((icon) =>
+    !needle || icon.displayName?.toLowerCase().includes(needle) || icon.resourceId.toLowerCase().includes(needle),
+  );
 
-  return (
+  const picker = (
     <div
-      className="fixed inset-0 z-[120] grid place-items-center bg-neutral-950/50 p-4"
+      className={`fixed inset-0 z-[120] grid place-items-center bg-neutral-950/50 p-4${portaled ? " ui-zoom" : ""}`}
       onClick={onClose}
     >
       <div
@@ -152,23 +202,18 @@ export function IconPicker({
           />
         </label>
         {error ? <p className="mt-2 text-[11px] text-red-400">{error}</p> : null}
-        {suggestions && suggestions.length > 0 ? (
-          <div className="mt-2 shrink-0" role="group" aria-label="From this build">
+        {buildResources && buildResources.length > 0 ? (
+          <div className="mt-2 min-h-0" role="group" aria-label="From this build">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
               From this build
             </p>
-            <div className="flex flex-wrap gap-1">
-              {suggestions.map((suggestion) => (
-                <button
+            <div className="flex max-h-[min(7rem,25vh)] flex-wrap gap-1 overflow-y-auto">
+              {buildResources.map((suggestion) => (
+                <IconChoice
                   key={`${suggestion.kind}:${suggestion.resourceId}`}
-                  type="button"
-                  onClick={() => onPick(suggestion)}
-                  title={suggestion.displayName ?? suggestion.resourceId}
-                  aria-label={suggestion.displayName ?? suggestion.resourceId}
-                  className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[4px] border border-neutral-600 bg-[#17191d] hover:border-cyan-500"
-                >
-                  <IconPreview icon={suggestion} />
-                </button>
+                  icon={suggestion}
+                  onPick={onPick}
+                />
               ))}
             </div>
           </div>
@@ -193,16 +238,7 @@ export function IconPicker({
                   dominantColor: entry.dominantColor,
                 };
                 return (
-                  <button
-                    key={`${entry.kind}:${entry.id}`}
-                    type="button"
-                    onClick={() => onPick(icon)}
-                    title={entry.displayName ?? entry.id}
-                    aria-label={entry.displayName ?? entry.id}
-                    className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[4px] border border-neutral-700 bg-[#17191d] hover:border-cyan-500"
-                  >
-                    <IconPreview icon={icon} />
-                  </button>
+                  <IconChoice key={`${entry.kind}:${entry.id}`} icon={icon} onPick={onPick} />
                 );
               })}
             </div>
@@ -219,6 +255,23 @@ export function IconPicker({
         ) : null}
       </div>
     </div>
+  );
+  return portaled ? createPortal(picker, document.body) : picker;
+}
+
+function IconChoice({ icon, onPick }: { icon: EntryIcon; onPick: (icon: EntryIcon) => void }) {
+  const name = icon.displayName || icon.resourceId;
+  return (
+    <MinecraftTooltip label={name} placement="above" openOnFocus>
+      <button
+        type="button"
+        onClick={() => onPick(icon)}
+        aria-label={name}
+        className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[4px] border border-neutral-600 bg-[#17191d] hover:border-cyan-500"
+      >
+        <IconPreview icon={icon} />
+      </button>
+    </MinecraftTooltip>
   );
 }
 

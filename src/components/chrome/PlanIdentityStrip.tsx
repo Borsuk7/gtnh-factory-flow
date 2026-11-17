@@ -1,132 +1,189 @@
 "use client";
 
-import { useState } from "react";
-import { EntryIconSlot, IconPicker, iconSuggestionsFromStats } from "@/components/IconPicker";
-import { anchorOf, MenuPortal, type MenuAnchor } from "@/components/flow/clean/menus/MenuPortal";
-import { computeCommunityPlanStats } from "@/lib/community/plan-stats";
-import { useLibraryTab } from "@/lib/library/library-tab";
-import type { EntryIcon } from "@/lib/model/types";
-import { useWelcomeTab } from "@/lib/welcome/welcome-tab";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { EntryIconSlot, IconPicker, iconSuggestionsFromProject } from "@/components/IconPicker";
+import { readDesign } from "@/lib/designs/design-storage";
+import type { EntryIcon, FactoryProject } from "@/lib/model/types";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
 
+type Identity = Pick<FactoryProject, "name" | "description" | "icon">;
+type IdentityPatch = Parameters<ReturnType<typeof useDesignStore.getState>["updateDesignIdentity"]>[1];
+
 export function PlanIdentityStrip() {
-  const library = useLibraryTab();
-  const welcome = useWelcomeTab();
   const designId = useDesignStore((state) => state.activeDesignId);
   const publicView = useDesignStore((state) => state.publicView);
   const readOnly = useFactoryStore((state) => state.isReadOnly);
-  const taskBoard = useFactoryStore((state) => state.project.primaryView === "tasks");
-  if (!designId || publicView || readOnly || taskBoard || library.active || welcome.active) return null;
-  return <PlanIdentity key={designId} designId={designId} />;
+  if (!designId || publicView || readOnly) return null;
+  return <ActivePlanIdentity key={designId} designId={designId} />;
 }
 
-function PlanIdentity({ designId }: { designId: string }) {
+function ActivePlanIdentity({ designId }: { designId: string }) {
   const name = useFactoryStore((state) => state.project.name);
   const description = useFactoryStore((state) => state.project.description);
   const icon = useFactoryStore((state) => state.project.icon);
-  const update = useDesignStore((state) => state.updateDesignIdentity);
-  const [suggestions, setSuggestions] = useState<EntryIcon[]>();
-  const [editor, setEditor] = useState<{ field: "name" | "description"; anchor: MenuAnchor }>();
-  const [draft, setDraft] = useState("");
-  const [problem, setProblem] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  const closeEditor = () => { if (!saving) setEditor(undefined); };
+  return (
+    <PlanIdentityFields
+      designId={designId}
+      identity={{ name, description, icon }}
+      getProject={() => useFactoryStore.getState().project}
+    />
+  );
+}
 
-  const edit = (field: "name" | "description", element: HTMLElement) => {
+export function ListedPlanIdentity({ designId }: { designId: string }) {
+  const isActive = useDesignStore((state) => state.activeDesignId === designId);
+  return isActive
+    ? <ActivePlanIdentity designId={designId} />
+    : <StoredPlanIdentity designId={designId} />;
+}
+
+function StoredPlanIdentity({ designId }: { designId: string }) {
+  const [project, setProject] = useState<FactoryProject>();
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    void readDesign(designId).then((record) => {
+      if (!cancelled) setProject(record?.project);
+    }).catch(() => undefined).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [designId]);
+
+  if (!project) {
+    return <p role="status">{loading ? "Loading plan details…" : "Could not load the plan details."}</p>;
+  }
+  return (
+    <PlanIdentityFields
+      designId={designId}
+      identity={project}
+      getProject={() => project}
+      onSaved={({ icon, ...text }) => setProject((current) => current && ({
+        ...current,
+        ...text,
+        ...(icon !== undefined ? { icon: icon ?? undefined } : {}),
+      }))}
+    />
+  );
+}
+
+function PlanIdentityFields({
+  designId,
+  identity,
+  getProject,
+  onSaved,
+}: {
+  designId: string;
+  identity: Identity;
+  getProject: () => FactoryProject;
+  onSaved?: (patch: IdentityPatch) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<EntryIcon[]>();
+  const [problem, setProblem] = useState<string>();
+  const queue = useRef(Promise.resolve());
+  const update = useDesignStore((state) => state.updateDesignIdentity);
+  const save = (patch: IdentityPatch) => {
     setProblem(undefined);
-    setDraft(field === "name" ? name : description ?? "");
-    setEditor({ field, anchor: anchorOf(element) });
+    const pending = queue.current.then(async () => {
+      await update(designId, patch);
+      onSaved?.(patch);
+    });
+    queue.current = pending.catch(() => undefined);
+    return pending;
   };
-  const pickIcon = () => {
-    const { project, lastResult } = useFactoryStore.getState();
-    const stats = computeCommunityPlanStats(project, lastResult);
-    const recipeIds = new Set(project.nodes.flatMap((node) =>
-      [node.recipeId, ...(node.extraRecipes ?? []).map((section) => section.recipeId)]));
-    const buildResources = project.recipes
-      .filter((recipe) => recipeIds.has(recipe.id))
-      .flatMap((recipe) => [...recipe.outputs, ...recipe.inputs])
-      .filter((resource) => resource.kind === "item" || resource.kind === "fluid")
-      .map((resource) => ({ ...resource, resourceId: resource.id }));
-    setProblem(undefined);
-    setSuggestions(iconSuggestionsFromStats([...stats.needs, ...buildResources], stats.outputs));
-  };
-  const saveIcon = (entry: EntryIcon | null) => {
+  const saveIcon = (icon: EntryIcon | null) => {
     setSuggestions(undefined);
-    void update(designId, { icon: entry }).catch(() => setProblem("Could not save the plan icon."));
+    void save({ icon }).catch(() => setProblem("Could not save the plan icon."));
   };
-  const saveDetails = async () => {
-    if (!editor || saving || (editor.field === "name" && !draft.trim())) return;
-    setSaving(true);
-    setProblem(undefined);
-    try {
-      await update(designId, { [editor.field]: draft.trim() });
-      setEditor(undefined);
-    } catch {
-      setProblem("Could not save the plan details.");
-    } finally {
-      setSaving(false);
-    }
-  };
-  const fieldLabel = editor?.field === "name" ? "Plan title" : "Plan description";
 
   return (
     <section className="plan-identity" aria-label="Plan details" data-plan-identity="">
-      <EntryIconSlot icon={icon} editable onEdit={pickIcon} className="!h-5 !w-5 plan-identity-icon" />
-      <button
-        type="button"
-        className="plan-identity-title"
-        aria-label="Edit plan title"
-        aria-haspopup="dialog"
-        aria-expanded={editor?.field === "name"}
-        data-menu-anchor=""
-        onClick={(event) => edit("name", event.currentTarget)}
-      >
-        {name}
-      </button>
-      <button
-        type="button"
-        className="plan-identity-description"
-        aria-label="Edit plan description"
-        aria-haspopup="dialog"
-        aria-expanded={editor?.field === "description"}
-        data-menu-anchor=""
-        onClick={(event) => edit("description", event.currentTarget)}
-      >
-        {description?.trim() || "Add a description"}
-      </button>
-      {problem && !editor ? <span className="plan-identity-error" role="alert">{problem}</span> : null}
-      {editor ? (
-        <MenuPortal anchor={editor.anchor} width={320} maxHeight={280} role="dialog" label={fieldLabel} onClose={closeEditor}>
-          <form
-            className="cm-scroll plan-identity-form"
-            onSubmit={(event) => { event.preventDefault(); void saveDetails(); }}
-          >
-            <label>
-              {fieldLabel}
-              {editor.field === "name" ? (
-                <input aria-label={fieldLabel} maxLength={80} value={draft} onChange={(event) => setDraft(event.target.value)} />
-              ) : (
-                <textarea aria-label={fieldLabel} rows={4} maxLength={2000} value={draft} onChange={(event) => setDraft(event.target.value)} />
-              )}
-            </label>
-            {problem ? <span className="plan-identity-error" role="alert">{problem}</span> : null}
-            <div className="plan-identity-actions">
-              <button type="button" className="cm-compare-key" disabled={saving} onClick={closeEditor}>Cancel</button>
-              <button type="submit" className="cm-compare-key" disabled={saving || (editor.field === "name" && !draft.trim())}>Save</button>
-            </div>
-          </form>
-        </MenuPortal>
-      ) : null}
+      <EntryIconSlot
+        icon={identity.icon}
+        editable
+        onEdit={() => setSuggestions(iconSuggestionsFromProject(getProject()))}
+        className="!h-5 !w-5 plan-identity-icon"
+      />
+      <IdentityField field="name" value={identity.name} onSave={(name) => save({ name })} />
+      <IdentityField
+        field="description"
+        value={identity.description ?? ""}
+        onSave={(description) => save({ description })}
+      />
+      {problem ? <span className="plan-identity-error" role="alert">{problem}</span> : null}
       {suggestions ? (
         <IconPicker
+          portaled
           title="Pick this plan’s icon"
           suggestions={suggestions}
           onPick={saveIcon}
-          onClear={icon ? () => saveIcon(null) : undefined}
+          onClear={identity.icon ? () => saveIcon(null) : undefined}
           onClose={() => setSuggestions(undefined)}
         />
       ) : null}
     </section>
+  );
+}
+
+function IdentityField({ field, value, onSave }: {
+  field: "name" | "description";
+  value: string;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const title = field === "name";
+  const [draft, setDraft] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const cancel = useRef(false);
+  const onBlur = (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement }) => {
+    if (saving) {
+      cancel.current = false;
+      return;
+    }
+    const next = event.currentTarget.value.trim();
+    if (cancel.current || next === value || (title && !next)) {
+      cancel.current = false;
+      setDraft(undefined);
+      return;
+    }
+    setSaving(true);
+    void onSave(next).then(() => setDraft(undefined), () => setFailed(true)).finally(() => setSaving(false));
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Escape") {
+      cancel.current = true;
+      setFailed(false);
+    } else if (event.key !== "Enter" || (!title && event.shiftKey)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.blur();
+  };
+  const props = {
+    "aria-label": title ? "Plan title" : "Plan description",
+    "aria-invalid": failed || undefined,
+    className: title ? "plan-identity-title" : "plan-identity-description",
+    value: draft ?? value,
+    maxLength: title ? 80 : 2000,
+    readOnly: saving,
+    onBlur,
+    onKeyDown,
+    onChange: (event: { target: HTMLInputElement | HTMLTextAreaElement }) => {
+      setFailed(false);
+      setDraft(event.target.value);
+    },
+  };
+  return (
+    <>
+      {title ? <input {...props} /> : (
+        <div className="plan-identity-description-slot">
+          <textarea {...props} rows={1} placeholder="Add a description" />
+        </div>
+      )}
+      {failed ? <span className="plan-identity-error" role="alert">Could not save the plan {title ? "title" : "description"}.</span> : null}
+    </>
   );
 }

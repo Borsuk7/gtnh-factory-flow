@@ -136,6 +136,7 @@ describe("the library", () => {
     expect(rows).toEqual([
       "Open",
       "Rename",
+      "Edit plan details",
       "Add to Favorites",
       "Move to collection",
       "Copy plan codeto paste or share",

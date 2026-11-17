@@ -12,17 +12,20 @@ import {
 import { createPortal } from "react-dom";
 import { getUiScale } from "@/lib/ui-scale";
 import { useCommunityUser } from "@/components/community/auth";
-import { IconPicker, iconSuggestionsFromStats } from "@/components/IconPicker";
+import { IconPicker, iconSuggestionsFromProject } from "@/components/IconPicker";
 import { formatRelativeDate } from "@/components/shelf-cards";
 import { deleteCommunityPlan, listCommunityPlans, patchCommunityPlan } from "@/lib/community/client";
 import { sharedPlanLink } from "@/lib/community/shared-link";
 import type { CommunityPlanSummary } from "@/lib/community/types";
 import type { DesignSummary } from "@/lib/designs/design-library";
+import { readDesign } from "@/lib/designs/design-storage";
+import type { FactoryProject } from "@/lib/model/types";
 import { SETUPS_CHANGED_EVENT, notifySetupsChanged, requestShareDialog } from "@/lib/setups-tab";
 import { setLibraryView, useLibraryTab } from "@/lib/library/library-tab";
 import { playBoardSound } from "@/lib/board-sounds";
 import { useSavedSetups } from "@/lib/library/saved-setups";
 import { useDesignStore } from "@/store/design-store";
+import { useFactoryStore } from "@/store/factory-store";
 import { LibraryDetail, previewUrlFor } from "./LibraryDetail";
 import { ArmedMenuItem, LibraryMenu, MenuHeading, MenuItem, MenuRule } from "./library-menu";
 import { Face, InlineName, LibraryTile } from "./LibraryTile";
@@ -84,7 +87,7 @@ export function LibraryPage() {
   const { query, maxTier, setMaxTier } = filters;
   const sort = filters.sort as SortKey;
   /** The design whose icon is being picked on the preview page. */
-  const [iconEditId, setIconEditId] = useState<string>();
+  const [iconEdit, setIconEdit] = useState<{ id: string; suggestions: ReturnType<typeof iconSuggestionsFromProject> }>();
   const [tileMenu, setTileMenu] = useState<{ designId: string; left: number; top: number }>();
   const [folderMenu, setFolderMenu] = useState<{ folderId: string; left: number; top: number }>();
   const [armed, setArmed] = useState<{ id: string; what: "delete" }>();
@@ -101,6 +104,20 @@ export function LibraryPage() {
   const [bulkDeleteArmed, setBulkDeleteArmed] = useState(false);
   /** The design whose preview page is up, if any. */
   const [detailId, setDetailId] = useState<string>();
+  const [storedDetail, setStoredDetail] = useState<{ id: string; project: FactoryProject }>();
+  const activeDetail = useDesignStore((state) => Boolean(detailId) && state.activeDesignId === detailId);
+  const activeDescription = useFactoryStore((state) => activeDetail ? state.project.description : undefined);
+  const activeIcon = useFactoryStore((state) => activeDetail ? state.project.icon : undefined);
+  useEffect(() => {
+    if (!detailId || activeDetail) return;
+    let cancelled = false;
+    void readDesign(detailId).then((record) => {
+      if (!cancelled && record) setStoredDetail({ id: detailId, project: record.project });
+    }).catch(() => {
+      if (!cancelled) setError("Could not load the plan details.");
+    });
+    return () => { cancelled = true; };
+  }, [detailId, activeDetail]);
   const { posts: myPosts, signedIn } = useMyPosts();
   const showShared = isLiveConfigured() && signedIn;
   const savedIds = useSavedSetups();
@@ -384,6 +401,8 @@ export function LibraryPage() {
     ? folders.find((folder) => folder.id === folderMenu.folderId)
     : undefined;
   const detailDesign = detailId ? designs.find((design) => design.id === detailId) : undefined;
+  const storedProject = storedDetail && storedDetail.id === detailId ? storedDetail.project : undefined;
+  const detailIcon = activeDetail ? activeIcon : detailDesign?.icon;
   const detailPost = detailDesign?.communityPlanId
     ? myPosts?.get(detailDesign.communityPlanId)
     : undefined;
@@ -549,13 +568,13 @@ export function LibraryPage() {
               <LibraryDetail
                 entry={{
                   name: detailDesign.name,
-                  icon: detailDesign.icon,
+                  icon: detailIcon,
                   creator: folders.find((folder) => folder.id === detailDesign.folderId)?.name,
                   when: `edited ${formatRelativeDate(detailDesign.updatedAt)}`,
                   tier: detailDesign.stats?.tier,
                   machines: detailDesign.stats?.machines,
                   euT: detailDesign.stats?.euT,
-                  description: detailPost?.description || undefined,
+                  description: (activeDetail ? activeDescription : storedProject?.description) ?? detailPost?.description,
                   tags: detailPost?.tags,
                   needs: detailPost?.needs,
                   outputs: detailPost?.outputs,
@@ -573,11 +592,14 @@ export function LibraryPage() {
                       open(detailDesign.id);
                     },
                   },
-                  onEdit: async (patch) => {
+                  onEdit: !activeDetail && !storedProject ? undefined : async (patch) => {
                     await updateDesignIdentity(detailDesign.id, {
                       name: patch.name,
                       description: patch.description,
                     });
+                    setStoredDetail((current) => current?.id === detailDesign.id
+                      ? { ...current, project: { ...current.project, description: patch.description } }
+                      : current);
                     if (detailPost) {
                       try {
                         await patchCommunityPlan(detailPost.id, {
@@ -592,7 +614,10 @@ export function LibraryPage() {
                     }
                   },
                   editTags: Boolean(detailPost),
-                  onPickIcon: () => setIconEditId(detailDesign.id),
+                  onPickIcon: () => {
+                    const project = activeDetail ? useFactoryStore.getState().project : storedProject;
+                    if (project) setIconEdit({ id: detailDesign.id, suggestions: iconSuggestionsFromProject(project) });
+                  },
                   keys: [
                     ...(detailPost
                       ? [
@@ -883,31 +908,30 @@ export function LibraryPage() {
 
       {drag ? <DragGhost drag={drag} /> : null}
 
-      {iconEditId ? (
+      {iconEdit && iconEdit.id === detailId ? (
         <IconPicker
+          portaled
           title="Pick an icon"
-          suggestions={iconSuggestionsFromStats(detailPost?.needs, detailPost?.outputs)}
+          suggestions={iconEdit.suggestions}
           onPick={(icon) => {
-            const id = iconEditId;
-            setIconEditId(undefined);
-            void updateDesignIdentity(id, { icon });
+            setIconEdit(undefined);
+            void updateDesignIdentity(iconEdit.id, { icon });
             if (detailPost) {
               void patchCommunityPlan(detailPost.id, { icon }).then(notifySetupsChanged, () => undefined);
             }
           }}
           onClear={
-            detailDesign?.icon
+            detailIcon
               ? () => {
-                  const id = iconEditId;
-                  setIconEditId(undefined);
-                  void updateDesignIdentity(id, { icon: null });
+                  setIconEdit(undefined);
+                  void updateDesignIdentity(iconEdit.id, { icon: null });
                   if (detailPost) {
                     void patchCommunityPlan(detailPost.id, { icon: null }).then(notifySetupsChanged, () => undefined);
                   }
                 }
               : undefined
           }
-          onClose={() => setIconEditId(undefined)}
+          onClose={() => setIconEdit(undefined)}
         />
       ) : null}
 

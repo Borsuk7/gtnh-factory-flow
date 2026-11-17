@@ -4,7 +4,7 @@ import "./chrome.css";
 import "./library.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { Ellipsis, Folder, FolderPlus, LayoutGrid, Search, Star } from "lucide-react";
+import { Ellipsis, Folder, FolderPlus, LayoutGrid, Search, Star, X } from "lucide-react";
 import { requestShareDialog } from "@/lib/setups-tab";
 import { openDesigns, type DesignSummary } from "@/lib/designs/design-library";
 import { readDesign } from "@/lib/designs/design-storage";
@@ -28,6 +28,7 @@ import { SharedWithMe } from "@/components/live/SharedWithMe";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { useCloudLibraryStore } from "@/lib/library/cloud-library";
 import { ChecklistIcon } from "./pixel-icons";
+import { ListedPlanIdentity } from "./PlanIdentityStrip";
 
 /** Plans shared with you come with live plans: none of it shows without NEXT_PUBLIC_LIVE_URL. */
 const LIVE = isLiveConfigured();
@@ -245,6 +246,7 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
   const draggedPlan = useRef<string | undefined>(undefined);
   const [problem, setProblem] = useState<string>();
   const [renaming, setRenaming] = useState<string>();
+  const [editingDetails, setEditingDetails] = useState<string>();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -362,6 +364,7 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
     return [
       { label: "Open", onSelect: () => void open(m.id) },
       { label: "Rename", onSelect: () => setRenaming(m.id) },
+      { label: "Edit plan details", onSelect: () => setEditingDetails(m.id) },
       {
         label: menuDesign.favorite ? "Remove from Favorites" : "Add to Favorites",
         onSelect: () => savePlanOrganization(toggleFavorite(m.id)),
@@ -474,6 +477,19 @@ function MyPlans({ query, onQueryChange, view }: { query: string; onQueryChange:
           />
         </label>
         {problem ? <p className="ml-plan-message" role="alert">{problem}</p> : null}
+        {editingDetails && allDesigns.some((design) => design.id === editingDetails) ? (
+          <div className="ml-plan-details">
+            <ListedPlanIdentity key={editingDetails} designId={editingDetails} />
+            <button
+              type="button"
+              className="mb-key"
+              aria-label="Close plan details"
+              onClick={() => setEditingDetails(undefined)}
+            >
+              <X size={10} aria-hidden />
+            </button>
+          </div>
+        ) : null}
         <div className="ml-grid">
           {showingAll ? (
             <div

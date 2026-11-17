@@ -65,38 +65,41 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
+  height: 22px;
+  line-height: 20px;
+  background: transparent;
+  outline-offset: -1px;
+  resize: none;
 }
 .plan-identity-title {
-  max-width: 46%;
-  padding: 1px 6px;
+  width: clamp(100px, 32%, 260px);
+  padding-inline: 6px;
   font-weight: 600;
 }
-.plan-identity-description {
+.plan-identity-description-slot {
+  position: relative;
   flex: 1;
-  padding: 1px 8px;
+  min-width: 0;
+  height: 22px;
+}
+.plan-identity-description {
+  display: block;
+  width: 100%;
+  padding-inline: 8px;
   border-left: 1px solid var(--line-strong);
   color: var(--fg-muted);
 }
-.plan-identity-title:hover,
-.plan-identity-description:hover { background: var(--surface-raised); }
-.plan-identity-form { padding: 10px; }
-.plan-identity-form label {
-  display: grid;
-  gap: 5px;
-}
-.plan-identity-form :is(input, textarea) {
-  min-width: 0;
-  width: 100%;
-  padding: 5px 7px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface-sunken);
+.plan-identity :is(input, textarea):is(:hover, :focus) { background: var(--surface-raised); }
+.plan-identity :is(input, textarea):focus {
+  outline: 1px solid var(--line-strong);
+  text-overflow: clip;
   color: var(--fg);
 }
-.plan-identity-form textarea { resize: vertical; }
-.plan-identity-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 5px;
-  margin-top: 8px;
+.plan-identity-description:focus {
+  position: absolute;
+  z-index: 50;
+  height: 62px;
+  overflow-y: auto;
+  white-space: pre-wrap;
 }
 .plan-identity-error { color: #fca5a5; }

@@ -145,9 +145,9 @@ in `src/store/AGENTS.md` (Live plans, Task boards).
   rows say Publish to library... for a plan not posted yet (`chrome/library-rows.ts`, the dialog's title too). Never fold
   one into the other. Without live plans every row and label is as before. The + tab menu has New task board.
   `PlanIdentityDrawer`, `DesignTabs` and `BoardActions` keep their live keys but are not on the desktop board.
-- The active plan's identity strip sits under the tabs. Its title, description, and icon use the design store's
-  existing metadata edits. The desktop Library lists collections beside the tiles and accepts dropped plans
-  through the same move and favorite actions as the tile menu.
+- The active plan's identity strip sits above the canvas, within the board column. Its inline title and description
+  and icon picker also work from Edit plan details in the desktop Library. The Library lists collections beside
+  the tiles and accepts dropped plans through the same move and favorite actions as the tile menu.
 - What edits or views the board is the BOARD TOOLBAR (`chrome/BoardToolbar.tsx`): no band. Its keys float over the
   board's top edge (it sits inside the board's box, so the board fills the whole middle column and nothing is reserved;
   not while the Library or Welcome covers it). Both bars share the key and fit hook in `chrome/bar-parts.tsx`.

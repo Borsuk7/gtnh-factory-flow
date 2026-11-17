@@ -12,7 +12,6 @@ import { ModScreenshot } from "./chrome/ModScreenshot";
 import { DevMenu } from "./DevMenu";
 import { ModSettings } from "./chrome/ModSettings";
 import { ModBar } from "./chrome/ModBar";
-import { PlanIdentityStrip } from "./chrome/PlanIdentityStrip";
 
 /**
  * The pack picker's switch. See the note where it renders; flip this back to
@@ -95,7 +94,6 @@ export function AppHeader(_props: AppHeaderProps) {
         onDevMenu={() => setDevMenuOpen(true)}
         unreadNotes={hasUnread}
       />
-      <PlanIdentityStrip />
       {dialogs}
     </>
   );

@@ -218,6 +218,21 @@
   padding-top: 6px;
   color: #e0a63a;
 }
+.ml-plan-details {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 4px 8px;
+  padding-right: 3px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.ml-plan-details > :first-child { flex: 1; }
+.ml-plan-details .plan-identity { border-bottom: 0; }
+
 .ml-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 214px), 1fr));
