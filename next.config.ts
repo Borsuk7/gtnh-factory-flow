@@ -4,6 +4,10 @@ const datasetBackendUrl = process.env.GTNH_DATASET_BACKEND_URL?.replace(/\/+$/, 
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
+  outputFileTracingIncludes: {
+    "/api/community/plans": ["./dist-server/community-stats.cjs", "./node_modules/highs/**/*"],
+    "/api/community/plans/**": ["./dist-server/community-stats.cjs", "./node_modules/highs/**/*"],
+  },
   turbopack: {
     root: process.cwd(),
   },

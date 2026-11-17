@@ -22,6 +22,10 @@
 
 ## Supabase (community.ts, resource-popularity.ts)
 
+- Community plan stats run in the bounded worker pool in `community-stats.ts`. The worker normalizes and solves
+  the validated project. Refreshes share work by plan revision, and conditional writes prevent old results from
+  replacing a newer post's stats. Build the worker with the normal `npm run build` or `npm run dev` workflow.
+
 The instance is small and has gone down under load. Rules:
 - Every request goes through `fetchWithDbTimeout` (20 s). A timeout answers 504 rather than
   rejecting (postgrest-js retries a rejected GET three more times), and any 5xx that is not

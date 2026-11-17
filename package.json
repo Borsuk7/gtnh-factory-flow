@@ -19,8 +19,9 @@
     "datasets:manifest": "node tools/dataset-pipeline/scripts/rebuild-manifest.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "predev": "node tools/copy-highs-wasm.mjs",
-    "prebuild": "node tools/copy-highs-wasm.mjs"
+    "build:community-stats": "node tools/build-community-stats.mjs",
+    "predev": "node tools/copy-highs-wasm.mjs && npm run build:community-stats",
+    "prebuild": "node tools/copy-highs-wasm.mjs && npm run build:community-stats"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",

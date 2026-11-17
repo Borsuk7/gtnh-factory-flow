@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { factoryProjectSchema } from "@/lib/model/schemas";
-import { calculateThroughput } from "@/lib/solver";
-import { normalizeLoadedProject } from "@/lib/model/project-normalize";
-import { ensurePlanEngine } from "@/lib/server/plan-engine";
-import { computeCommunityPlanStats } from "@/lib/community/plan-stats";
+import { CommunityStatsBusy, solveCommunityStats } from "@/lib/server/community-stats";
 import { APP_VERSION } from "@/lib/version";
 import {
   COMMUNITY_DESCRIPTION_MAX_LENGTH,
@@ -314,9 +311,7 @@ export async function POST(request: Request) {
     // Stats are always derived server-side from the validated plan, as the
     // plan board runs it: there is one mode, so an older plan is converted
     // first (the stored plan stays as uploaded).
-    const solved = normalizeLoadedProject(project);
-    await ensurePlanEngine(solved);
-    const stats = computeCommunityPlanStats(solved, calculateThroughput(solved));
+    const stats = await solveCommunityStats(project);
 
     const db = getCommunityDb();
     const row = {
@@ -361,7 +356,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Sharing the plan failed." },
-      { status: 500 },
+      { status: error instanceof CommunityStatsBusy ? 503 : 500 },
     );
   }
 }

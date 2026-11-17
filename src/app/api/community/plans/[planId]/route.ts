@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { factoryProjectSchema } from "@/lib/model/schemas";
-import { normalizeLoadedProject } from "@/lib/model/project-normalize";
-import { calculateThroughput } from "@/lib/solver";
-import { ensurePlanEngine } from "@/lib/server/plan-engine";
-import { computeCommunityPlanStats } from "@/lib/community/plan-stats";
+import { CommunityStatsBusy, solveCommunityStats } from "@/lib/server/community-stats";
 import type { CommunityPlanSummary } from "@/lib/community/types";
 import { APP_VERSION } from "@/lib/version";
 import {
@@ -119,10 +116,11 @@ async function refreshStaleStats(
   try {
     const { data, error } = await db
       .from("community_plans")
-      .select("stats_version")
+      .select("stats_version, updated_at")
       .eq("id", planId)
-      .single<{ stats_version: string | null }>();
-    if (error || data?.stats_version === APP_VERSION) {
+      .single<{ stats_version: string | null; updated_at: string }>();
+    if (error || !data || data.stats_version === APP_VERSION ||
+        (plan.updatedAt !== undefined && data.updated_at !== plan.updatedAt)) {
       return;
     }
 
@@ -130,6 +128,7 @@ async function refreshStaleStats(
       .from("community_plans")
       .select("plan")
       .eq("id", planId)
+      .eq("updated_at", data.updated_at)
       .single<{ plan: unknown }>();
     const parsed = factoryProjectSchema.safeParse(planRow?.plan);
     if (!parsed.success) {
@@ -138,9 +137,7 @@ async function refreshStaleStats(
 
     // The same funnel the board runs a loaded plan through, so the card and
     // the opened tab compute from the identical project.
-    const project = normalizeLoadedProject(parsed.data);
-    await ensurePlanEngine(project);
-    const stats = computeCommunityPlanStats(project, calculateThroughput(project));
+    const stats = await solveCommunityStats(parsed.data, JSON.stringify([planId, data.updated_at, APP_VERSION]));
     plan.needs = stats.needs;
     plan.outputs = stats.outputs;
     plan.totalEuT = stats.totalEuT;
@@ -166,7 +163,8 @@ async function refreshStaleStats(
         highest_tier_index: stats.highestTierIndex,
         stats_version: APP_VERSION,
       })
-      .eq("id", planId);
+      .eq("id", planId)
+      .eq("updated_at", data.updated_at);
     invalidatePlanListCache();
   } catch {
     // A plan today's solver chokes on keeps its saved card.
@@ -276,9 +274,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ plan
         return NextResponse.json({ error: "Refusing to share an empty plan." }, { status: 400 });
       }
 
-      const solved = normalizeLoadedProject(project);
-      await ensurePlanEngine(solved);
-      const stats = computeCommunityPlanStats(solved, calculateThroughput(solved));
+      const stats = await solveCommunityStats(project);
       Object.assign(update, {
         plan: project,
         needs: stats.needs,
@@ -311,7 +307,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ plan
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Updating the plan failed." },
-      { status: 500 },
+      { status: error instanceof CommunityStatsBusy ? 503 : 500 },
     );
   }
 }

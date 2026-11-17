@@ -115,3 +115,31 @@ The board computes summaries synchronously for every group. Each group scans mac
 Typecheck and all eight targeted diagnostics passed in the original audit. The historical virtualization comparison passed separately. Local harnesses are under the gitignored `scratch/probes/` directory: `performance-audit.test.ts` and `performance-audit.config.ts`.
 
 The timings are local Node/Vitest measurements, not production latency or browser frame times. The history establishes the origin of each mechanism; overall old-versus-new performance still needs identical-plan browser profiles. No application source was changed.
+
+## Implementation on the performance branch
+
+| Finding | Change |
+| --- | --- |
+| 1. Community stats | A bounded Node worker pool calculates stats for new posts, edits, and refreshes. Refreshes share a pending solve for the same saved revision. A refresh writes its stats only if the saved revision still matches. |
+| 2. Card mounts | The keep rectangle uses spare camera slots. Background measurement has its own batch limit and releases extra cards after drawing them. Pins and export holds retain their exceptions. |
+| 3. Card verdicts and ports | Verdicts and port rails share indexed edges, outlet counts, and recipe and drawer lookups. |
+| 4. Worker replies | Unchanged results and diagnostics keep their object identities. Cards subscribe to the diagnostics they need to stay current. |
+| 5. Card edits | Changes that preserve port compatibility skip wire validation. Changes to recipes and recipe input overrides validate the affected card's wires using indexed endpoints. |
+| 6. Resource hover | Resource highlights update through narrow card and wire subscriptions. Hover leaves the board models and routed geometry intact. |
+| 7. Islands | The solver looks up every existing island result before adding misses. A regression test keeps 64 hits on the 65-island reproduction. |
+| 8. Waypoints | Waypoint edits keep current throughput books. The worker cache ignores waypoints and save stamps. |
+| 9. Group summaries | Direct members are aggregated once and merged up the group tree. Expanded groups only need machine counts for the frame. |
+
+On a local 84-card fixture, the synchronous stats calculation delayed a concurrent lightweight request by 513 ms.
+The request took 18 ms while a cold worker calculated the stats and 4 ms with a warm worker. All three runs
+returned identical stats. These measurements use a local HTTP harness around the stats code.
+
+The production browser comparison against `859e934a` used the same 400-card plan, camera, and zoom. The settled
+mount count fell from 400 to 149 after every card had been measured. Across 30 hover transitions, Chromium reported
+293 ms of script time before and 164 ms after. The wire still lit and its path stayed fixed. Frame-time p95 rose
+from 250 ms to 333 ms in that run. The browser fixtures supplied their own recipes because the local dataset
+manifest was missing.
+
+In local Node probes, verdict and rail work for 150 cards on a 1,000-card chain fell from 73.2 ms to 5.5 ms
+at the median. The 4,000-card single edit fell from 114.0 ms to 23.0 ms before worker work. The 1,000-card,
+200-group summary probe fell from 107.7 ms to 71.0 ms. These timings measure the named code paths.

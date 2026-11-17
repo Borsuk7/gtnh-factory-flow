@@ -122,7 +122,10 @@ process.on("SIGINT", () => void stop(0));
 process.on("SIGTERM", () => void stop(0));
 
 // What `npm run dev` does first (its predev script).
-spawnSync(process.execPath, ["tools/copy-highs-wasm.mjs"], { cwd: root, stdio: "inherit" });
+for (const script of ["tools/copy-highs-wasm.mjs", "tools/build-community-stats.mjs"]) {
+  const result = spawnSync(process.execPath, [script], { cwd: root, stdio: "inherit" });
+  if (result.status !== 0) process.exit(result.status ?? 1);
+}
 
 start("local-db", [bin.tsx, "tools/local-db/serve.ts"], { LOCAL_DB_PORT: String(dbPort) });
 await waitFor(`${dbUrl}/rest/v1/community_users?select=id&limit=1`, "The local database");
