@@ -128,6 +128,7 @@ import type {
   Recipe,
   ResourceAmount,
   ResourceKind,
+  ResourceKey,
   ThroughputResult,
 } from "@/lib/model/types";
 import {
@@ -772,7 +773,7 @@ type ResourceEdgeData = {
     isLimited: boolean;
     isSupplyCapped: boolean;
   };
-  isFlowHighlighted?: boolean;
+  resourceKey?: ResourceKey;
   /** This wire is part of a ring that has wound down and cannot restart. */
   isDeadLoop?: boolean;
   /** This wire is part of a jam whose surplus has nowhere to go. */
@@ -2122,18 +2123,11 @@ export function FactoryFlow() {
   // its flow earns.
   const anyLineMode = true;
   const setFlowViewportCenter = useFactoryStore((state) => state.setFlowViewportCenter);
-  const hoveredFlowResourceKey = useFactoryStore((state) => state.hoveredFlowResourceKey);
-  const selectedFlowResourceKey = useFactoryStore((state) => state.selectedFlowResourceKey);
   const hoveredNodeBottlenecks = useFactoryStore((state) => state.hoveredNodeBottlenecks);
   const selectedNodeBottlenecks = useFactoryStore((state) => state.selectedNodeBottlenecks);
   const hoveredUsageNodeId = useFactoryStore((state) => state.hoveredUsageNodeId);
   const recipeSearch = useFactoryStore((state) => state.highlightSearch);
   const isProjectImporting = useFactoryStore((state) => state.isProjectImporting);
-  // The side panel's question: hover or click a resource row and every wire
-  // and card carrying it lights up. Hovering a DRAWER on the board is narrower
-  // and goes through flow-scope instead; do not fold it in here, it would
-  // light half the board.
-  const activeFlowResourceKey = hoveredFlowResourceKey ?? selectedFlowResourceKey;
   const activeNodeBottlenecks = hoveredNodeBottlenecks || selectedNodeBottlenecks;
   const recipesById = useMemo(
     () => new Map(project.recipes.map((recipe) => [recipe.id, recipe])),
@@ -2163,7 +2157,7 @@ export function FactoryFlow() {
   // Built here rather than in the card so an unrelated store write cannot
   // make every card redo it.
   const pocketSummaries = useMemo(
-    () => computePocketSummaries(project, pocketView.visiblePockets, result),
+    () => project.planMode ? undefined : computePocketSummaries(project, pocketView.visiblePockets, result),
     [project, result, pocketView.visiblePockets],
   );
   // Plan boards: every group's summary (docs/groups.md, "What the summary says"), the open frames' machine counts too.
@@ -2176,9 +2170,10 @@ export function FactoryFlow() {
             result,
             (project.pockets ?? []).map((pocket) => pocket.id),
             !averageMachineDraw,
+            new Set(pocketView.visiblePockets.map((pocket) => pocket.id)),
           )
         : undefined,
-    [project, result, averageMachineDraw],
+    [project, result, averageMachineDraw, pocketView.visiblePockets],
   );
 
   const nodesFromProject = useMemo<BoardFlowNode[]>(() => {
@@ -2269,9 +2264,7 @@ export function FactoryFlow() {
               ? 1500
               : activeNodeBottlenecks && result.nodes[node.id]?.status === "bottleneck"
                 ? 1500
-                : activeFlowResourceKey && recipeContainsResourceKey(recipe, activeFlowResourceKey)
-                  ? 1500
-                  : CARD_Z_INDEX,
+                : CARD_Z_INDEX,
           // Reusing the previous `data` object when nothing in it moved lets
           // RecipeNode's memo hold; this memo rebuilds on every hover and
           // solve, which would otherwise re-render every node on the board.
@@ -2291,10 +2284,7 @@ export function FactoryFlow() {
             type: "storageNode",
             position: storage.position,
             ...childOf(storage.pocketId),
-            zIndex:
-              activeFlowResourceKey === makeResourceKey(storage.kind, storage.resourceId)
-                ? 1500
-                : CARD_Z_INDEX,
+            zIndex: CARD_Z_INDEX,
             data: reuseObjectIdentity(storageNodeDataCache, storage.id, {
               storage,
               result: result.storages[storage.id],
@@ -2348,14 +2338,13 @@ export function FactoryFlow() {
             zIndex: CARD_Z_INDEX,
             data: reuseObjectIdentity(pocketNodeDataCache, pocket.id, {
               pocket,
-              summary: pocketSummaries.get(pocket.id),
+              summary: pocketSummaries?.get(pocket.id),
               ...(groupSummaries ? { groupSummary: groupSummaries.get(pocket.id) } : {}),
             }),
           }) satisfies PocketFlowNode,
       ),
     ];
   }, [
-    activeFlowResourceKey,
     activeNodeBottlenecks,
     hoveredUsageNodeId,
     groupSummaries,
@@ -3383,9 +3372,6 @@ export function FactoryFlow() {
       const canonicalTargetHandle = targetIsPocket
         ? POCKET_CARD_TARGET_HANDLE
         : canonicalizeResourceHandleId(edge.targetHandle);
-      const isFlowHighlighted =
-        activeFlowResourceKey === makeResourceKey(edge.resourceKind, edge.resourceId);
-
       let throughBoardIds: string[] | undefined;
       let homeBoardIds: string[] | undefined;
       if (hasOpenFrames) {
@@ -3484,7 +3470,7 @@ export function FactoryFlow() {
           mergedEdgeIds: channelEdgeIdsByRepresentative.get(edge.id),
           routeIndex: edgeIndex,
           bundle: edgeBundles.get(edge.id),
-          isFlowHighlighted,
+          resourceKey: makeResourceKey(edge.resourceKind, edge.resourceId),
           // The ring's own wires carry the mark so the circle reads as one
           // shape, not N red cards that happen to sit together.
           isDeadLoop: deathSpiralEdges.has(edge.id),
@@ -3535,12 +3521,10 @@ export function FactoryFlow() {
       ),
     );
   }, [
-    activeFlowResourceKey,
     boardView.fixedEdgeWidth,
     anyLineMode,
     speedColorMode,
     layoutVersion,
-    pocketSummaries,
     pocketView,
     edgeProject,
     recipeSearch,
@@ -8928,10 +8912,11 @@ function ResourceEdgeComponent({
   // Lit when a hovered port or label pulls this line into its flow scope.
   // Boolean selector: only involved edges re-render on hover changes.
   const isFlowScopeLit = useFactoryStore((state) =>
-    Boolean(state.hoveredFlowScope?.edges[id]),
+    Boolean(state.hoveredFlowScope?.edges[id]) ||
+    (data?.resourceKey !== undefined && (state.hoveredFlowResourceKey ?? state.selectedFlowResourceKey) === data.resourceKey),
   );
   const setHoveredFlowScope = useFactoryStore((state) => state.setHoveredFlowScope);
-  const isHighlighted = selected || data?.isFlowHighlighted === true || isFlowScopeLit;
+  const isHighlighted = selected || isFlowScopeLit;
   // The width this line draws at, resolved once so casing and stroke agree.
   const coreStrokeWidth =
     flowWidth !== undefined
@@ -13040,20 +13025,6 @@ function getEdgeResource(
       output?.iconAtlas?.dominantColor ??
       storage?.iconAtlas?.dominantColor,
   };
-}
-
-function recipeContainsResourceKey(recipe: Recipe | undefined, resourceKey: string) {
-  if (!recipe) {
-    return false;
-  }
-
-  return [...recipe.inputs, ...recipe.outputs].some(
-    (resource) =>
-      makeResourceKey(resource.kind, resource.id) === resourceKey ||
-      resource.alternatives?.some(
-        (alternative) => makeResourceKey(alternative.kind, alternative.id) === resourceKey,
-      ),
-  );
 }
 
 /** Read the drawn paths once during capture, after the board has mounted every wire. */

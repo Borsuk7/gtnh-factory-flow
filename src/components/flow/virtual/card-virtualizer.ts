@@ -10,7 +10,7 @@
  *
  * - IN: a card whose box meets the camera's rectangle grown by `margin` of its size on every side, the nearest
  *   `cap` of them, a few at a time (`batch` a step) so a zoom out does not mount a hundred cards in one frame.
- * - OUT: a card leaves once it is outside the larger `keepMargin` rectangle for `releaseMs`. The gap between the
+ * - OUT: the larger `keepMargin` rectangle can use spare camera slots. A card outside it leaves after `releaseMs`. The gap between the
  *   two rectangles and the delay are the hysteresis: a camera parked on a boundary never flickers a card.
  * - PINNED: hovered, focused, selected, being refreshed after a change: in whatever the camera says.
  * - HELD: everything, for the image export and the screenshot panel (they photograph the whole plan).
@@ -489,22 +489,30 @@ export class CardVirtualizer {
 
     // Release first, so a card that left frees its place before one that arrived takes it.
     const keep = this.glance ? undefined : grow(this.view, this.config.keepMargin);
+    let spareSeats = this.config.cap - wanted.length;
+    let measuring = 0;
     for (const id of [...this.mountedSet]) {
       const rect = this.geometry.get(id);
-      const stays = wantedSet.has(id) || (keep !== undefined && rect !== undefined && meets(rect, keep));
-      if (stays || this.pins.has(id) || this.holds > 0) {
+      if (wantedSet.has(id) || this.pins.has(id) || this.holds > 0) {
+        this.outSince.delete(id);
+        continue;
+      }
+      const inKeep = keep !== undefined && rect !== undefined && meets(rect, keep);
+      if (inKeep && this.drawn.has(id) && spareSeats > 0) {
+        spareSeats -= 1;
         this.outSince.delete(id);
         continue;
       }
       // Not before the card has been drawn and measured (or, if nothing ever draws it, a couple of seconds).
       const age = now - (this.mountedAt.get(id) ?? Number.NEGATIVE_INFINITY);
       if (age < this.config.minMountMs || (!this.drawn.has(id) && age < 2000)) {
+        measuring += 1;
         again = true;
         continue;
       }
       // At the glance step the contents go at once: the shell already shows the face, and the board restyles
       // once for the flip instead of once more for every element of cards about to be removed.
-      const delay = this.glance ? this.config.glanceReleaseMs : this.config.releaseMs;
+      const delay = this.glance ? this.config.glanceReleaseMs : inKeep ? 0 : this.config.releaseMs;
       const since = this.outSince.get(id) ?? (delay === 0 ? now : undefined);
       if (since === undefined) {
         this.outSince.set(id, now);
@@ -539,12 +547,11 @@ export class CardVirtualizer {
     // The background pass keeps out of the way of a moving camera.
     if (this.undrawnCount() > 0) {
       again = true;
-      if (now - this.movedAt >= this.config.idleMs) {
-        let background = 0;
+      if (this.holds === 0 && measuring < this.config.backgroundBatch && now - this.movedAt >= this.config.idleMs) {
         for (const id of this.undrawn()) {
-          if (background >= this.config.backgroundBatch) break;
+          if (measuring >= this.config.backgroundBatch) break;
           mount(id);
-          background += 1;
+          measuring += 1;
         }
       }
     }

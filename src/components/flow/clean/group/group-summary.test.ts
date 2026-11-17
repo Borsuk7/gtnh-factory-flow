@@ -29,4 +29,17 @@ describe("a group summary's machines", () => {
     const sum = computeGroupSummaries(project, { ...mockUnneeded.result, plan }, ["g"], true);
     expect(sum.get("g")!.machines).toBe(6);
   });
+
+  it("rolls nested flows up and only returns detail for the requested collapsed group", () => {
+    const project = withPocket();
+    project.pockets = [
+      { id: "parent", name: "Parent", position: { x: 0, y: 0 } },
+      { id: "g", name: "Child", parentPocketId: "parent", position: { x: 0, y: 0 } },
+    ];
+    const all = computeGroupSummaries(project, mockUnneeded.result, ["parent", "g"], true);
+    expect(all.get("parent")).toEqual(all.get("g"));
+    const counts = computeGroupSummaries(project, mockUnneeded.result, ["parent", "g"], true, new Set(["parent"]));
+    expect(counts.get("parent")).toEqual(all.get("parent"));
+    expect(counts.get("g")).toMatchObject({ machines: all.get("g")!.machines, inputs: [], outputs: [] });
+  });
 });

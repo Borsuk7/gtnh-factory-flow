@@ -41,6 +41,7 @@ import { startPromptClock } from "../../virtual/prompt-phase";
 import type { TargetMode } from "@/lib/model/storage-target";
 import { playEditSfx } from "@/lib/sound/sfx";
 import { wheelChangesValues } from "@/lib/device-settings";
+import { useOverviewHighlight } from "../overview-highlight";
 
 /** A press that moved this far (screen px) before release is a drag, not a click. */
 const CLICK_SLOP = 3;
@@ -97,8 +98,6 @@ export function CleanDrawer({
   // The overview and the tooltips print rates: the drawer follows the rate dial.
   const rateUnit = useFactoryStore((state) => state.rateUnit);
   const powerUnit = useFactoryStore((state) => state.powerDisplayUnit);
-  const hoveredFlowResourceKey = useFactoryStore((state) => state.hoveredFlowResourceKey);
-  const selectedFlowResourceKey = useFactoryStore((state) => state.selectedFlowResourceKey);
   const setHoveredFlowScope = useFactoryStore((state) => state.setHoveredFlowScope);
   const scopeLit = useFactoryStore((state) => Boolean(state.hoveredFlowScope?.nodes[storage.id]));
   const scopePort = useFactoryStore((state) => {
@@ -132,7 +131,10 @@ export function CleanDrawer({
   const setDrainMode = useFactoryStore((state) => state.setStorageDrainMode);
 
   const resourceKey = makeResourceKey(storage.kind, storage.resourceId);
-  const resourceLit = (hoveredFlowResourceKey ?? selectedFlowResourceKey) === resourceKey;
+  const resourceLit = useFactoryStore(
+    (state) => (state.hoveredFlowResourceKey ?? state.selectedFlowResourceKey) === resourceKey,
+  );
+  const overviewHighlight = useOverviewHighlight(resourceLit);
   const lit = scopeLit || scopePort || resourceLit;
   const label = resourceLabel(
     category ?? { id: storage.resourceId, displayName: storage.displayName },
@@ -375,6 +377,7 @@ export function CleanDrawer({
         className="pointer-events-none absolute inset-0"
       />
       <div
+        ref={overviewHighlight}
         className="cd"
         data-node-glance-root=""
         data-kind={view.kind}

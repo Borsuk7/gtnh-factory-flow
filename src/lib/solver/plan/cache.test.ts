@@ -98,4 +98,28 @@ describe("solvePlan with a cache", () => {
     expect(counted(loadInput("hv-diesel"), islandCache).lps).toBe(0);
     islandCache.clear();
   });
+
+  it("reads the retained islands before misses can evict them", () => {
+    const input: SolveInput = {
+      mode: "AUTO", edges: [], pools: [], drawers: [], extentPins: {}, choice: null, spares: {},
+      machines: Array.from({ length: 65 }, (_, index) => ({
+        id: `m${index}`, name: `M${index}`, countFixed: true, machineCount: 1,
+        durationTicks: 20, energyPerTick: 0, throughputFactor: 1, inputs: [], outputs: [],
+        targetOutputRates: {}, targetInputRates: {},
+      })),
+    };
+    const cache = new IslandCache<never>(64) as unknown as PieceCache;
+    const first = counted(input, cache);
+    const hits = cache.hits;
+    const second = counted(input, cache);
+    expect(cache.hits - hits).toBe(64);
+    expect(differences(digest(first.answer), digest(second.answer))).toEqual([]);
+
+    const edited = structuredClone(input);
+    edited.machines.at(-1)!.machineCount += 1;
+    const beforeEdit = cache.hits;
+    const afterEdit = counted(edited, cache);
+    expect(cache.hits - beforeEdit).toBeGreaterThanOrEqual(63);
+    expect(differences(digest(counted(edited).answer), digest(afterEdit.answer))).toEqual([]);
+  });
 });

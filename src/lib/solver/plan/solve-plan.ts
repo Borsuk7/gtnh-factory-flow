@@ -70,7 +70,18 @@ export function solvePlan(
   };
   const islands = splitIslands(input);
   if (islands.length === 1) return solveIsland(input).answer;
-  const pieces: Piece[] = islands.map(solveIsland);
+  // Read every retained answer before inserting any misses that could evict it.
+  const pieces: Piece[] = cache
+    ? islands.map((island) => {
+        const key = inputDigest(island);
+        return { island, key, piece: cache.get(key) };
+      }).map(({ island, key, piece }) => {
+        if (piece) return piece;
+        const solved = solvePiece(island, ext);
+        cache.set(key, solved);
+        return solved;
+      })
+    : islands.map((island) => solvePiece(island, ext));
   if (!pieces.some((p) => p.answer.kind === "solved")) return solveIsland(input).answer;
 
   const whole = new SolveContext(input);

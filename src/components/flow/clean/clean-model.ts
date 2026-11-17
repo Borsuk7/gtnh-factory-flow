@@ -45,6 +45,7 @@ import type { PlanUpTo, UpToReason } from "@/lib/solver/plan/types";
 import { PIN_RULE_LABEL, pinRuleOf, withPinRule, type PinRule } from "@/lib/model/pin-rule";
 import { getMachineStructureArt } from "@/lib/power/structure-art";
 import { useFactoryStore, useRateDisplayUnits } from "@/store/factory-store";
+import { useShallow } from "zustand/react/shallow";
 import { useWorkspaceView } from "@/lib/workspace-view";
 import { formatEnergyPerUnitParts, formatSlotRateBare, portReadsEnergy } from "../flow-explainers";
 import { buildRailPorts, deriveNodeVerdict, type RailPort } from "../node-verdict";
@@ -855,12 +856,25 @@ export function stateFrameTone(
     return reason ? frameTone({ tone: FOOT_TONE[reason] }) : undefined;
   }
   if (state.rule === "exact") {
-    const fed = plan?.forced.some(
-      (entry) => entry.side === "in" && entry.nodeId.split("#r")[0] === nodeId,
-    );
-    return fed ? "forced" : undefined;
+    return hasForcedInput(plan, nodeId) ? "forced" : undefined;
   }
   return undefined;
+}
+
+type ForcedInputs = ReadonlyArray<{ nodeId: string; side: string }>;
+const forcedInputCards = new WeakMap<ForcedInputs, Set<string>>();
+
+export function hasForcedInput(plan: { forced: ForcedInputs } | undefined, nodeId: string): boolean {
+  if (!plan) return false;
+  let cards = forcedInputCards.get(plan.forced);
+  if (!cards) {
+    cards = new Set();
+    for (const entry of plan.forced) {
+      if (entry.side === "in") cards.add(parseSectionNodeId(entry.nodeId).nodeId);
+    }
+    forcedInputCards.set(plan.forced, cards);
+  }
+  return cards.has(nodeId);
 }
 
 /**
@@ -933,6 +947,11 @@ export function useCleanCardModel(
   useRateDisplayUnits();
   // Pins live on the project, not the node: re-render when they move.
   useFactoryStore((state) => state.project.settingPins);
+  // Mounted cards also read neighboring rates and plan diagnostics. An identical worker reply keeps these references.
+  useFactoryStore(useShallow((state) => {
+    const { nodes, storages, edges, plan, clogLocks } = state.lastResult;
+    return [state.project.edges, nodes, storages, edges, plan, clogLocks];
+  }));
   const machineIcons = useMachineHandlerIconEntries();
   const mapIcons = useRecipeMapIcons();
   // The solve is read lazily like the classic card does: this component

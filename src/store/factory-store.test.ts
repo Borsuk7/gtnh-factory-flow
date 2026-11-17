@@ -4460,6 +4460,17 @@ describe("boards (pockets standing open)", () => {
     expect(board?.size?.width ?? 0).toBeGreaterThanOrEqual(500);
   });
 
+  it("changes wire waypoints without throwing out the current solve", () => {
+    const before = useFactoryStore.getState();
+    const points = [{ x: 240, y: 140 }];
+    before.updateEdge("a2b", { waypoints: points });
+    const routed = useFactoryStore.getState();
+    expect(routed.project.edges.find((edge) => edge.id === "a2b")?.waypoints).toEqual(points);
+    expect(routed.lastResult).toBe(before.lastResult);
+    routed.undo();
+    expect(useFactoryStore.getState().project.edges.find((edge) => edge.id === "a2b")?.waypoints).toBeUndefined();
+  });
+
   it("drops hand-pinned waypoints on wires touching members when a board opens", () => {
     const base = createSelectionEditingProject();
     base.edges = base.edges.map((edge) =>

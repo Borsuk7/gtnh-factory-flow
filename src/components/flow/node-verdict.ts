@@ -636,6 +636,8 @@ const boardLookupsCache = new WeakMap<
     recipeById: Map<string, Recipe>;
     nodeById: Map<string, FactoryProject["nodes"][number]>;
     storageById: Map<string, NonNullable<FactoryProject["storages"]>[number]>;
+    storageRoles: ReturnType<typeof getStorageRoles>;
+    trashNodeIds: ReturnType<typeof collectTrashNodeIds>;
   }
 >();
 function boardLookups(project: FactoryProject) {
@@ -645,6 +647,8 @@ function boardLookups(project: FactoryProject) {
       recipeById: new Map(project.recipes.map((entry) => [entry.id, entry])),
       nodeById: new Map(project.nodes.map((entry) => [entry.id, entry])),
       storageById: new Map((project.storages ?? []).map((entry) => [entry.id, entry])),
+      storageRoles: getStorageRoles(project),
+      trashNodeIds: collectTrashNodeIds(project),
     };
     boardLookupsCache.set(project, cached);
   }
@@ -817,15 +821,21 @@ export function honestEdgeAvailablePerSecond(
 
 const edgeIndexCache = new WeakMap<
   FactoryProject,
-  { incoming: Map<string, ProjectEdge[]>; outgoing: Map<string, ProjectEdge[]> }
+  { incoming: Map<string, ProjectEdge[]>; outgoing: Map<string, ProjectEdge[]>; outlets: Map<string, number> }
 >();
 function edgeIndex(project: FactoryProject) {
   let cached = edgeIndexCache.get(project);
   if (!cached) {
-    cached = { incoming: new Map(), outgoing: new Map() };
+    cached = { incoming: new Map(), outgoing: new Map(), outlets: new Map() };
     for (const edge of project.edges) {
-      cached.incoming.set(edge.target, [...(cached.incoming.get(edge.target) ?? []), edge]);
-      cached.outgoing.set(edge.source, [...(cached.outgoing.get(edge.source) ?? []), edge]);
+      const incoming = cached.incoming.get(edge.target);
+      if (incoming) incoming.push(edge);
+      else cached.incoming.set(edge.target, [edge]);
+      const outgoing = cached.outgoing.get(edge.source);
+      if (outgoing) outgoing.push(edge);
+      else cached.outgoing.set(edge.source, [edge]);
+      const key = `${edge.source}|${edge.resourceKind}|${edge.resourceId}`;
+      cached.outlets.set(key, (cached.outlets.get(key) ?? 0) + 1);
     }
     edgeIndexCache.set(project, cached);
   }
@@ -840,12 +850,7 @@ function outgoingByNode(project: FactoryProject): Map<string, ProjectEdge[]> {
 
 /** How many outgoing lines each source has per resource — the sole-outlet test. */
 export function countSourceOutlets(project: FactoryProject): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const edge of project.edges) {
-    const key = `${edge.source}|${edge.resourceKind}|${edge.resourceId}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
+  return edgeIndex(project).outlets;
 }
 
 function edgeSourceHasSoleOutlet(outletCounts: Map<string, number>, edge: ProjectEdge): boolean {
@@ -860,7 +865,8 @@ export function deriveNodeVerdict(
   // Pool mode: every story below reads the graph the solve ran on, pools
   // and all, never the wireless drawing.
   project = getPoolProject(project);
-  const node = project.nodes.find((entry) => entry.id === nodeId);
+  const { nodeById, recipeById } = boardLookups(project);
+  const node = nodeById.get(nodeId);
   if (!node || node.enabled === false) {
     return { kind: "off", pct: 0 };
   }
@@ -876,8 +882,8 @@ export function deriveNodeVerdict(
   const disposal = clamp01(nodeResult.disposalUtilization, 1);
   const pct = Math.round(utilization * 1000) / 10;
 
-  const incoming = project.edges.filter((edge) => edge.target === nodeId);
-  const outgoing = project.edges.filter((edge) => edge.source === nodeId);
+  const incoming = incomingByNode(project).get(nodeId) ?? [];
+  const outgoing = outgoingByNode(project).get(nodeId) ?? [];
 
   // UNWIRED outranks everything below it. In a closed plan a slot with no
   // wire is a hard zero at whichever end it sits, and needs no arithmetic to
@@ -891,7 +897,7 @@ export function deriveNodeVerdict(
     // A machine whose recipe has NO slots at all (a solar panel: nothing in,
     // EU out through no port) has nothing to wire, so "unwired" would nag
     // about a wire that cannot exist. It runs; the ordinary readings apply.
-    const recipe = project.recipes.find((entry) => entry.id === node.recipeId);
+    const recipe = recipeById.get(node.recipeId);
     const hasSlots = (recipe?.inputs.length ?? 0) > 0 || (recipe?.outputs.length ?? 0) > 0;
     if (bare || (hasSlots && incoming.length === 0 && outgoing.length === 0)) {
       // The second clause catches a SLOTTED card with no wires whose slots
@@ -1791,14 +1797,10 @@ export function buildRailPorts(
   const utilization = clamp01(nodeResult?.utilization, 0);
   const demand = clamp01(nodeResult?.demandUtilization, utilization);
   const capable = clamp01(nodeResult?.capableUtilization, 1);
-  const incoming = project.edges.filter((edge) => edge.target === nodeId);
-  const outgoing = project.edges.filter((edge) => edge.source === nodeId);
-  const storagesById = new Map((project.storages ?? []).map((storage) => [storage.id, storage]));
-  // A trash can asks for nothing — it eats whatever arrives. Counting it as a
-  // machine asker made every trashed output read as a happily fed coupling.
-  const trashNodeIds = collectTrashNodeIds(project);
-  const nodesById = new Map(project.nodes.map((entry) => [entry.id, entry]));
-  const recipesById = new Map(project.recipes.map((entry) => [entry.id, entry]));
+  const incoming = incomingByNode(project).get(nodeId) ?? [];
+  const outgoing = outgoingByNode(project).get(nodeId) ?? [];
+  const { storageById: storagesById, nodeById: nodesById, recipeById: recipesById, storageRoles, trashNodeIds } =
+    boardLookups(project);
   const outletCounts = countSourceOutlets(project);
   const hatchNode = nodesById.get(nodeId);
   const hatchRecipe = hatchNode ? recipesById.get(hatchNode.recipeId) : undefined;
@@ -1807,7 +1809,6 @@ export function buildRailPorts(
     const recipe = node ? recipesById.get(node.recipeId) : undefined;
     return recipe?.machineType ?? recipe?.name ?? "Machine";
   };
-  const storageRoles = getStorageRoles(project);
   const storageNameOf = (id: string): string => {
     const storage = storagesById.get(id);
     return storage ? describeStorage(storage, storageRoles.get(id)) : "Drawer";

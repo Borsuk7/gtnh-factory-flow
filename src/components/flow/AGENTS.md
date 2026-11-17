@@ -220,6 +220,8 @@ measurements, see the [performance review](../../../docs/history/performance-rev
   keeps the card's size and handles). Drawers and special cards keep their contents and are only hidden when far.
 - The glance step shows shells only (the flip releases every card's contents at once). Nothing reads a card's
   inner DOM to route: routes come from the published boxes, so what is mounted never changes where a wire goes.
+- The keep rectangle can retain cards within unused camera slots. Background measurements have a separate batch
+  limit and release excess cards after drawing them. Pins and export holds can exceed the ordinary budget.
 - A shell does not run the card's model (`useCardFace`: count, picture, red ring, a layout key). A card never
   drawn is drawn once in the background pass (a few a frame, nearest first, only while the camera rests) so React
   Flow gets its real size and handle boxes; it is marked drawn when React Flow holds its handles, and not

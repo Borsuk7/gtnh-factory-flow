@@ -160,13 +160,15 @@ export function solveBooks(project: FactoryProject): ThroughputResult {
 }
 
 /**
- * The plan as the solver sees it. The `view` block is how the board is DRAWN
- * and never reaches the solver, so it must not invalidate finished books; the
- * design store also restamps it on every save, which would defeat the cache.
+ * View settings and wire routes are presentation. Save stamps only supply
+ * the label on a new calculation, so edits to them reuse the existing books.
  */
 function booksContentKey(project: FactoryProject): string {
-  const { view: _view, ...solved } = project;
-  return JSON.stringify(solved);
+  const { view: _view, metadata: _metadata, edges, ...solved } = project;
+  return JSON.stringify({
+    ...solved,
+    edges: edges.map(({ waypoints: _waypoints, ...edge }) => edge),
+  });
 }
 
 function workerAvailable(): boolean {
@@ -251,6 +253,7 @@ function getWorker(): Worker {
 }
 
 function deliver(key: string, result: ThroughputResult) {
+  if (lastBooks) result = shareSolvedValue(lastBooks, result);
   bigBooksCache.set(key, result);
   while (bigBooksCache.size > BIG_BOOKS_CACHE_LIMIT) {
     const oldest = bigBooksCache.keys().next().value;
@@ -263,6 +266,36 @@ function deliver(key: string, result: ThroughputResult) {
     lastBooks = result;
     sink?.(result);
   }
+}
+
+/** Worker replies contain fresh copies even where nothing about a card changed. */
+function shareSolvedValue<T>(previous: T, result: T): T {
+  if (Object.is(previous, result)) return previous;
+  if (previous == null || result == null || typeof previous !== "object" || typeof result !== "object" ||
+      Object.getPrototypeOf(previous) !== Object.getPrototypeOf(result)) return result;
+  if (previous instanceof Map && result instanceof Map) {
+    if (previous.size !== result.size) return result;
+    // The clog index points many nodes and wires at the same lock. Compare each lock once per index.
+    const compared = new Map<unknown, unknown>();
+    for (const [key, value] of result) {
+      if (!previous.has(key)) return result;
+      const old = previous.get(key);
+      if (!compared.has(value)) compared.set(value, shareSolvedValue(old, value));
+      if (compared.get(value) !== old) return result;
+    }
+    return previous;
+  }
+  const before = previous as Record<string, unknown>;
+  const after = result as Record<string, unknown>;
+  const beforeKeys = Object.keys(before);
+  const afterKeys = Object.keys(after);
+  let unchanged = beforeKeys.length === afterKeys.length;
+  for (let index = 0; index < afterKeys.length; index += 1) {
+    const key = afterKeys[index]!;
+    after[key] = shareSolvedValue(before[key], after[key]);
+    unchanged = unchanged && beforeKeys[index] === key && Object.is(before[key], after[key]);
+  }
+  return unchanged ? previous : result;
 }
 
 function emptyBooks(): ThroughputResult {

@@ -2,6 +2,7 @@
 
 import "./clean.css";
 import { fluidSwatchStyle } from "./fluid-swatch";
+import { useOverviewHighlight } from "./overview-highlight";
 
 import { Handle, Position } from "@xyflow/react";
 import {
@@ -115,6 +116,7 @@ export function CleanPortRow({
   const resourceLit = useFactoryStore(
     (state) => (state.hoveredFlowResourceKey ?? state.selectedFlowResourceKey) === p.resourceKey,
   );
+  const overviewHighlight = useOverviewHighlight(resourceLit);
   // This row's Forced tile lights with the rest of its spill (the buffer's tile and its other makers').
   const spillLit = useSpillHover((state) => p.spillTo !== undefined && state.drawerId === p.spillTo);
   const [mobOpen, setMobOpen] = useState(false);
@@ -207,6 +209,7 @@ export function CleanPortRow({
 
   return (
     <div
+      ref={overviewHighlight}
       className="cc-row"
       data-port=""
       data-side={p.side}

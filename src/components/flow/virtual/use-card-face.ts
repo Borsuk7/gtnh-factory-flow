@@ -10,6 +10,7 @@ import {
   deriveCardFace,
   formatSolvedMachines,
   stateFrameTone,
+  hasForcedInput,
 } from "../clean/clean-model";
 import { CC_GEOMETRY } from "../clean/tokens";
 import { cardLoop, type LoopTone } from "../clean/loops";
@@ -22,8 +23,8 @@ import type { RecipeNodeData } from "../RecipeNode";
 /**
  * What a shell knows about its card, without running the card's model.
  *
- * The card's model (clean-model.ts) builds the rails against the whole project (every wire, every drawer, the
- * verdict) for each card on every solve: O(cards x wires) a tick. A shell needs only its face (the count, the
+ * A mounted card builds its rails and verdict from the board's solved rates and graph indexes.
+ * A shell needs only its face (the count, the
  * picture, the red ring, the "set count" mark), and a key for whether its layout could have changed since it was
  * last drawn, so that a card whose rows moved while it was away is drawn again in the background pass.
  */
@@ -136,6 +137,9 @@ export function useCardFace(
   // Keyed on the node's own data, not its identity: an Arrange gives every card a new position and no new machine.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const derived = useMemo(() => deriveCardFace(recipe, projectNode), [recipe, nodeKey]);
+  useFactoryStore((state) => state.lastResult.plan?.upTo?.[projectNode.id]);
+  const loop = useFactoryStore((state) => cardLoop(state.lastResult.plan?.loops, projectNode.id));
+  useFactoryStore((state) => hasForcedInput(state.lastResult.plan, projectNode.id));
   const plan = useFactoryStore.getState().lastResult?.plan;
   // What runs: an Up to card's reached count, as the card's own glance face prints it.
   const count = cardCountState(result, projectNode, plan, recipe);
@@ -145,8 +149,8 @@ export function useCardFace(
     cannotRun: derived.powerReport !== undefined && derived.powerReport.state !== "ok",
     unset: count.unset,
     tone: problemOutlines ? stateFrameTone(count, plan, projectNode.id) : undefined,
-    loop: cardLoop(plan?.loops, projectNode.id),
-    bar: glanceBar(count.upTo, cardLoop(plan?.loops, projectNode.id)),
+    loop,
+    bar: glanceBar(count.upTo, loop),
     count: `×${formatSolvedMachines(count.value)}`,
     art: art ?? machineIcon?.iconPath,
     fallbackWidth: CC_GEOMETRY.cardWidth,

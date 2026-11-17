@@ -1831,14 +1831,18 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
   },
   updateNode: (nodeId, patch) => {
     set((state) => {
-      const project = touchProject(
-        pruneInvalidEdgesAndOrphanStorages({
-          ...state.project,
-          nodes: state.project.nodes.map((node) =>
-            node.id === nodeId ? { ...node, ...patch } : node,
-          ),
-        }),
-      );
+      const previous = state.project.nodes.find((node) => node.id === nodeId);
+      if (!previous) return state;
+      const node = { ...previous, ...patch };
+      let next = {
+        ...state.project,
+        nodes: state.project.nodes.map((entry) => entry === previous ? node : entry),
+      };
+      if (node.id !== previous.id || node.recipeId !== previous.recipeId ||
+          node.recipeInputOverrides !== previous.recipeInputOverrides || node.extraRecipes !== previous.extraRecipes) {
+        next = pruneInvalidEdgesAndOrphanStorages(next, previous.id);
+      }
+      const project = touchProject(next);
       return withProjectHistory(state, {
         project,
         lastResult: solveBooks(project),
@@ -4740,7 +4744,7 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
 
       return withProjectHistory(state, {
         project,
-        lastResult: solveBooks(project),
+        lastResult: Object.keys(patch).some((key) => key !== "waypoints") ? solveBooks(project) : state.lastResult,
       });
     });
   },
@@ -5388,7 +5392,10 @@ function nodeSectionForHandle(
   nodeId: string,
   handleId: string | undefined,
 ): FactoryNode | undefined {
-  const node = project.nodes.find((entry) => entry.id === nodeId);
+  return sectionForHandle(project.nodes.find((entry) => entry.id === nodeId), handleId);
+}
+
+function sectionForHandle(node: FactoryNode | undefined, handleId?: string): FactoryNode | undefined {
   if (!node) {
     return undefined;
   }
@@ -5896,22 +5903,33 @@ function pruneOrphanStorages(project: FactoryProject): FactoryProject {
   return nextStorages.length === storages.length ? project : { ...project, storages: nextStorages };
 }
 
-function pruneInvalidEdgesAndOrphanStorages(project: FactoryProject): FactoryProject {
-  const validEdges = project.edges.filter((edge) => isFactoryEdgeStillValid(project, edge));
+function pruneInvalidEdgesAndOrphanStorages(project: FactoryProject, changedNodeId?: string): FactoryProject {
+  const nodes = new Map(project.nodes.map((node) => [node.id, node]));
+  const storages = new Map((project.storages ?? []).map((storage) => [storage.id, storage]));
+  const recipes = new Map(project.recipes.map((recipe) => [recipe.id, recipe]));
+  const validEdges = project.edges.filter((edge) =>
+    (changedNodeId !== undefined && edge.source !== changedNodeId && edge.target !== changedNodeId) ||
+    isFactoryEdgeStillValid(edge, nodes, storages, recipes),
+  );
   const projectWithValidEdges =
     validEdges.length === project.edges.length ? project : { ...project, edges: validEdges };
   return pruneOrphanStorages(projectWithValidEdges);
 }
 
-function isFactoryEdgeStillValid(project: FactoryProject, edge: FactoryEdge): boolean {
+function isFactoryEdgeStillValid(
+  edge: FactoryEdge,
+  nodes: ReadonlyMap<string, FactoryNode>,
+  storages: ReadonlyMap<string, FactoryStorage>,
+  recipes: ReadonlyMap<string, Recipe>,
+): boolean {
   // Each end is read as the SECTION its handle names; a wire onto a recipe
   // that has since left the card finds no section and goes with it.
-  const sourceNode = nodeSectionForHandle(project, edge.source, edge.sourceHandle);
-  const targetNode = nodeSectionForHandle(project, edge.target, edge.targetHandle);
-  const sourceStorage = (project.storages ?? []).find((storage) => storage.id === edge.source);
-  const targetStorage = (project.storages ?? []).find((storage) => storage.id === edge.target);
-  const sourceRecipe = project.recipes.find((recipe) => recipe.id === sourceNode?.recipeId);
-  const targetRecipe = project.recipes.find((recipe) => recipe.id === targetNode?.recipeId);
+  const sourceNode = sectionForHandle(nodes.get(edge.source), edge.sourceHandle);
+  const targetNode = sectionForHandle(nodes.get(edge.target), edge.targetHandle);
+  const sourceStorage = storages.get(edge.source);
+  const targetStorage = storages.get(edge.target);
+  const sourceRecipe = sourceNode && recipes.get(sourceNode.recipeId);
+  const targetRecipe = targetNode && recipes.get(targetNode.recipeId);
 
   if ((!sourceNode && !sourceStorage) || (!targetNode && !targetStorage)) {
     return false;

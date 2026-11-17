@@ -39,24 +39,26 @@ export interface GroupSummary {
   outputs: GroupFlow[];
 }
 
-/** Every group nested under `pocketId`, itself included. */
-export function groupFamily(pockets: readonly FactoryPocket[], pocketId: string): Set<string> {
-  const family = new Set<string>([pocketId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const pocket of pockets) {
-      if (
-        pocket.parentPocketId !== undefined &&
-        family.has(pocket.parentPocketId) &&
-        !family.has(pocket.id)
-      ) {
-        family.add(pocket.id);
-        grew = true;
-      }
-    }
+interface NetFlow {
+  kind: ResourceKind;
+  resourceId: string;
+  label?: string;
+  value: number;
+  order: number;
+}
+
+function mergeFlow(net: Map<string, NetFlow>, key: string, flow: NetFlow) {
+  const previous = net.get(key);
+  if (!previous) {
+    net.set(key, flow);
+  } else {
+    const first = previous.order < flow.order ? previous : flow;
+    net.set(key, { ...first, value: previous.value + flow.value });
   }
-  return family;
+}
+
+function emptyGroup() {
+  return { machines: 0, euT: 0, net: new Map<string, NetFlow>() };
 }
 
 export function computeGroupSummaries(
@@ -64,77 +66,110 @@ export function computeGroupSummaries(
   result: ThroughputResult | undefined,
   pocketIds: readonly string[],
   peak: boolean,
+  flowsFor: ReadonlySet<string> = new Set(pocketIds),
 ): Map<string, GroupSummary> {
   const out = new Map<string, GroupSummary>();
   if (pocketIds.length === 0) return out;
-  const pockets = project.pockets ?? [];
+  const pocketsById = new Map((project.pockets ?? []).map((pocket) => [pocket.id, pocket]));
+  const childrenById = new Map<string, FactoryPocket[]>();
+  for (const pocket of pocketsById.values()) {
+    const parent = pocket.parentPocketId;
+    if (parent === undefined) continue;
+    const children = childrenById.get(parent);
+    if (children) children.push(pocket);
+    else childrenById.set(parent, [pocket]);
+  }
   const recipes = new Map(project.recipes.map((recipe) => [recipe.id, recipe]));
   const nodesById = new Map(project.nodes.map((node) => [node.id, node]));
-  const lookup = buildResourceLookup(project);
+  const lookup = flowsFor.size ? buildResourceLookup(project) : new Map<string, RailResource>();
   const entries = result ? buildMachineList(project, result) : [];
   // A failed solve leaves each card's nominal single craft in its result: not flows of the plan.
   const answered = result !== undefined && result.plan?.failure === undefined;
 
-  for (const pocketId of pocketIds) {
-    const family = groupFamily(pockets, pocketId);
-    const inside = (cardId: string) => {
-      const owner = nodesById.get(cardId)?.pocketId;
-      return owner !== undefined && family.has(owner);
-    };
-
-    let machines = 0;
-    let euT = 0;
-    for (const entry of entries) {
-      if (!inside(entry.nodeId)) continue;
-      const node = nodesById.get(entry.nodeId);
-      if (isFluidTankRecipe(recipes.get(node?.recipeId ?? ""))) continue;
-      const pin = node?.solvePin;
-      const rule = node ? pinRuleOf(node) : "any";
-      const pinned = rule !== "any" && pin !== undefined && pin > 0;
-      // An Up to card builds what runs (the solver's read-out), an Exactly card its set count.
-      const running = rule === "upTo" ? result?.plan?.upTo?.[entry.nodeId]?.reached : undefined;
-      if (!pinned && !(entry.count > 1e-9)) continue;
-      machines += Math.ceil((running ?? (pinned ? pin : entry.count)) - 1e-9);
-      euT += (peak ? entry.euT : entry.avgEuT) ?? 0;
+  const details = new Set<string>();
+  const pending = [...flowsFor];
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (details.has(id)) continue;
+    details.add(id);
+    for (const child of childrenById.get(id) ?? []) pending.push(child.id);
+  }
+  const groups = new Map<string, ReturnType<typeof emptyGroup>>();
+  const groupFor = (id: string) => {
+    let group = groups.get(id);
+    if (!group) {
+      group = emptyGroup();
+      groups.set(id, group);
     }
+    return group;
+  };
 
-    const net = new Map<
-      string,
-      { kind: ResourceKind; resourceId: string; label?: string; value: number; order: number }
-    >();
-    if (answered) {
-      for (const node of Object.values(result!.nodes)) {
-        if (!node.enabled) continue;
-        const { cardId } = splitResultNodeId(node.nodeId);
-        if (!inside(cardId)) continue;
-        if (isCustomRateRecipe(recipes.get(node.recipeId))) continue;
-        // A machine at zero keeps its nameplate rates (its port rows read them) but moves nothing.
-        if (!((node.theoreticalMachinesRequired ?? 0) > 1e-9)) continue;
-        const running = Math.min(1, Math.max(0, node.utilization ?? 1));
-        for (const [flows, sign] of [
-          [node.inputs, 1],
-          [node.outputs, -1],
-        ] as const) {
-          for (const flow of Object.values(flows)) {
-            const entry = net.get(flow.key);
-            const amount = sign * flow.amountPerSecond * running;
-            if (entry) entry.value += amount;
-            else
-              net.set(flow.key, {
-                kind: flow.kind,
-                resourceId: flow.resourceId,
-                label: flow.displayName,
-                value: amount,
-                order: net.size,
-              });
-          }
+  for (const entry of entries) {
+    const node = nodesById.get(entry.nodeId);
+    if (node?.pocketId === undefined || isFluidTankRecipe(recipes.get(node.recipeId))) continue;
+    const pin = node.solvePin;
+    const rule = pinRuleOf(node);
+    const pinned = rule !== "any" && pin !== undefined && pin > 0;
+    // An Up to card builds what runs (the solver's read-out), an Exactly card its set count.
+    const running = rule === "upTo" ? result?.plan?.upTo?.[entry.nodeId]?.reached : undefined;
+    if (!pinned && !(entry.count > 1e-9)) continue;
+    const group = groupFor(node.pocketId);
+    group.machines += Math.ceil((running ?? (pinned ? pin : entry.count)) - 1e-9);
+    group.euT += (peak ? entry.euT : entry.avgEuT) ?? 0;
+  }
+
+  if (answered && details.size) {
+    let order = 0;
+    for (const node of Object.values(result.nodes)) {
+      if (!node.enabled) continue;
+      const { cardId } = splitResultNodeId(node.nodeId);
+      const owner = nodesById.get(cardId)?.pocketId;
+      if (owner === undefined || !details.has(owner)) continue;
+      if (isCustomRateRecipe(recipes.get(node.recipeId))) continue;
+      // A machine at zero keeps its nameplate rates for its port rows.
+      if (!(node.theoreticalMachinesRequired > 1e-9)) continue;
+      const { net } = groupFor(owner);
+      const running = Math.min(1, Math.max(0, node.utilization ?? 1));
+      for (const [flows, sign] of [[node.inputs, 1], [node.outputs, -1]] as const) {
+        for (const flow of Object.values(flows)) {
+          mergeFlow(net, flow.key, {
+            kind: flow.kind,
+            resourceId: flow.resourceId,
+            label: flow.displayName,
+            value: sign * flow.amountPerSecond * running,
+            order: order++,
+          });
         }
       }
     }
+  }
 
+  // A group joins its parent after all its children have joined it.
+  const remaining = new Map([...childrenById].map(([id, children]) => [id, children.length]));
+  const ready = [...pocketsById.keys()].filter((id) => !remaining.has(id));
+  while (ready.length) {
+    const id = ready.pop()!;
+    const parent = pocketsById.get(id)?.parentPocketId;
+    if (parent === undefined || !pocketsById.has(parent)) continue;
+    const childGroup = groups.get(id);
+    if (childGroup) {
+      const parentGroup = groupFor(parent);
+      parentGroup.machines += childGroup.machines;
+      parentGroup.euT += childGroup.euT;
+      if (details.has(parent)) {
+        for (const [key, flow] of childGroup.net) mergeFlow(parentGroup.net, key, flow);
+      }
+    }
+    const count = remaining.get(parent)! - 1;
+    remaining.set(parent, count);
+    if (count === 0) ready.push(parent);
+  }
+
+  for (const pocketId of pocketIds) {
+    const { machines, euT, net } = groups.get(pocketId) ?? emptyGroup();
     const inputs: GroupFlow[] = [];
     const outputs: GroupFlow[] = [];
-    for (const [key, entry] of net) {
+    for (const [key, entry] of flowsFor.has(pocketId) ? net : []) {
       if (Math.abs(entry.value) <= EPS) continue;
       const known = lookup.get(key);
       const resource: RailResource = {
@@ -150,8 +185,8 @@ export function computeGroupSummaries(
       };
       (entry.value > 0 ? inputs : outputs).push(flow);
     }
-    // Busiest first; ties keep the order the members met them in (the sort is stable).
-    const busiest = (a: GroupFlow, b: GroupFlow) => b.perSecond - a.perSecond;
+    const busiest = (a: GroupFlow, b: GroupFlow) =>
+      b.perSecond - a.perSecond || net.get(a.key)!.order - net.get(b.key)!.order;
     inputs.sort(busiest);
     outputs.sort(busiest);
     out.set(pocketId, { machines, euT, inputs, outputs });

@@ -1145,3 +1145,6 @@
   .cc-card[data-selected][data-cannot-run]::before {
   box-shadow: 0 0 0 2px var(--cc-red);
 }
+.factory-flow-board .react-flow__node[data-overview-lit] {
+  z-index: 1500 !important;
+}

@@ -16,14 +16,24 @@ export function loopTone(loop: Pick<PlanUpToLoop, "kind">): LoopTone {
 
 /** What a ring is called: its notice's tag, and the word on each of its cards' foot bars in place of the reason. */
 export const LOOP_WORD: Record<LoopTone, string> = { dead: "DEAD LOOP", clog: "CLOG LOCK" };
+const cardLoops = new WeakMap<readonly PlanUpToLoop[], Map<string, LoopTone>>();
 
 /** The ring a card is in (the first, when it is in several), as its tone. */
 export function cardLoop(
   loops: readonly PlanUpToLoop[] | undefined,
   cardId: string,
 ): LoopTone | undefined {
-  const loop = loops?.find((entry) => entry.cards.includes(cardId));
-  return loop ? loopTone(loop) : undefined;
+  if (!loops) return undefined;
+  let tones = cardLoops.get(loops);
+  if (!tones) {
+    tones = new Map();
+    for (const loop of loops) {
+      const tone = loopTone(loop);
+      for (const id of loop.cards) if (!tones.has(id)) tones.set(id, tone);
+    }
+    cardLoops.set(loops, tones);
+  }
+  return tones.get(cardId);
 }
 
 /** A wire end's port key, as the solve names it (a shared machine's recipe is its own solve node). */

@@ -207,6 +207,21 @@ describe("CardVirtualizer", () => {
     expect(v.isDrawn("n3_3")).toBe(false);
   });
 
+  it("returns to the camera budget after measuring a crowded board", () => {
+    const boxes = grid(20, 20);
+    const virtualizer = new CardVirtualizer({ idleMs: 0 });
+    virtualizer.setGeometry(boxes);
+    for (const [id] of boxes) virtualizer.register(id);
+    virtualizer.setView({ x: 1500, y: 800, w: 4000, h: 2500 }, false);
+    let now = performance.now();
+    for (let step = 0; step < 200; step += 1) {
+      virtualizer.step(now += 100);
+      for (const id of virtualizer.mountedIds()) virtualizer.markDrawn(id);
+    }
+    expect(virtualizer.undrawnCount()).toBe(0);
+    expect(virtualizer.mountedCount()).toBeLessThanOrEqual(virtualizer.config.cap);
+  });
+
   it("forgets a card that left the plan and a whole board that was replaced", () => {
     const v = board(5, 5);
     v.setView({ x: 0, y: 0, w: 4000, h: 3000 }, false);
