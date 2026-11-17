@@ -231,11 +231,11 @@ describe("the mod's top bar", () => {
     expect(clipboard.copyToClipboard.mock.calls[1][0]).toMatch(/^gtnh1\./);
   });
 
-  it("the Help key opens the tour, the controls list and the website's own links", () => {
+  it("the Help key lists the tour, controls, welcome, release notes and mod download", () => {
     renderBar();
     fireEvent.click(key("help"));
     const rows = [...document.querySelectorAll('[role="menu"] [role="menuitem"] .mm-label')].map((element) => element.textContent);
-    expect(rows.slice(0, 2)).toEqual(["Take the tour", "Controls and shortcuts"]);
+    expect(rows).toEqual(["Take the tour", "Controls and shortcuts", "Welcome", "What's new", "Download the mod"]);
     fireEvent.click(screen.getByText("Controls and shortcuts"));
     expect(screen.getByRole("dialog", { name: "How the board works" })).toBeTruthy();
     expect(document.querySelectorAll(".mc-controls-row")).toHaveLength(19);
