@@ -171,7 +171,13 @@ export function readAnswer(model: PlanModel, answer: Answer): PlanReading {
     ...external(solution.terminalOutputs, "out"),
   ]
     .filter((e) => !model.drawerPorts.has(e.portKey))
-    .map((e) => ({ nodeId: e.node, portKey: e.portKey, side: e.side, perSecond: e.perSecond }));
+    .map((e) => ({
+      nodeId: e.node,
+      portKey: e.portKey,
+      side: e.side,
+      resourceKey: e.resourceKey,
+      perSecond: e.perSecond,
+    }));
 
   const leftovers = solution.spares.flatMap((spare) => readLeftover(model, spare, alternatives));
   // A forced row finds its decision through what crosses at the places' gates (a stored split puts flow at

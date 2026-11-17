@@ -38,7 +38,7 @@ function computePlanStats(
   project: FactoryProject,
   result: ThroughputResult,
   resourceLimit: number,
-  includeForcedFlows: boolean,
+  includePortFlows: boolean,
 ): CommunityPlanStats {
   let highestTierIndex = -1;
   let highestTier: Exclude<MachineTier, "DEMO"> | undefined;
@@ -72,10 +72,10 @@ function computePlanStats(
   }
 
   const icons = buildResourceIconIndex(project);
-  const needs = toResourceStats(result.externalInputs, includeForcedFlows && result.plan ? "imported" : "consumed", icons, resourceLimit);
+  const needs = toResourceStats(result.externalInputs, includePortFlows && result.plan ? "imported" : "consumed", icons, resourceLimit);
   const outputs = toResourceStats(result.unconsumedOutputs, "produced", icons, resourceLimit);
-  if (includeForcedFlows) {
-    addForcedFlows(needs, outputs, result, icons);
+  if (includePortFlows && result.plan) {
+    addPortFlows(needs, outputs, result, icons);
   }
   return {
     nodeCount: project.nodes.length,
@@ -95,8 +95,8 @@ type ResourceIconInfo = Pick<
   "displayName" | "iconPath" | "iconAtlas" | "dominantColor"
 >;
 
-/** Add flows through solver gates to the drawer totals. Buffer spills already appear in the output balances. */
-function addForcedFlows(
+/** Add solved flows at forced and unwired ports. Drawer totals already include buffer spills. */
+function addPortFlows(
   needs: PlanResourceStat[],
   outputs: PlanResourceStat[],
   result: ThroughputResult,
@@ -105,7 +105,7 @@ function addForcedFlows(
   const byKey = (rows: PlanResourceStat[]) => new Map(rows.map((row) => [`${row.kind}:${row.resourceId}`, row]));
   const inputByKey = byKey(needs);
   const outputByKey = byKey(outputs);
-  for (const flow of result.plan?.forced ?? []) {
+  for (const flow of [...(result.plan?.forced ?? []), ...(result.plan?.terminals ?? [])]) {
     if (!(flow.perSecond > 0) || !Number.isFinite(flow.perSecond)) continue;
     const key = flow.resourceKey as ResourceKey;
     const colon = key.indexOf(":");

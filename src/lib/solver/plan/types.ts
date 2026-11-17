@@ -460,6 +460,7 @@ export interface PlanTerminal {
   nodeId: Id;
   portKey: PortKey;
   side: PlanSide;
+  resourceKey: string;
   perSecond: number;
 }
 

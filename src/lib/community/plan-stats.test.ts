@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FactoryNode, FactoryProject, Recipe, ThroughputResult } from "@/lib/model/types";
 import { PROJECT_SCHEMA_VERSION } from "@/lib/model/types";
+import { calculateThroughput } from "@/lib/solver/throughput";
 import { computeCommunityPlanStats, computeScreenshotPlanStats } from "./plan-stats";
 
 function makeNode(overrides: Partial<FactoryNode>): FactoryNode {
@@ -193,5 +194,28 @@ describe("computeCommunityPlanStats", () => {
     expect(stats.needs.map((row) => [row.resourceId, row.ratePerSecond])).toEqual([["mod:water", 6], ["mod:dust", 5]]);
     expect(stats.outputs).toMatchObject([{ displayName: "Dust", ratePerSecond: 8 }]);
     expect(computeCommunityPlanStats(project, result).needs).toMatchObject([{ ratePerSecond: 20 }]);
+  });
+
+  it("shows solved rates at unwired screenshot ports on an exact-count card", () => {
+    const recipe: Recipe = {
+      id: "recipe-1",
+      name: "Water line",
+      machineType: "Assembler",
+      minimumTier: "LV",
+      durationTicks: 20,
+      eut: 30,
+      inputs: [{ kind: "fluid", id: "mod:oxygen", displayName: "Oxygen", amount: 5000 }],
+      outputs: [{ kind: "fluid", id: "mod:water", displayName: "Water", amount: 5000 }],
+    };
+    const project = {
+      ...makeProject([makeNode({ solvePin: 1, solvePinExact: true })], [recipe]),
+      planMode: true,
+      solveMode: true,
+    };
+    const result = calculateThroughput(project);
+    const stats = computeScreenshotPlanStats(project, result);
+    expect(stats.needs).toMatchObject([{ displayName: "Oxygen", resourceId: "mod:oxygen", ratePerSecond: 5000 }]);
+    expect(stats.outputs).toMatchObject([{ displayName: "Water", resourceId: "mod:water", ratePerSecond: 5000 }]);
+    expect(computeCommunityPlanStats(project, result)).toMatchObject({ needs: [], outputs: [] });
   });
 });
