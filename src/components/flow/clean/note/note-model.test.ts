@@ -18,7 +18,6 @@ import {
   resizeAxes,
   severalSelected,
   takeNoteEditRequest,
-  visibleAnnotations,
   wrapLines,
 } from "./note-model";
 
@@ -189,9 +188,7 @@ describe("notes as the website's text annotations", () => {
     { id: "f", kind: "text" as const },
   ];
 
-  it("a plan board shows every annotation but pictures (kept in the data); a classic board shows all", () => {
-    expect(visibleAnnotations(annotations, true).map((a) => a.id)).toEqual(["a", "b", "c", "d", "f"]);
-    expect(visibleAnnotations(annotations, false).map((a) => a.id)).toEqual(["a", "b", "c", "d", "e", "f"]);
+  it("only text annotations are sticky notes", () => {
     expect(annotations.filter(isStickyNote)).toHaveLength(2);
   });
 

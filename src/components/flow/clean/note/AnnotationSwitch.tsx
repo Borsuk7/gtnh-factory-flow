@@ -9,18 +9,14 @@ import { StickyNote, type StickyNoteFlowNode } from "./StickyNote";
 
 /**
  * What FactoryFlow registers as `annotationNode`: on a plan board (`project.planMode`) a text annotation is a
- * sticky note, drawn as the mod draws it, and a box, zone, arrow or image is `CleanDrawing` (docs/annotations.md);
- * everywhere else the classic annotation.
+ * sticky note and a box, zone or arrow uses `CleanDrawing`. Images reuse the resizable annotation frame.
  */
 function AnnotationSwitchComponent(props: NodeProps<AnnotationFlowNode>) {
   const planMode = useFactoryStore((state) => state.project.planMode === true);
   if (planMode && props.data.annotation.kind === "text") {
     return <StickyNote {...(props as unknown as NodeProps<StickyNoteFlowNode>)} />;
   }
-  if (planMode && props.data.annotation.kind === "image") {
-    return null; // pictures are not supported: kept in the data, shown nowhere
-  }
-  if (planMode) {
+  if (planMode && props.data.annotation.kind !== "image") {
     return <CleanDrawing {...props} />;
   }
   return <AnnotationNode {...props} />;

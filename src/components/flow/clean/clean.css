@@ -52,7 +52,7 @@
   grid-template-columns: 112px minmax(0, 1fr) 112px;
   grid-template-rows: 40px auto auto;
   padding: 0 4px;
-  background: var(--cc-surface);
+  background: var(--cc-painted-surface, var(--cc-surface));
   color: var(--cc-ink);
   font-family: var(--cc-font);
   font-size: 8px;

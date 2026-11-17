@@ -15,11 +15,8 @@ import { BoardMenu, MenuLine, MenuRow } from "./clean/menus/BoardMenu";
 import { CardRows } from "./clean/menus/CardActionsMenu";
 import { GroupMenu } from "./clean/group/GroupMenu";
 import { cloneWithSound } from "@/lib/sound/sfx";
-import { CANVAS_THEMES } from "./canvas-themes";
-import { CANVAS_PATTERNS, CANVAS_PATTERN_LABEL, useBoardView, writeBoardView } from "./board-view";
-import { addArrowAt, addBoxAt, addStickyNoteAt } from "./clean/note/note-actions";
 import { isLiveConfigured } from "@/lib/live/live-config";
-import { cardsForTask, selectedTaskCards } from "@/lib/tasks/make-task";
+import { cardsForTask } from "@/lib/tasks/make-task";
 import { openAddToTask } from "@/components/tasks/AddToTask";
 
 /** Task boards come with live plans: no Add to a task row without them. */
@@ -66,9 +63,7 @@ export function BoardContextMenu({
   onClose: () => void;
 }) {
   const [picking, setPicking] = useState(false);
-  const [background, setBackground] = useState(false);
   const [blueprint, setBlueprint] = useState<BlueprintShelfRequest>();
-  const boardView = useBoardView();
   const annotation = useFactoryStore((state) =>
     target.kind === "annotation" ? state.project.annotations?.find((entry) => entry.id === target.id) : undefined,
   );
@@ -167,55 +162,9 @@ export function BoardContextMenu({
     onClose();
   };
 
-  if (background) {
-    return (
-      <BoardMenu x={target.x} y={target.y} label="Background menu" title="BACKGROUND" onClose={onClose}>
-        {CANVAS_THEMES.map((theme) => (
-          <MenuRow
-            key={theme.id}
-            label={theme.name}
-            swatch={theme.base}
-            checked={boardView.canvasTheme === theme.id}
-            onClick={run(() => writeBoardView({ canvasTheme: theme.id }))}
-          />
-        ))}
-        <MenuLine />
-        {CANVAS_PATTERNS.map((pattern) => (
-          <MenuRow
-            key={pattern}
-            label={CANVAS_PATTERN_LABEL[pattern]}
-            checked={boardView.canvasPattern === pattern}
-            onClick={run(() => writeBoardView({ canvasPattern: pattern }))}
-          />
-        ))}
-      </BoardMenu>
-    );
-  }
-
   return (
     <BoardMenu x={target.x} y={target.y} label="Board menu" onClose={onClose}>
-      {target.kind === "pane" && TASKS_ENABLED && selectedTaskCards().length > 0 ? (
-        <MenuRow
-          label="Add to a task"
-          onClick={() => {
-            onClose();
-            void openAddToTask(selectedTaskCards(), { left: target.x, top: target.y, bottom: target.y });
-          }}
-        />
-      ) : null}
-      {target.kind === "pane" && planMode ? (
-        <>
-          {editable && selectedIds.length ? <MenuRow label="Save selection as blueprint"
-            onClick={() => saveBlueprint(selectedIds, "")} /> : null}
-          {editable ? <MenuRow label="Place blueprint…" onClick={() => setBlueprint({ kind: "place", point: target.flow })} /> : null}
-          <MenuRow label="Add sticky note" onClick={run(() => addStickyNoteAt(target.flow))} />
-          <MenuRow label="Add box" onClick={run(() => addBoxAt(target.flow))} />
-          <MenuRow label="Add arrow" onClick={run(() => addArrowAt(target.flow))} />
-          <MenuLine />
-        </>
-      ) : null}
       {target.kind === "pane" ? <MenuRow label="New product drawer" onClick={() => setPicking(true)} /> : null}
-      {target.kind === "pane" ? <MenuRow label="Background" onClick={() => setBackground(true)} /> : null}
       {target.kind === "node" ? (
         <>
         {editable && planMode ? <MenuRow label={selectedIds.includes(target.id) && selectedIds.length > 1

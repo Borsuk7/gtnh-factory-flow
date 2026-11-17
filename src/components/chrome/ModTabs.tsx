@@ -33,6 +33,7 @@ import { copyPlanCode } from "./share-actions";
 import type { ShareMode } from "@/components/community/SharePlanDialog";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { ChecklistIcon } from "./pixel-icons";
+import { getBoardCommands } from "./board-commands";
 
 /** What the tab strip asks of the bar: the dialogs it does not own. */
 export interface ModTabsActions {
@@ -375,6 +376,14 @@ export function ModTabs({ onPaste, onShare }: ModTabsActions) {
         { taskBoard: Boolean(designs.find((design) => design.id === m.id)?.taskBoard) },
       ),
     ];
+    const board = useFactoryStore.getState();
+    if (m.id === activeDesignId && !publicView && board.project.planMode &&
+      board.project.primaryView !== "tasks" && !board.isReadOnly && !board.checklistMode) {
+      rows.push({ label: "Place blueprint…", onSelect: () => getBoardCommands()?.openBlueprintShelf?.("place") });
+      if (board.selectedBoardIds.length > 0) {
+        rows.push({ label: "Save selection as blueprint", onSelect: () => getBoardCommands()?.openBlueprintShelf?.("save") });
+      }
+    }
     if (canClose) {
       rows.push(
         { label: "Close tab", detail: "kept in My plans", onSelect: () => void close(m.id) },

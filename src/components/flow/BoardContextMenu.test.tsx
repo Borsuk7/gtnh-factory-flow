@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useFactoryStore } from "@/store/factory-store";
-import { readBoardViewSnapshot } from "./board-view";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { BoardContextMenu } from "./BoardContextMenu";
 
 afterEach(() => cleanup());
@@ -10,25 +8,13 @@ afterEach(() => cleanup());
 const target = { kind: "pane" as const, x: 10, y: 10, flow: { x: 300, y: 200 } };
 
 describe("the empty-board menu", () => {
-  it("offers the annotations and the background, and adds a box where it was opened", () => {
-    useFactoryStore.setState((s) => ({
-      project: { ...s.project, planMode: true, annotations: [] },
-    }));
-    const onClose = vi.fn();
-    render(<BoardContextMenu target={target} onClose={onClose} />);
-    for (const label of ["Add sticky note", "Add box", "Add arrow", "Background"]) {
-      expect(screen.getByText(label)).toBeTruthy();
-    }
-    fireEvent.click(screen.getByText("Add box"));
-    const box = useFactoryStore.getState().project.annotations?.at(-1);
-    expect(box).toMatchObject({ kind: "box", position: { x: 300, y: 200 } });
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it("Background lists the papers and the patterns and sets the board's view", () => {
+  it("only offers a new product drawer and opens its resource picker", () => {
     render(<BoardContextMenu target={target} onClose={() => {}} />);
-    fireEvent.click(screen.getByText("Background"));
-    fireEvent.click(screen.getByText("Blueprint"));
-    expect(readBoardViewSnapshot().canvasTheme).toBe("blueprint");
+    const menu = within(screen.getByRole("menu", { name: "Board menu" }));
+    const drawer = menu.getByRole("menuitem", { name: "New product drawer" });
+    expect(menu.getAllByRole("menuitem")).toEqual([drawer]);
+    fireEvent.click(drawer);
+    expect(screen.queryByRole("menu", { name: "Board menu" })).toBeNull();
+    expect(screen.getByRole("textbox")).toBeTruthy();
   });
 });

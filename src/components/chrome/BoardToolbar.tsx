@@ -19,6 +19,7 @@ import { useFactoryStore } from "@/store/factory-store";
 import { arrangeLabel, getBoardCommands, pressArrange, useArrangeState } from "./board-commands";
 import { BarKey, useBarFit } from "./bar-parts";
 import { ChromeMenu, chromeAnchorOf, type ChromeAnchor } from "./ChromeMenu";
+import { BoardMarkup } from "@/components/flow/BoardMarkup";
 import { PixelBolt, PixelIcon } from "./pixel-icons";
 
 /** Task boards come with live plans: none of it shows without NEXT_PUBLIC_LIVE_URL. */
@@ -137,6 +138,8 @@ function BoardKeys({ tight }: { tight: boolean }) {
   // A plan with groups asks how to treat them; one without arranges at once.
   const [arrangeMenu, setArrangeMenu] = useState<ChromeAnchor | undefined>(undefined);
   const [optionsAnchor, setOptionsAnchor] = useState<ChromeAnchor | undefined>(undefined);
+  const [markupAnchor, setMarkupAnchor] = useState<ChromeAnchor>();
+  const markup = markupAnchor && !isReadOnly ? getBoardCommands()?.markup : undefined;
 
   const rateIndex = Math.max(0, RATE_ORDER.indexOf(rateUnit === "eu" ? "second" : rateUnit));
   const stepRate = (step: number) => {
@@ -205,6 +208,7 @@ function BoardKeys({ tight }: { tight: boolean }) {
         menuAnchor={hasGroups}
         onClick={(event) => {
           setOptionsAnchor(undefined);
+          setMarkupAnchor(undefined);
           if (arrange.running || !hasGroups) {
             pressArrange();
           } else if (arrangeMenu) {
@@ -252,14 +256,32 @@ function BoardKeys({ tight }: { tight: boolean }) {
         off={isReadOnly}
         ariaLabel="Annotations"
         tip="Add a sticky note or other markup"
-        menuAnchor
+        menuAnchor="dialog"
+        open={Boolean(markup)}
         onClick={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          getBoardCommands()?.openBoardMenu?.({ x: rect.left, y: rect.bottom + 2 });
+          setArrangeMenu(undefined);
+          setOptionsAnchor(undefined);
+          event.currentTarget.focus({ preventScroll: true });
+          setMarkupAnchor(markupAnchor ? undefined : chromeAnchorOf(event.currentTarget));
         }}
       >
         <PixelIcon name="pencil" />
       </BarKey>
+      {markupAnchor && markup ? (
+        <MenuPortal
+          anchor={markupAnchor}
+          align="right"
+          width={222}
+          maxHeight={420}
+          label="Markup tools"
+          role="dialog"
+          onClose={() => setMarkupAnchor(undefined)}
+        >
+          <div className="cm-scroll">
+            <BoardMarkup tools={markup} onClose={() => setMarkupAnchor(undefined)} />
+          </div>
+        </MenuPortal>
+      ) : null}
       <BarKey
         id="plan-options"
         icon
@@ -268,6 +290,7 @@ function BoardKeys({ tight }: { tight: boolean }) {
         menuAnchor="dialog"
         open={optionsAnchor !== undefined}
         onClick={(event) => {
+          setMarkupAnchor(undefined);
           if (optionsAnchor) {
             setOptionsAnchor(undefined);
           } else {

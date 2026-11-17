@@ -205,17 +205,9 @@ export function neededHeight(text: string, width: number, font: number, measure:
   return snapSizeUpToGrid(NOTE.textTop + lines * linePx(font) + Math.max(4, NOTE.fold / 2) + 3);
 }
 
-/** A text annotation is a sticky note; every other kind is hidden (and kept) on a plan board. */
+/** Text annotations use the sticky note renderer on plan boards. */
 export function isStickyNote(annotation: Pick<FactoryAnnotation, "kind">): boolean {
   return annotation.kind === "text";
-}
-
-/** The annotations a board shows: every kind but pictures, which a plan board no longer supports (the data keeps them). */
-export function visibleAnnotations<T extends Pick<FactoryAnnotation, "kind">>(
-  annotations: readonly T[],
-  planMode: boolean,
-): T[] {
-  return planMode ? annotations.filter((annotation) => annotation.kind !== "image") : [...annotations];
 }
 
 /** A new note as the mod makes one: yellow, 180 by 120, at a board point, empty. */

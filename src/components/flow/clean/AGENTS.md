@@ -66,8 +66,8 @@ holder, a crop card. Bees, the Extreme Entity Crusher and every other machine ar
 ## Notes and drawings
 
 - `AnnotationSwitch` renders text as `StickyNote` and boxes, zones, and arrows as
-  `CleanDrawing`. `visibleAnnotations` hides saved pictures on plan boards while retaining
-  them in project data. The Add menu offers notes, boxes, and arrows. See the
+  `CleanDrawing`. Images use the resizable `AnnotationNode`. The pencil opens the
+  drawing tools, paint palette, and image picker. See the
   [annotation model and plan format](../../../../docs/annotations.md) when changing compatibility.
 - `note/note-model.ts` owns note geometry, wrapping, palette, and fixed-screen key sizes.
   Notes start at 180 × 120. A release within 3 px counts as a click. Set `nodrag nopan` on

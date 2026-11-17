@@ -45,24 +45,17 @@ import {
 import { FlowEdgeLabelPortal as EdgeLabelRenderer, FlowViewportPortal as ViewportPortal } from "./virtual/flow-portals";
 import { toBlob, toSvg } from "html-to-image";
 import {
-  AppWindow,
   Box,
   Combine,
   Eye,
   Focus,
   Gauge,
   Hammer,
-  Hexagon,
-  ImagePlus,
   LoaderCircle,
-  MoveUpRight,
-  Paintbrush,
   Pencil,
   Redo2,
-  Square,
   Trash2,
   TriangleAlert,
-  Type,
   Undo2,
   X,
   Zap,
@@ -110,7 +103,6 @@ import {
 } from "@/lib/model/pocket-connections";
 import type {
   EdgeThroughput,
-  FactoryAnnotationKind,
   FactoryEdge,
   FactoryNode,
   FactoryNodeColorTag,
@@ -223,7 +215,7 @@ import { BoardMinimap } from "./clean/minimap/BoardMinimap";
 import { registerMinimapRoutes } from "./clean/minimap/minimap-feed";
 import { FeedbackHost } from "./clean/feedback/FeedbackPanel";
 import { TourBridge, TourHost, TourOffer } from "./clean/tour";
-import { GT_NODE_COLORS, GT_NODE_COLOR_PALETTE, flowRampColor } from "./node-colors";
+import { GT_NODE_COLORS, flowRampColor } from "./node-colors";
 import {
   readBoardViewSnapshot,
   useBoardView,
@@ -415,7 +407,9 @@ import { clearGroupDrop, groupDropSound, groupUnder, showGroupDrop } from "./cle
 import { computeGroupSummaries } from "./clean/group/group-summary";
 import { useWorkspaceView } from "@/lib/workspace-view";
 import { playEditSfx } from "@/lib/sound/sfx";
-import { visibleAnnotations } from "./clean/note/note-model";
+import { newStickyNote, requestNoteEdit } from "./clean/note/note-model";
+import { BoardMarkup, type BoardDrawTool } from "./BoardMarkup";
+import { BlueprintShelf, type BlueprintShelfRequest } from "./clean/menus/BlueprintShelf";
 import { settleZonePoints } from "@/lib/model/zone-points";
 import { BOARD_PAPER_IDS } from "@/lib/model/board-paper";
 import { nearestFreeSpot, type PlacementRect, type PlacementRegion } from "./board-placement";
@@ -448,13 +442,6 @@ interface AnnotationDraft {
   /** Every point the pointer passed through; the zone tool settles it. */
   trail: Array<{ x: number; y: number }>;
 }
-
-/**
- * What the draw-a-shape pipeline can be armed with: the annotation kinds,
- * plus "board", drawn like a box but landing as an open board that adopts
- * the cards its frame covers.
- */
-type BoardDrawTool = FactoryAnnotationKind | "board";
 
 const ResourceEdge = memo(ResourceEdgeComponent);
 
@@ -2240,6 +2227,11 @@ export function FactoryFlow() {
           type: "recipeNode",
           position: node.position,
           ...childOf(node.pocketId),
+          style: project.planMode && node.colorTag
+            ? ({
+                "--cc-painted-surface": `color-mix(in srgb, ${GT_NODE_COLORS[node.colorTag].swatch} 28%, var(--cc-surface))`,
+              } as CSSProperties)
+            : undefined,
           zIndex:
             hoveredUsageNodeId === node.id
               ? 1500
@@ -2272,7 +2264,7 @@ export function FactoryFlow() {
             }),
           }) satisfies StorageFlowNode,
       ),
-      ...visibleAnnotations(project.annotations ?? [], project.planMode === true)
+      ...(project.annotations ?? [])
         .filter((annotation) => pocketView.isLevelShown(annotation.pocketId))
         .map(
         (annotation) =>
@@ -5347,7 +5339,7 @@ export function FactoryFlow() {
       if (node.type === "annotationNode") {
         // A box, zone or arrow on a plan board has its own menu; a sticky note answers for itself.
         const drawn = useFactoryStore.getState().project.annotations?.find((entry) => entry.id === node.id);
-        if (drawn && drawn.kind !== "text" && useFactoryStore.getState().project.planMode === true) {
+        if (drawn && drawn.kind !== "text" && drawn.kind !== "image" && useFactoryStore.getState().project.planMode === true) {
           event.preventDefault();
           setBoardMenu({ kind: "annotation", id: node.id, ...menuPoint(event) });
         }
@@ -5546,29 +5538,6 @@ export function FactoryFlow() {
     useFactoryStore.getState().frameBoardNodes();
   }, []);
 
-  // The top bar's Arrange and Fit keys (src/components/chrome) call these, and
-  // its Arrange label follows the arrange's progress.
-  useEffect(
-    () =>
-      registerBoardCommands({
-        arrange: (options) => void handleAutoArrange({ keepBoards: !options?.ungroup, ungroup: options?.ungroup }),
-        cancelArrange,
-        fit: handleFitView,
-        openBoardMenu: (at) => {
-          const instance = flowInstanceRef.current;
-          const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
-          const flow =
-            instance && rect
-              ? instance.screenToFlowPosition({
-                  x: rect.left + rect.width / 2,
-                  y: rect.top + rect.height / 2,
-                })
-              : { x: 0, y: 0 };
-          setBoardMenu({ kind: "pane", x: at.x, y: at.y, flow });
-        },
-      }),
-    [handleAutoArrange, handleFitView],
-  );
   useEffect(() => {
     reportArrange(arrangeProgress, ARRANGE_STEPS.length);
   }, [arrangeProgress]);
@@ -6167,6 +6136,12 @@ export function FactoryFlow() {
         return;
       }
 
+      if (useFactoryStore.getState().project.planMode === true) {
+        addAnnotation(newStickyNote(draft.start));
+        const note = useFactoryStore.getState().project.annotations?.at(-1);
+        if (note?.kind === "text") requestNoteEdit(note.id);
+        return;
+      }
       const isClick = width < 12 && height < 12;
       addAnnotation({
         kind: "text",
@@ -6191,15 +6166,21 @@ export function FactoryFlow() {
    */
   const placeImageFile = useCallback(
     async (file: File | Blob, dropPoint?: { x: number; y: number }) => {
-      // A plan board has no picture annotations (it shows sticky notes only).
-      if (useFactoryStore.getState().project.planMode === true) {
-        return;
-      }
+      const designId = useDesignStore.getState().activeDesignId;
+      const { project, isReadOnly, checklistMode } = useFactoryStore.getState();
+      if (isReadOnly || checklistMode || isBoardCovered()) return;
       try {
         const [imageUrl, natural] = await Promise.all([
           uploadBoardImage(file),
           readImageSize(file),
         ]);
+        const current = useFactoryStore.getState();
+        if (
+          useDesignStore.getState().activeDesignId !== designId ||
+          current.project.id !== project.id ||
+          current.isReadOnly ||
+          current.checklistMode
+        ) return;
         const scale = Math.min(1, 600 / natural.width, 480 / natural.height);
         const width = Math.max(
           BOARD_GRID * 2,
@@ -6232,6 +6213,44 @@ export function FactoryFlow() {
     },
     [activeColorTag, addAnnotation],
   );
+
+  const [blueprintShelf, setBlueprintShelf] = useState<BlueprintShelfRequest>();
+  const closeBlueprintShelf = useCallback(() => setBlueprintShelf(undefined), []);
+  const openBlueprintShelf = useCallback((kind: "place" | "save") => {
+    const { project, selectedBoardIds, isReadOnly, checklistMode } = useFactoryStore.getState();
+    if (isReadOnly || checklistMode) return;
+    if (kind === "save") {
+      const payload = captureBoardSelection(project, selectedBoardIds);
+      if (!payload) return;
+      setBlueprintShelf({ kind, payload, name: "" });
+    } else {
+      const instance = flowInstanceRef.current;
+      const rect = boardRef.current?.getBoundingClientRect();
+      if (!instance || !rect) return;
+      const point = instance.screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      setBlueprintShelf({ kind, point });
+    }
+    handleAnnotationToolChange(undefined);
+  }, [handleAnnotationToolChange]);
+
+  useEffect(() => registerBoardCommands({
+    arrange: (options) => void handleAutoArrange({ keepBoards: !options?.ungroup, ungroup: options?.ungroup }),
+    cancelArrange,
+    fit: handleFitView,
+    markup: {
+      activeColorTag,
+      paintMode: nodeColorPaintMode,
+      annotationTool,
+      onAnnotationToolChange: handleAnnotationToolChange,
+      onPaintModeChange: handlePaintModeChange,
+      onColorSelect: handlePaintColorSelect,
+      onPlaceImage: placeImageFile,
+    },
+    openBlueprintShelf,
+  }), [
+    activeColorTag, annotationTool, nodeColorPaintMode, handleAutoArrange, handleFitView,
+    handleAnnotationToolChange, handlePaintModeChange, handlePaintColorSelect, placeImageFile, openBlueprintShelf,
+  ]);
 
   // Ctrl+V with a picture on the OS clipboard drops it on the board. Real
   // paste events only carry files when there IS an image, so this never
@@ -6273,7 +6292,11 @@ export function FactoryFlow() {
 
       event.preventDefault();
       event.stopPropagation();
-      const start = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const start = instance.screenToFlowPosition(
+        { x: event.clientX, y: event.clientY },
+        // Snap the polygon when it lands so the closing click can hit the original corner at any zoom.
+        tool === "zone" ? { snapToGrid: false } : undefined,
+      );
 
       // The zone is not a drag: corners land click by click, and the loop
       // closes with a click back on the first corner. Screen distance, so
@@ -6353,7 +6376,7 @@ export function FactoryFlow() {
       if (!current || !instance) {
         return;
       }
-      const end = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const end = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY }, { snapToGrid: false });
       const next = { start: current.start, end, trail: current.trail };
       annotationDraftRef.current = next;
       setAnnotationDraft(next);
@@ -6525,31 +6548,25 @@ export function FactoryFlow() {
           if (resource && point) useFactoryStore.getState().addPoolStorage(resource, "drain", point);
           return;
         }
-        // A plan file dropped on a plan board opens as a new plan; a picture has no place there (plan boards hide
-        // image annotations), so it says so instead of placing one nothing shows.
+        const dropped = Array.from(event.dataTransfer.files);
+        if (dropped.length === 0) return;
         if (useFactoryStore.getState().project.planMode === true) {
-          const dropped = Array.from(event.dataTransfer.files);
-          if (dropped.length > 0) {
-            event.preventDefault();
-            void dropFilesOnPlanBoard(dropped);
-          }
+          event.preventDefault();
+          void dropFilesOnPlanBoard(dropped);
           return;
         }
-        const file = Array.from(event.dataTransfer.files).find((candidate) =>
-          candidate.type.startsWith("image/"),
-        );
-        if (!file) {
-          return;
-        }
+        const image = dropped.find((candidate) => candidate.type.startsWith("image/"));
+        if (!image) return;
         event.preventDefault();
         const point = flowInstanceRef.current?.screenToFlowPosition({
           x: event.clientX,
           y: event.clientY,
         });
-        void placeImageFile(file, point);
+        void placeImageFile(image, point);
       }}
     >
       {boardMenu && !isReadOnly ? <BoardContextMenu target={boardMenu} onClose={closeBoardMenu} /> : null}
+      {blueprintShelf && !isReadOnly ? <BlueprintShelf request={blueprintShelf} onClose={closeBlueprintShelf} /> : null}
       <StorageRatioEditor />
       <ReactFlow
         nodes={mounted.nodes}
@@ -8111,71 +8128,6 @@ function AnnotationDraftPreview({
 }
 
 /**
- * A hidden file input behind a toolbar button: picking a file IS the gesture.
- * The button spins while the upload is out.
- */
-function AddImageButton({ onPlaceImage }: { onPlaceImage: (file: File) => Promise<void> }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
-        className="hidden"
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          // Cleared so picking the same file twice still fires onChange.
-          event.target.value = "";
-          if (!file) {
-            return;
-          }
-          setBusy(true);
-          try {
-            await onPlaceImage(file);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-        className={[
-          "flex items-center gap-2 border-2 border-[var(--mc-15)] bg-[var(--mc-49)] p-1 pr-2 text-left text-white hover:bg-[var(--mc-61)]",
-          busy ? "cursor-wait opacity-70" : "",
-        ].join(" ")}
-        title="Add an image"
-        aria-label="Add an image"
-      >
-        <span className="flex h-7 w-7 items-center justify-center">
-          {busy ? (
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-          ) : (
-            <ImagePlus className="h-4 w-4" />
-          )}
-        </span>
-        <span className="whitespace-nowrap font-mono text-[11px] font-semibold">Add an image</span>
-      </button>
-    </>
-  );
-}
-
-const ANNOTATION_TOOLS: Array<{
-  kind: BoardDrawTool;
-  label: string;
-  Icon: typeof Square;
-}> = [
-  { kind: "board", label: "Draw board", Icon: AppWindow },
-  { kind: "box", label: "Draw box", Icon: Square },
-  { kind: "zone", label: "Draw zone", Icon: Hexagon },
-  { kind: "arrow", label: "Draw arrow", Icon: MoveUpRight },
-  { kind: "text", label: "Add text note", Icon: Type },
-];
-
-/**
  * Board VIEW options, one button and a sheet that names each option. Set
  * apart from the paint and annotation tools: those change the plan, these
  * only how you look at it. Memoized because FactoryFlow re-renders every
@@ -8361,9 +8313,6 @@ const PaintToolbar = memo(function PaintToolbar({
   onToggleGroup: (group: ToolGroupId | undefined) => void;
   shiftedDown: boolean;
 }) {
-  const activeColor = GT_NODE_COLORS[activeColorTag];
-  // A plan board's markup is the sticky note (right-click the board): no box, zone, arrow, text or image tools.
-  const planMode = useFactoryStore((state) => state.project.planMode === true);
   // Every fold-out on this row opens on CLICK (see useFoldoutDismiss). The
   // draw tools live under ONE slot: the menu holds them all with their names;
   // the face opens it, or cancels when a tool is armed.
@@ -8407,117 +8356,14 @@ const PaintToolbar = memo(function PaintToolbar({
               annotation tools, paint with its colours, an image). The key is
               pressed while a tool or paint is armed, and a click cancels it. */}
           <div ref={drawRef} className="relative flex items-start">
-            <div
-              className={[
-                "absolute right-0 top-[calc(100%+10px)] flex w-max flex-col gap-1 border-2 border-[var(--mc-15)] bg-[var(--mc-78)] p-1 shadow-[inset_2px_2px_0_var(--mc-100),inset_-2px_-2px_0_var(--mc-33)] transition-[opacity,transform] duration-100",
-                isDrawMenuOpen
-                  ? "pointer-events-auto translate-y-0 opacity-100"
-                  : "pointer-events-none -translate-y-1 opacity-0",
-              ].join(" ")}
-            >
-              {ANNOTATION_TOOLS.filter(({ kind }) => !planMode || kind === "board").map(({ kind, label, Icon }) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() => {
-                    onAnnotationToolChange(kind);
-                    setDrawMenuOpen(false);
-                  }}
-                  aria-pressed={annotationTool === kind}
-                  className={[
-                    "flex items-center gap-2 border-2 p-1 pr-2 text-left",
-                    annotationTool === kind
-                      ? "border-white bg-[var(--mc-85)] text-[var(--mc-ink)] ring-2 ring-cyan-300"
-                      : "border-[var(--mc-15)] bg-[var(--mc-49)] text-white hover:bg-[var(--mc-61)]",
-                  ].join(" ")}
-                >
-                  <span className="flex h-7 w-7 items-center justify-center">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="whitespace-nowrap font-mono text-[11px] font-semibold">
-                    {label}
-                  </span>
-                </button>
-              ))}
-              <div className="my-0.5 border-t-2 border-[var(--mc-15)]" />
-              {/* Paint: the row arms the brush in the current colour; the
-                  swatches under it pick the colour AND arm it, the eraser
-                  arms erase. */}
-              <button
-                type="button"
-                onClick={() => {
-                  onPaintModeChange(paintMode !== undefined ? undefined : activeColorTag);
-                  setDrawMenuOpen(false);
-                }}
-                aria-pressed={paintMode !== undefined}
-                className={[
-                  "flex items-center gap-2 border-2 p-1 pr-2 text-left",
-                  paintMode !== undefined
-                    ? "border-white bg-[var(--mc-85)] text-[var(--mc-ink)] ring-2 ring-cyan-300"
-                    : "border-[var(--mc-15)] bg-[var(--mc-49)] text-white hover:bg-[var(--mc-61)]",
-                ].join(" ")}
-              >
-                <span className="flex h-7 w-7 items-center justify-center">
-                  {paintMode === null ? <X className="h-4 w-4" /> : <Paintbrush className="h-4 w-4" />}
-                </span>
-                <span className="whitespace-nowrap font-mono text-[11px] font-semibold">
-                  {paintMode === null ? "Erasing colours" : "Paint cards"}
-                </span>
-                <span
-                  aria-hidden
-                  className="ml-auto h-4 w-4 border-2 border-[var(--mc-15)] shadow-[inset_1px_1px_0_rgba(255,255,255,0.45),inset_-1px_-1px_0_rgba(0,0,0,0.45)]"
-                  style={{ backgroundColor: activeColor.swatch }}
+            {isDrawMenuOpen ? (
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[222px] border-2 border-[var(--mc-15)] bg-[var(--mc-78)] shadow-[inset_2px_2px_0_var(--mc-100),inset_-2px_-2px_0_var(--mc-33)]">
+                <BoardMarkup
+                  tools={{ activeColorTag, paintMode, annotationTool, onAnnotationToolChange, onPaintModeChange, onColorSelect, onPlaceImage }}
+                  onClose={closeDrawMenu}
                 />
-              </button>
-              <div className="grid grid-cols-9 gap-1 px-1 pb-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPaintModeChange(null);
-                    setDrawMenuOpen(false);
-                  }}
-                  className={[
-                    "flex h-6 w-6 items-center justify-center border-2 bg-[var(--mc-49)] text-white shadow-[inset_1px_1px_0_var(--mc-85),inset_-1px_-1px_0_var(--mc-25)]",
-                    paintMode === null ? "border-white ring-2 ring-cyan-300" : "border-[var(--mc-15)]",
-                  ].join(" ")}
-                  title="Erase colours"
-                  aria-label="Erase colours"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-                {GT_NODE_COLOR_PALETTE.map((entry) => (
-                  <button
-                    key={entry.tag}
-                    type="button"
-                    onClick={() => {
-                      onColorSelect(entry.tag);
-                      onPaintModeChange(entry.tag);
-                      setDrawMenuOpen(false);
-                    }}
-                    className={[
-                      "h-6 w-6 border-2 shadow-[inset_1px_1px_0_rgba(255,255,255,0.45),inset_-1px_-1px_0_rgba(0,0,0,0.45)]",
-                      activeColorTag === entry.tag && paintMode !== null
-                        ? "border-white ring-2 ring-cyan-300"
-                        : "border-[var(--mc-15)]",
-                    ].join(" ")}
-                    style={{ backgroundColor: entry.color.swatch }}
-                    title={`Paint ${entry.tag}`}
-                    aria-label={`Paint ${entry.tag}`}
-                  />
-                ))}
               </div>
-              {planMode ? null : (
-                <>
-                  <div className="my-0.5 border-t-2 border-[var(--mc-15)]" />
-                  <AddImageButton
-                    onPlaceImage={async (file) => {
-                      setDrawMenuOpen(false);
-                      await onPlaceImage(file);
-                    }}
-                  />
-                </>
-              )}
-            </div>
+            ) : null}
             <button
               type="button"
               onClick={() => {

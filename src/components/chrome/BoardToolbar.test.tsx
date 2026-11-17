@@ -85,14 +85,32 @@ describe("the board's toolbar", () => {
     expect(useFactoryStore.getState().powerDisplayUnit).toBe("eu");
   });
 
-  it("the pencil key asks the board for its empty-board menu under the key", () => {
-    const at: Array<{ x: number; y: number }> = [];
-    const off = registerBoardCommands({ arrange: () => {}, cancelArrange: () => {}, fit: () => {}, openBoardMenu: (p) => at.push(p) });
+  it("the pencil opens the markup tools and choosing a drawing tool arms it", () => {
+    const onAnnotationToolChange = vi.fn();
+    const off = registerBoardCommands({
+      arrange: vi.fn(),
+      cancelArrange: vi.fn(),
+      fit: vi.fn(),
+      markup: {
+        activeColorTag: "blue",
+        onAnnotationToolChange,
+        onPaintModeChange: vi.fn(),
+        onColorSelect: vi.fn(),
+        onPlaceImage: vi.fn(),
+      },
+    });
     renderStrip();
     fireEvent.click(key("annotate"));
+    const panel = within(screen.getByRole("dialog", { name: "Markup tools" }));
+    for (const name of ["Draw board", "Draw box", "Draw zone", "Draw arrow", "Add text note", "Paint cards", "Add an image"]) {
+      expect(panel.getByRole("button", { name })).toBeTruthy();
+    }
+    expect(panel.queryByText("New product drawer")).toBeNull();
+    expect(panel.queryByText("Background")).toBeNull();
+    fireEvent.click(panel.getByRole("button", { name: "Draw zone" }));
+    expect(onAnnotationToolChange).toHaveBeenCalledWith("zone");
+    expect(screen.queryByRole("dialog", { name: "Markup tools" })).toBeNull();
     off();
-    expect(at).toHaveLength(1);
-    expect(key("annotate").getAttribute("aria-label")).toBe("Annotations");
   });
 
   it("keeps Arrange in the toolbar and offers the saved choice first", () => {

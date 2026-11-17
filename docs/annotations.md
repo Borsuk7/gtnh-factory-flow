@@ -1,27 +1,19 @@
-# Board annotations (notes, boxes, arrows; zones shown only)
+# Board annotations
 
-Written 2026-10-14 (AN1), reworked the same day (AN2). One file, copied verbatim into the website
-(`docs/annotations.md`); change both together. Both planners show the annotations a library plan carries in one look,
-make and edit them one way (the right-click menu), and a plan round-trips between them.
+Notes, boxes, arrows, zones, and images are saved in the plan and travel with it between the website and the mod.
 
 ## What is supported
 
-| Kind | Made from the board menu | Shown | Edited |
+| Kind | Website pencil menu | Mod board menu | Edited |
 | --- | --- | --- | --- |
-| `text` (sticky note) | yes: Add sticky note | yes | its own menu: write, colour, text size, delete |
-| `box` | yes: Add box | yes | menu: colour, fill, border, marks, delete; drag, resize |
-| `arrow` | yes: Add arrow | yes | menu: colour, thickness, heads, delete; drag, reshape |
-| `zone` (polygon outline) | **no** (the website's pencil tool still draws one on a classic board) | yes, as it came | colour, fill, border, marks, delete in the same menu; move; resize by its bottom right corner (the outline scales) |
-| `image` | no | **no** | nothing: pictures are no longer supported |
+| `text` (sticky note) | Add text note | Add sticky note | its own menu: write, colour, text size, delete |
+| `box` | Draw box | Add box | menu: colour, fill, border, marks, delete; drag, resize |
+| `arrow` | Draw arrow | Add arrow | menu: colour, thickness, heads, delete; drag, reshape |
+| `zone` (polygon outline) | Draw zone | Imported zones can be edited | colour, fill, border, marks, delete; move; resize by its bottom right corner |
+| `image` | Add an image | Preserved on import and export | website: move, resize, caption, delete |
 
-**Pictures.** An image annotation is not drawn, not selectable, and nothing offers to add one in either planner. The
-data is kept so a plan loses nothing on a round trip: the website leaves it in `project.annotations` untouched (plan
-boards filter it out of the nodes they draw; classic boards are unchanged); the mod imports it as a `Note` of kind
-`image` that has no widget, skips it in select-all and marquee, and writes it back on export (`PlanExport.note`). The
-mod's picture download (`ImageCache`) and the picture panel are gone.
-
-**Zones** are drawn as before (the box's look on the outline) but are not in the Add menu: there is no polygon tool
-here, so a zone only arrives with an imported plan.
+The website uploads images to its configured image host and stores their URLs in the plan. The mod preserves those
+annotations on export and omits them from its board view.
 
 ## The model (the website's `FactoryAnnotation`, plan JSON `annotations[]`)
 
@@ -30,13 +22,13 @@ here, so a zone only arrives with an imported plan.
 | `id`, `kind` | all | `box`, `zone`, `arrow`, `text`, `image` |
 | `position`, `size` | all | top-left and bounding box, board px (the website's and the mod's are one to one since 2026-10-15). An arrow's size may be 0 on one axis: a level arrow |
 | `colorTag` | all | one of the 22 colour tags; absent = yellow |
-| `text` | text, image | note body; an image's caption (kept, not shown) |
+| `text` | text, image | note body or image caption |
 | `fontSize` | text | 8..96, 14 default |
 | `arrowDirection` | arrow | `down-right` (default), `down-left`, `up-right`, `up-left`: tail to head across the bounding box. Dragging an end past the other flips it |
 | `arrowHeads` | arrow | `end` (default, a head at the head end) or `both` |
 | `arrowWidth` | arrow | the line's thickness in board px: 1 thin, 2 normal (default), 4 thick; 1..8 allowed |
 | `points` | zone | closed outline, vertices relative to `position` (3 or more) |
-| `imageUrl` | image | kept, unused |
+| `imageUrl` | image | hosted image URL |
 | `style.border` | box, zone | `solid` (default), `dashed`, `none` (a plan can carry it; the menu offers solid and dashed) |
 | `style.borderColor`, `style.fillColor` | box, zone | colour tags; absent = `colorTag`. The menu's Colour sets `colorTag` and lets these go |
 | `style.fill` | box, zone | `tint` (default), `solid`, `none`; the legacy mark names (`dots`, `grid`, `graph`, `ruled`, `hatch`) mean tint wearing that mark, `paper` means solid. Choosing a fill from the menu keeps a legacy mark |
@@ -66,11 +58,11 @@ Order, back to front: boxes and zones (under everything, the board's backdrop), 
 the notes (over the wires). A box and a zone are click-through inside: only the border takes the pointer; an arrow
 only its line and its ends.
 
-## Making and editing (the same in both planners)
+## Making and editing
 
-**Add**: right-click empty board: Add sticky note, Add box, Add arrow (then New product drawer). A box lands 200 by 140
-(mod px; 240 by 160 on the website) and an arrow 160 long running level to the right, both blue, with their top left at
-the click, selected. A sticky note starts being written on.
+On the website, open the pencil to choose a tool. Drag to draw a board, box, or arrow. Click each corner of a zone,
+then click the first corner to close it. Click the board to place a note and start writing. The mod adds notes, boxes,
+and arrows through the board's right-click menu.
 
 **Right-click** a box, zone or arrow (on its border or line; the website only on a plan board). A box or zone:
 Colour..., Fill... (Tint, Solid, None), Border... (Solid, Dashed), Marks... (None, Dots, Grid, Graph, Ruled, Hatch),

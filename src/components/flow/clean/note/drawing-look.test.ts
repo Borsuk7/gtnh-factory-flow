@@ -12,7 +12,6 @@ import {
   surfaceFill,
   withAlpha,
 } from "./drawing-look";
-import { visibleAnnotations } from "./note-model";
 import { useFactoryStore } from "@/store/factory-store";
 
 const base = { id: "a", position: { x: 0, y: 0 }, size: { width: 100, height: 100 } };
@@ -79,12 +78,6 @@ describe("drawing look", () => {
     expect(boxStyleWith({ style: { fill: "hatch" } }, { fill: "solid" })).toEqual({ fill: "solid", marks: "hatch" });
     expect(boxStyleWith({}, { marks: "grid", border: "dashed" })).toEqual({ marks: "grid", border: "dashed" });
     expect(boxStyleWith({ style: { fill: "paper" } }, { border: "dashed" })).toEqual({ fill: "solid", border: "dashed" });
-  });
-
-  it("a plan board shows no pictures, and keeps them in the data", () => {
-    const list = [{ kind: "box" }, { kind: "image" }, { kind: "text" }] as FactoryAnnotation[];
-    expect(visibleAnnotations(list, true).map((a) => a.kind)).toEqual(["box", "text"]);
-    expect(visibleAnnotations(list, false)).toHaveLength(3);
   });
 
   it("the store lets an arrow run level (an axis of 0) and snaps the rest", () => {

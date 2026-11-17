@@ -493,7 +493,7 @@ export async function openPlanFile(file: File): Promise<void> {
 
 /**
  * Files dropped on a plan board: a plan file (.json, or a picture that carries a plan) opens as a new plan. Any other
- * picture is ignored with a short notice, since plan boards have no image annotations.
+ * picture is directed to the annotation tool so screenshots can still open as plans.
  */
 export async function dropFilesOnPlanBoard(files: File[]): Promise<void> {
   const planFile = files.find((file) => /\.json$/i.test(file.name) || file.type === "application/json");
@@ -506,7 +506,7 @@ export async function dropFilesOnPlanBoard(files: File[]): Promise<void> {
       try {
         await openPlanFile(picture);
       } catch {
-        flashNotice("info", "Pictures can't go on a plan board. Sticky notes hold text.");
+        flashNotice("info", "To place a picture, open Annotations and choose Add an image.");
       }
     } else {
       flashNotice("info", "That file is not a plan. Drop a .json plan file.");

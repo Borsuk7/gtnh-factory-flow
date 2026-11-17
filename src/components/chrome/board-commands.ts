@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { playEditSfx, playSfxDegree } from "@/lib/sound/sfx";
+import type { BoardMarkupTools } from "@/components/flow/BoardMarkup";
 
 /**
  * What the top bar asks of the board. FactoryFlow registers these while it is
@@ -14,8 +15,8 @@ export interface BoardCommands {
   arrange: (options?: { ungroup?: boolean }) => void;
   cancelArrange: () => void;
   fit: () => void;
-  /** Opens the board's empty-board menu at a screen point, its new things landing in the middle of the view. */
-  openBoardMenu?: (at: { x: number; y: number }) => void;
+  markup?: BoardMarkupTools;
+  openBlueprintShelf?: (kind: "place" | "save") => void;
 }
 
 export interface ArrangeState {

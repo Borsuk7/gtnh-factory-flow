@@ -761,10 +761,9 @@ const stickyNote: Step = {
   actions: [
     closeMenus,
     fit,
-    A.right(boardSpot(0.16, 0.2), { label: "free board" }),
-    A.click(textOf("button, [role=menuitem], [role=button], li", /^Add (a )?sticky note$/), {
-      label: "Add sticky note",
-    }),
+    A.click(barKey("annotate"), { label: "Annotations" }),
+    A.click(textOf("button", /^Add text note$/), { label: "Add text note" }),
+    A.click(boardSpot(0.16, 0.2), { label: "free board" }),
     A.until(() => css(".sn")() !== null, "the note"),
     A.wait(300),
     A.type(css(".sn-area"), "Hydrogen comes from the electrolyzers by the door.", {
@@ -776,7 +775,7 @@ const stickyNote: Step = {
     A.wait(300),
   ],
   note: {
-    text: "Annotations are possible with *sticky notes*. Right-click anywhere to make one.",
+    text: "Open *Annotations* and choose *Add text note*, then click the board.",
     at: css(".sn"),
   },
 };

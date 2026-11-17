@@ -80,13 +80,14 @@ describe("the plan tabs", () => {
     expect(screen.queryByLabelText("Close Benzene")).toBeNull();
   });
 
-  it("right-click opens the menu the mod's tab has, Delete plan last, in red", () => {
+  it("right-click offers blueprints for the active plan and keeps Delete plan last, in red", () => {
     render(<ModTabs {...props} />);
     fireEvent.contextMenu(screen.getByText("ref-chain"));
     expect(rows()).toEqual([
       "Rename",
       "Copy plan codeto paste or share",
       "Post a copy to Community...for other players",
+      "Place blueprint…",
       "Close tabkept in My plans",
       "Close other tabskept in My plans",
       "Delete plan",

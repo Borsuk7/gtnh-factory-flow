@@ -134,7 +134,7 @@ opens a short list with the current choice ticked; red rows lose something and s
 
 | Right-click on | Rows |
 | --- | --- |
-| The board | Add sticky note, Add box, Add arrow (website: New product drawer, Place blueprint, Save selection as blueprint) |
+| The board | Mod: Add sticky note, Add box, Add arrow. Website: New product drawer. |
 | A card (anywhere but an item) | the card's actions key rows: Clone node, (mod: Show in the world, Remove from the world, once placed), Delete node (website: Save card or selection as blueprint) |
 | A drawer | its rule key's rows (Any, At least, Exactly, At most, the current one ticked; Void it (trash) / Keep it (product)), Delete drawer |
 | A sticky note | Write on it, Colour..., Bigger text, Smaller text, Delete note |
