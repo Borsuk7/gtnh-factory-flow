@@ -92,10 +92,10 @@ describe("the board's toolbar", () => {
       cancelArrange: vi.fn(),
       fit: vi.fn(),
       markup: {
-        activeColorTag: "blue",
+        brushChoice: "blue",
         onAnnotationToolChange,
         onPaintModeChange: vi.fn(),
-        onColorSelect: vi.fn(),
+        onBrushSelect: vi.fn(),
         onPlaceImage: vi.fn(),
       },
     });
@@ -110,7 +110,50 @@ describe("the board's toolbar", () => {
     fireEvent.click(panel.getByRole("button", { name: "Draw zone" }));
     expect(onAnnotationToolChange).toHaveBeenCalledWith("zone");
     expect(screen.queryByRole("dialog", { name: "Markup tools" })).toBeNull();
-    off();
+    act(off);
+  });
+
+  it("chooses a swatch without arming the brush, then offers a stop key once painting begins", () => {
+    const onBrushSelect = vi.fn();
+    const onPaintModeChange = vi.fn();
+    const commands = {
+      arrange: vi.fn(),
+      cancelArrange: vi.fn(),
+      fit: vi.fn(),
+      markup: {
+        brushChoice: "blue" as const,
+        onAnnotationToolChange: vi.fn(),
+        onPaintModeChange,
+        onBrushSelect,
+        onPlaceImage: vi.fn(),
+      },
+    };
+    let off = registerBoardCommands(commands);
+    renderStrip();
+    fireEvent.click(key("annotate"));
+    const panel = within(screen.getByRole("dialog", { name: "Markup tools" }));
+    fireEvent.click(panel.getByRole("button", { name: "Select red" }));
+    expect(onBrushSelect).toHaveBeenCalledWith("red");
+    expect(onPaintModeChange).not.toHaveBeenCalled();
+
+    act(() => {
+      off();
+      off = registerBoardCommands({ ...commands, markup: { ...commands.markup, brushChoice: "red" } });
+    });
+    expect(panel.getByRole("button", { name: "Select red" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(panel.getByRole("button", { name: "Paint cards" }));
+    expect(onPaintModeChange).toHaveBeenLastCalledWith("red");
+    expect(screen.queryByRole("dialog", { name: "Markup tools" })).toBeNull();
+
+    act(() => {
+      off();
+      off = registerBoardCommands({ ...commands, markup: { ...commands.markup, brushChoice: "red", paintMode: "red" } });
+    });
+    const stop = screen.getByRole("button", { name: "Stop painting" });
+    expect(stop.querySelector("svg.lucide-x")).toBeTruthy();
+    fireEvent.click(stop);
+    expect(onPaintModeChange).toHaveBeenLastCalledWith(undefined);
+    act(off);
   });
 
   it("keeps Arrange in the toolbar and offers the saved choice first", () => {

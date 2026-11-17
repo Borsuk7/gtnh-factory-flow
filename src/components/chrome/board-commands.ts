@@ -42,9 +42,13 @@ function emit() {
 }
 
 export function registerBoardCommands(next: BoardCommands): () => void {
+  const markupChanged = commands?.markup !== next.markup;
   commands = next;
+  if (markupChanged) emit();
   return () => {
-    if (commands === next) commands = undefined;
+    if (commands !== next) return;
+    commands = undefined;
+    if (next.markup) emit();
   };
 }
 
@@ -100,6 +104,10 @@ function subscribe(listener: () => void) {
 
 export function useArrangeState(): ArrangeState {
   return useSyncExternalStore(subscribe, () => arrange, () => IDLE);
+}
+
+export function useBoardMarkup(): BoardMarkupTools | undefined {
+  return useSyncExternalStore(subscribe, () => commands?.markup, () => undefined);
 }
 
 /** Arrange, or stop the one running (the key is both). */

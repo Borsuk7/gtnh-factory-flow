@@ -3,7 +3,7 @@
 import "./chrome.css";
 
 import { useRef, useState } from "react";
-import { Eye } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import { useDeviceSettings } from "@/lib/device-settings";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { leaveLibrary } from "@/lib/library/library-tab";
@@ -16,7 +16,7 @@ import { useBoardView, writeBoardView } from "@/components/flow/board-view";
 import "@/components/tasks/tasks.css";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
-import { arrangeLabel, getBoardCommands, pressArrange, useArrangeState } from "./board-commands";
+import { arrangeLabel, getBoardCommands, pressArrange, useArrangeState, useBoardMarkup } from "./board-commands";
 import { BarKey, useBarFit } from "./bar-parts";
 import { ChromeMenu, chromeAnchorOf, type ChromeAnchor } from "./ChromeMenu";
 import { BoardMarkup } from "@/components/flow/BoardMarkup";
@@ -139,7 +139,8 @@ function BoardKeys({ tight }: { tight: boolean }) {
   const [arrangeMenu, setArrangeMenu] = useState<ChromeAnchor | undefined>(undefined);
   const [optionsAnchor, setOptionsAnchor] = useState<ChromeAnchor | undefined>(undefined);
   const [markupAnchor, setMarkupAnchor] = useState<ChromeAnchor>();
-  const markup = markupAnchor && !isReadOnly ? getBoardCommands()?.markup : undefined;
+  const markup = useBoardMarkup();
+  const painting = markup?.paintMode !== undefined;
 
   const rateIndex = Math.max(0, RATE_ORDER.indexOf(rateUnit === "eu" ? "second" : rateUnit));
   const stepRate = (step: number) => {
@@ -254,20 +255,25 @@ function BoardKeys({ tight }: { tight: boolean }) {
         gap
         icon
         off={isReadOnly}
-        ariaLabel="Annotations"
-        tip="Add a sticky note or other markup"
-        menuAnchor="dialog"
-        open={Boolean(markup)}
+        ariaLabel={painting ? "Stop painting" : "Annotations"}
+        tip={painting ? "Stop painting" : "Add a sticky note or other markup"}
+        tipSub={painting ? "Esc" : undefined}
+        menuAnchor={painting ? undefined : "dialog"}
+        open={painting || Boolean(markupAnchor && markup)}
         onClick={(event) => {
+          if (painting) {
+            markup.onPaintModeChange(undefined);
+            return;
+          }
           setArrangeMenu(undefined);
           setOptionsAnchor(undefined);
           event.currentTarget.focus({ preventScroll: true });
           setMarkupAnchor(markupAnchor ? undefined : chromeAnchorOf(event.currentTarget));
         }}
       >
-        <PixelIcon name="pencil" />
+        {painting ? <X size={12} aria-hidden /> : <PixelIcon name="pencil" />}
       </BarKey>
-      {markupAnchor && markup ? (
+      {markupAnchor && markup && !isReadOnly ? (
         <MenuPortal
           anchor={markupAnchor}
           align="right"

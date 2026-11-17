@@ -10,3 +10,4 @@
 8. **Delete**: right-click then Delete, or select and press Delete.
 9. **Several at once**: Shift-click or drag a marquee; they move and delete together. Ctrl+Z undoes any of it.
 10. **Pictures**: choose Add an image in the pencil menu and pick a PNG, JPEG, GIF, or WebP up to 4 MB.
+11. **Paint cards**: select a colour, then choose Paint cards and click the cards you want to colour. Select the eraser and choose Erase card colours to remove paint. Click Stop painting in the toolbar or press Esc to finish.

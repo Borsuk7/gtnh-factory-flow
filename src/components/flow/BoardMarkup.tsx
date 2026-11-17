@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AppWindow, Hexagon, ImagePlus, LoaderCircle, MoveUpRight, Paintbrush, Square, Type, X } from "lucide-react";
+import { AppWindow, Eraser, Hexagon, ImagePlus, LoaderCircle, MoveUpRight, Paintbrush, Square, Type, X } from "lucide-react";
 import type { FactoryNodeColorTag } from "@/lib/model/types";
+import { tipAttrs } from "./clean/interaction";
 import { GT_NODE_COLORS, GT_NODE_COLOR_PALETTE } from "./node-colors";
 
 const DRAW_TOOLS = [
@@ -16,12 +17,12 @@ const DRAW_TOOLS = [
 export type BoardDrawTool = (typeof DRAW_TOOLS)[number]["kind"];
 
 export interface BoardMarkupTools {
-  activeColorTag: FactoryNodeColorTag;
+  brushChoice: FactoryNodeColorTag | null;
   paintMode?: FactoryNodeColorTag | null;
   annotationTool?: BoardDrawTool;
   onAnnotationToolChange: (tool: BoardDrawTool | undefined) => void;
   onPaintModeChange: (tag: FactoryNodeColorTag | null | undefined) => void;
-  onColorSelect: (tag: FactoryNodeColorTag) => void;
+  onBrushSelect: (tag: FactoryNodeColorTag | null) => void;
   onPlaceImage: (file: File) => Promise<void>;
 }
 
@@ -35,12 +36,10 @@ export function BoardMarkup({
   tools: BoardMarkupTools;
   onClose: () => void;
 }) {
-  const { activeColorTag, paintMode, annotationTool } = tools;
-  const armPaint = (tag: FactoryNodeColorTag | null | undefined) => {
-    if (tag != null) tools.onColorSelect(tag);
-    tools.onPaintModeChange(tag);
-    onClose();
-  };
+  const { brushChoice, paintMode, annotationTool } = tools;
+  const painting = paintMode !== undefined;
+  const PaintIcon = painting ? X : brushChoice === null ? Eraser : Paintbrush;
+  const paintLabel = painting ? "Stop painting" : brushChoice === null ? "Erase card colours" : "Paint cards";
 
   return (
     <div className="grid gap-0.5 p-1">
@@ -63,25 +62,31 @@ export function BoardMarkup({
       <button
         type="button"
         className={ROW}
-        aria-pressed={paintMode !== undefined}
-        onClick={() => armPaint(paintMode === undefined ? activeColorTag : undefined)}
+        aria-pressed={painting}
+        {...tipAttrs({ id: "markup|paint", title: paintLabel, sub: painting ? "Esc" : "Then click a card" })}
+        onClick={() => {
+          tools.onPaintModeChange(painting ? undefined : brushChoice);
+          onClose();
+        }}
       >
-        <Paintbrush size={14} aria-hidden />
-        Paint cards
-        <span
-          aria-hidden
-          className="ml-auto size-3.5 border-2 border-[var(--mc-15)]"
-          style={{ backgroundColor: GT_NODE_COLORS[activeColorTag].swatch }}
-        />
+        <PaintIcon size={14} aria-hidden />
+        {paintLabel}
+        {brushChoice !== null ? (
+          <span
+            aria-hidden
+            className="ml-auto size-3.5 border-2 border-[var(--mc-15)]"
+            style={{ backgroundColor: GT_NODE_COLORS[brushChoice].swatch }}
+          />
+        ) : null}
       </button>
       <div className="grid grid-cols-9 gap-0.5 px-0.5 py-0.5" aria-label="Paint colours" role="group">
         <button
           type="button"
           className={`${SWATCH} bg-[var(--mc-49)] text-white`}
-          title="Erase colours"
-          aria-label="Erase colours"
-          aria-pressed={paintMode === null}
-          onClick={() => armPaint(null)}
+          title="Select eraser"
+          aria-label="Select eraser"
+          aria-pressed={brushChoice === null}
+          onClick={() => tools.onBrushSelect(null)}
         >
           <X size={12} aria-hidden />
         </button>
@@ -91,10 +96,10 @@ export function BoardMarkup({
             type="button"
             className={SWATCH}
             style={{ backgroundColor: color.swatch }}
-            title={`Paint ${tag}`}
-            aria-label={`Paint ${tag}`}
-            aria-pressed={activeColorTag === tag && paintMode !== null}
-            onClick={() => armPaint(tag)}
+            title={`Select ${tag}`}
+            aria-label={`Select ${tag}`}
+            aria-pressed={brushChoice === tag}
+            onClick={() => tools.onBrushSelect(tag)}
           />
         ))}
       </div>

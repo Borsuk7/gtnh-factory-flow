@@ -408,7 +408,7 @@ import { computeGroupSummaries } from "./clean/group/group-summary";
 import { useWorkspaceView } from "@/lib/workspace-view";
 import { playEditSfx } from "@/lib/sound/sfx";
 import { newStickyNote, requestNoteEdit } from "./clean/note/note-model";
-import { BoardMarkup, type BoardDrawTool } from "./BoardMarkup";
+import { BoardMarkup, type BoardDrawTool, type BoardMarkupTools } from "./BoardMarkup";
 import { BlueprintShelf, type BlueprintShelfRequest } from "./clean/menus/BlueprintShelf";
 import { settleZonePoints } from "@/lib/model/zone-points";
 import { BOARD_PAPER_IDS } from "@/lib/model/board-paper";
@@ -2344,6 +2344,7 @@ export function FactoryFlow() {
   // the palette is what a new box/arrow/note is created with. Blue is legible
   // on every paper the board ships with.
   const [activeColorTag, setActiveColorTag] = useState<FactoryNodeColorTag>("blue");
+  const [eraserSelected, setEraserSelected] = useState(false);
   const [isDeleteMode, setDeleteMode] = useState(false);
   const checklistMode = useFactoryStore((state) => state.checklistMode);
   useEffect(() => {
@@ -5555,16 +5556,10 @@ export function FactoryFlow() {
     },
     [setNodeColorPaintMode],
   );
-  const handlePaintColorSelect = useCallback(
-    (tag: FactoryNodeColorTag) => {
-      setActiveColorTag(tag);
-      // Changing colour mid-paint keeps painting with the new colour.
-      if (nodeColorPaintMode !== undefined) {
-        setNodeColorPaintMode(tag);
-      }
-    },
-    [nodeColorPaintMode, setNodeColorPaintMode],
-  );
+  const handleBrushSelect = useCallback((tag: FactoryNodeColorTag | null) => {
+    setEraserSelected(tag === null);
+    if (tag !== null) setActiveColorTag(tag);
+  }, []);
   const handleAnnotationToolChange = useCallback(
     (tool: BoardDrawTool | undefined) => {
       if (tool) useFactoryStore.getState().setChecklistMode(false);
@@ -6233,24 +6228,25 @@ export function FactoryFlow() {
     handleAnnotationToolChange(undefined);
   }, [handleAnnotationToolChange]);
 
+  const markup = useMemo<BoardMarkupTools>(() => ({
+    brushChoice: eraserSelected ? null : activeColorTag,
+    paintMode: nodeColorPaintMode,
+    annotationTool,
+    onAnnotationToolChange: handleAnnotationToolChange,
+    onPaintModeChange: handlePaintModeChange,
+    onBrushSelect: handleBrushSelect,
+    onPlaceImage: placeImageFile,
+  }), [
+    activeColorTag, eraserSelected, annotationTool, nodeColorPaintMode,
+    handleAnnotationToolChange, handlePaintModeChange, handleBrushSelect, placeImageFile,
+  ]);
   useEffect(() => registerBoardCommands({
     arrange: (options) => void handleAutoArrange({ keepBoards: !options?.ungroup, ungroup: options?.ungroup }),
     cancelArrange,
     fit: handleFitView,
-    markup: {
-      activeColorTag,
-      paintMode: nodeColorPaintMode,
-      annotationTool,
-      onAnnotationToolChange: handleAnnotationToolChange,
-      onPaintModeChange: handlePaintModeChange,
-      onColorSelect: handlePaintColorSelect,
-      onPlaceImage: placeImageFile,
-    },
+    markup,
     openBlueprintShelf,
-  }), [
-    activeColorTag, annotationTool, nodeColorPaintMode, handleAutoArrange, handleFitView,
-    handleAnnotationToolChange, handlePaintModeChange, handlePaintColorSelect, placeImageFile, openBlueprintShelf,
-  ]);
+  }), [handleAutoArrange, handleFitView, markup, openBlueprintShelf]);
 
   // Ctrl+V with a picture on the OS clipboard drops it on the board. Real
   // paste events only carry files when there IS an image, so this never
@@ -6707,13 +6703,7 @@ export function FactoryFlow() {
       <SolvingBooksOverlay />
       {worksheet ? <PoolWorksheet /> : null}
       {!isReadOnly && !modBar ? <PaintToolbar
-        paintMode={nodeColorPaintMode}
-        onPaintModeChange={handlePaintModeChange}
-        activeColorTag={activeColorTag}
-        onColorSelect={handlePaintColorSelect}
-        annotationTool={annotationTool}
-        onAnnotationToolChange={handleAnnotationToolChange}
-        onPlaceImage={placeImageFile}
+        markup={markup}
         isDeleteMode={isDeleteMode}
         onDeleteModeChange={handleDeleteModeChange}
         view={boardView}
@@ -8279,13 +8269,7 @@ function ArrangeLoader({
 // A browser preference, not part of the plan: two people sharing a setup
 // each keep their own habit.
 const PaintToolbar = memo(function PaintToolbar({
-  paintMode,
-  onPaintModeChange,
-  activeColorTag,
-  onColorSelect,
-  annotationTool,
-  onAnnotationToolChange,
-  onPlaceImage,
+  markup,
   isDeleteMode,
   onDeleteModeChange,
   view,
@@ -8295,13 +8279,7 @@ const PaintToolbar = memo(function PaintToolbar({
   onToggleGroup,
   shiftedDown,
 }: {
-  paintMode?: FactoryNodeColorTag | null;
-  onPaintModeChange: (tag: FactoryNodeColorTag | null | undefined) => void;
-  activeColorTag: FactoryNodeColorTag;
-  onColorSelect: (tag: FactoryNodeColorTag) => void;
-  annotationTool?: BoardDrawTool;
-  onAnnotationToolChange: (tool: BoardDrawTool | undefined) => void;
-  onPlaceImage: (file: File) => Promise<void>;
+  markup: BoardMarkupTools;
   isDeleteMode: boolean;
   onDeleteModeChange: (enabled: boolean) => void;
   /** The view menu rides this row's corner slot; see BoardViewMenu. */
@@ -8313,6 +8291,9 @@ const PaintToolbar = memo(function PaintToolbar({
   onToggleGroup: (group: ToolGroupId | undefined) => void;
   shiftedDown: boolean;
 }) {
+  const { paintMode, annotationTool, onPaintModeChange, onAnnotationToolChange } = markup;
+  const paintActive = paintMode !== undefined;
+  const markupLabel = paintActive ? "Stop painting" : annotationTool ? "Stop marking up" : "Markup tools";
   // Every fold-out on this row opens on CLICK (see useFoldoutDismiss). The
   // draw tools live under ONE slot: the menu holds them all with their names;
   // the face opens it, or cancels when a tool is armed.
@@ -8358,10 +8339,7 @@ const PaintToolbar = memo(function PaintToolbar({
           <div ref={drawRef} className="relative flex items-start">
             {isDrawMenuOpen ? (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[222px] border-2 border-[var(--mc-15)] bg-[var(--mc-78)] shadow-[inset_2px_2px_0_var(--mc-100),inset_-2px_-2px_0_var(--mc-33)]">
-                <BoardMarkup
-                  tools={{ activeColorTag, paintMode, annotationTool, onAnnotationToolChange, onPaintModeChange, onColorSelect, onPlaceImage }}
-                  onClose={closeDrawMenu}
-                />
+                <BoardMarkup tools={markup} onClose={closeDrawMenu} />
               </div>
             ) : null}
             <button
@@ -8381,10 +8359,10 @@ const PaintToolbar = memo(function PaintToolbar({
                 "pointer-events-auto relative z-10 flex h-8 w-8 items-center justify-center border-2 border-[var(--mc-15)]",
                 annotationTool !== undefined || paintMode !== undefined ? TOOL_FACE_ON : TOOL_FACE_OFF,
               ].join(" ")}
-              title={annotationTool !== undefined || paintMode !== undefined ? "Stop" : "Markup"}
-              aria-label={annotationTool !== undefined || paintMode !== undefined ? "Stop marking up" : "Markup tools"}
+              title={paintActive ? "Stop painting (Esc)" : markupLabel}
+              aria-label={markupLabel}
             >
-              <Pencil className="h-4 w-4" />
+              {paintActive ? <X className="h-4 w-4" aria-hidden /> : <Pencil className="h-4 w-4" aria-hidden />}
             </button>
           </div>
           <BoardViewMenu
