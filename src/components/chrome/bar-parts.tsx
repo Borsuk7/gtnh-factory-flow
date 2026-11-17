@@ -44,14 +44,14 @@ export function BarKey({
   children?: ReactNode;
   glyph?: string;
   ariaLabel?: string;
-  menuAnchor?: boolean;
+  menuAnchor?: boolean | "dialog";
 }) {
   return (
     <div
       role="button"
       tabIndex={off ? -1 : 0}
       aria-label={ariaLabel ?? label ?? id}
-      aria-haspopup={menuAnchor ? "menu" : undefined}
+      aria-haspopup={menuAnchor === "dialog" ? "dialog" : menuAnchor ? "menu" : undefined}
       aria-expanded={menuAnchor ? Boolean(open) : undefined}
       onKeyDown={activateOnKey}
       aria-disabled={off || undefined}

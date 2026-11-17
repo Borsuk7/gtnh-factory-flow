@@ -2,7 +2,7 @@
 
 import "./rail.css";
 import { fluidSwatchStyle } from "../fluid-swatch";
-import { wheelChangesValues } from "@/lib/device-settings";
+import { useDeviceSettings, wheelChangesValues } from "@/lib/device-settings";
 import { OVERVIEW_DEFAULT_WIDTH, PANEL_RAIL_WIDTH } from "@/lib/workspace-columns";
 
 import { Zap } from "lucide-react";
@@ -266,7 +266,8 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
   useRateDisplayUnits();
   const view = useRailView();
   const { rail, spares } = useRailData();
-  const selection = useRailSelection();
+  const { overviewFollowsSelection } = useDeviceSettings();
+  const selection = useRailSelection(overviewFollowsSelection);
   const selectedResources = selection?.resources;
   const inSelection = Boolean(selection);
   const workspace = useWorkspaceView();

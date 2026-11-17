@@ -43,6 +43,7 @@ describe("the settings box", () => {
       "Problem outlines",
       "Scroll changes values",
       "Item browser",
+      "Follow selection in Overview",
       "Font",
     ]);
     expect(document.querySelector(".ms-preview .sp-board")).toBeTruthy();

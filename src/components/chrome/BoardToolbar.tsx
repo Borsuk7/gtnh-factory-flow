@@ -3,12 +3,16 @@
 import "./chrome.css";
 
 import { useRef, useState } from "react";
+import { Eye } from "lucide-react";
 import { useDeviceSettings } from "@/lib/device-settings";
 import { isLiveConfigured } from "@/lib/live/live-config";
 import { leaveLibrary } from "@/lib/library/library-tab";
 import type { RateUnit } from "@/lib/model/rate-unit";
 import { requestNewTask, setTaskView, useTaskView } from "@/lib/tasks/task-board-ui";
 import { tipAttrs } from "@/components/flow/clean/interaction";
+import { MenuPortal } from "@/components/flow/clean/menus/MenuPortal";
+import { BoardViewOptions } from "@/components/flow/BoardViewOptions";
+import { useBoardView, writeBoardView } from "@/components/flow/board-view";
 import "@/components/tasks/tasks.css";
 import { useDesignStore } from "@/store/design-store";
 import { useFactoryStore } from "@/store/factory-store";
@@ -122,6 +126,7 @@ function BoardKeys({ tight }: { tight: boolean }) {
   const hasGroups = useFactoryStore((state) => (state.project.pockets?.length ?? 0) > 0);
   // A plan with groups asks how to treat them; one without arranges at once.
   const [arrangeMenu, setArrangeMenu] = useState<ChromeAnchor | undefined>(undefined);
+  const [optionsAnchor, setOptionsAnchor] = useState<ChromeAnchor | undefined>(undefined);
 
   const rateIndex = Math.max(0, RATE_ORDER.indexOf(rateUnit === "eu" ? "second" : rateUnit));
   const stepRate = (step: number) => {
@@ -244,7 +249,7 @@ function BoardKeys({ tight }: { tight: boolean }) {
         icon
         off={isReadOnly}
         ariaLabel="Annotations"
-        tip="Add a sticky note, box or arrow, or change the background"
+        tip="Add a sticky note or other markup"
         menuAnchor
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
@@ -253,7 +258,71 @@ function BoardKeys({ tight }: { tight: boolean }) {
       >
         <PixelIcon name="pencil" />
       </BarKey>
+      <BarKey
+        id="plan-options"
+        icon
+        ariaLabel="Plan options"
+        tip="Plan options"
+        menuAnchor="dialog"
+        open={optionsAnchor !== undefined}
+        onClick={(event) => {
+          if (optionsAnchor) {
+            setOptionsAnchor(undefined);
+          } else {
+            setArrangeMenu(undefined);
+            event.currentTarget.focus({ preventScroll: true });
+            setOptionsAnchor(chromeAnchorOf(event.currentTarget));
+          }
+        }}
+      >
+        <Eye size={12} aria-hidden />
+      </BarKey>
+      {optionsAnchor ? (
+        <PlanOptions
+          anchor={optionsAnchor}
+          isReadOnly={isReadOnly}
+          onClose={() => setOptionsAnchor(undefined)}
+        />
+      ) : null}
       </div>
     </>
+  );
+}
+
+function PlanOptions({
+  anchor,
+  isReadOnly,
+  onClose,
+}: {
+  anchor: ChromeAnchor;
+  isReadOnly: boolean;
+  onClose: () => void;
+}) {
+  const view = useBoardView();
+  const planMode = useFactoryStore((state) => state.project.planMode === true);
+  return (
+    <MenuPortal
+      anchor={anchor}
+      align="right"
+      width={300}
+      maxHeight={620}
+      label="Plan options"
+      role="dialog"
+      onClose={onClose}
+    >
+      <div className="cm-scroll flex flex-col gap-1 p-1.5">
+        <BoardViewOptions
+          view={view}
+          onChange={writeBoardView}
+          showOverviewOptions={planMode}
+          keepBoardsByDefault={planMode}
+          arrangeDisabled={isReadOnly}
+          onArrange={(keepBoards) => {
+            onClose();
+            pressArrange({ ungroup: !keepBoards });
+          }}
+        />
+      </div>
+    </MenuPortal>
   );
 }

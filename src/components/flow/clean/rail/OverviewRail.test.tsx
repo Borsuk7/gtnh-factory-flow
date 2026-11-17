@@ -157,6 +157,19 @@ it("keeps the whole-plan machine list below the selected resources", () => {
   act(() => useFactoryStore.getState().setSelectedBoardIds([]));
 });
 
+it("keeps whole-plan resources when following selection is disabled", () => {
+  load(mockLeftovers);
+  render(<OverviewRail />);
+  act(() => useFactoryStore.getState().setSelectedBoardIds(["crush"]));
+  expect(screen.getByText("SELECTION")).toBeTruthy();
+  act(() => writeDeviceSettings({ overviewFollowsSelection: false }));
+  expect(screen.getByText("OVERVIEW")).toBeTruthy();
+  expect(useFactoryStore.getState().selectedBoardIds).toEqual(["crush"]);
+  act(() => writeDeviceSettings({ overviewFollowsSelection: true }));
+  expect(screen.getByText("SELECTION")).toBeTruthy();
+  act(() => useFactoryStore.getState().setSelectedBoardIds([]));
+});
+
 it("folds to a strip and remembers it per device", () => {
   load(mockLeftovers);
   const { container } = render(<OverviewRail />);

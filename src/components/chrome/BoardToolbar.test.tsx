@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { useFactoryStore } from "@/store/factory-store";
 import { useDesignStore } from "@/store/design-store";
 import { writeWorkspaceView } from "@/lib/workspace-view";
+import { resetDeviceSettingsForTests, writeDeviceSettings } from "@/lib/device-settings";
+import { DEFAULT_BOARD_VIEW, readBoardViewSnapshot, writeBoardView } from "@/components/flow/board-view";
 import { BoardToolbar } from "./BoardToolbar";
 import { registerBoardCommands } from "./board-commands";
 
@@ -23,6 +25,7 @@ const key = (id: string) => document.querySelector<HTMLElement>(`[data-mb="${id}
 
 beforeEach(() => {
   window.localStorage.clear();
+  resetDeviceSettingsForTests();
   useFactoryStore.setState({ rateUnit: "second", powerDisplayUnit: "eu", undoHistory: [], redoHistory: [], isReadOnly: false });
   useDesignStore.setState({ designs: [], publicViews: [], activeDesignId: undefined });
   writeWorkspaceView({ averageMachineDraw: true });
@@ -33,7 +36,7 @@ describe("the board's toolbar", () => {
   it("has the keys in the mod's order, in its words", () => {
     renderStrip();
     const order = [...document.querySelectorAll("[data-mb]")].map((element) => element.getAttribute("data-mb"));
-    expect(order).toEqual(["nonrecipe", "undo", "redo", "arrange", "fit", "rate", "power", "annotate"]);
+    expect(order).toEqual(["nonrecipe", "undo", "redo", "arrange", "fit", "rate", "power", "annotate", "plan-options"]);
     expect(key("arrange").textContent).toBe("Arrange");
     expect(key("rate").textContent).toBe("/s");
     expect(key("power").textContent).toBe("EU/t");
@@ -43,7 +46,7 @@ describe("the board's toolbar", () => {
 
   it("every key is in the Tab order (a disabled one is not) and Enter or Space presses it", () => {
     renderStrip();
-    for (const id of ["nonrecipe", "arrange", "fit", "rate", "power", "annotate"]) {
+    for (const id of ["nonrecipe", "arrange", "fit", "rate", "power", "annotate", "plan-options"]) {
       expect(key(id).getAttribute("tabindex"), id).toBe("0");
     }
     expect(key("undo").getAttribute("tabindex")).toBe("-1");
@@ -90,6 +93,27 @@ describe("the board's toolbar", () => {
     off();
     expect(at).toHaveLength(1);
     expect(key("annotate").getAttribute("aria-label")).toBe("Annotations");
+  });
+
+  it("opens Plan options and uses the saved Keep boards choice when arranging", () => {
+    const arrange = vi.fn();
+    const off = registerBoardCommands({ arrange, cancelArrange: () => {}, fit: () => {} });
+    writeDeviceSettings({ keepBoardsOnArrange: true });
+    writeBoardView(DEFAULT_BOARD_VIEW);
+    renderStrip();
+    fireEvent.click(key("plan-options"));
+    const options = within(screen.getByRole("dialog", { name: "Plan options" }));
+    fireEvent.click(options.getByRole("button", { name: "Background style: Slate" }));
+    fireEvent.click(options.getByRole("button", { name: "Background pattern: Crosses" }));
+    expect(readBoardViewSnapshot()).toMatchObject({ canvasTheme: "slate", canvasPattern: "cross" });
+    const keep = options.getByRole("button", { name: "Keep boards on rearrange" });
+    expect(keep.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(keep);
+    fireEvent.click(options.getByRole("button", { name: "Arrange the board" }));
+    expect(arrange).toHaveBeenCalledExactlyOnceWith({ ungroup: true });
+    expect(screen.queryByRole("dialog", { name: "Plan options" })).toBeNull();
+    writeBoardView(DEFAULT_BOARD_VIEW);
+    off();
   });
 
   it("Arrange and Fit call the board, and Arrange says what it is doing", () => {
@@ -144,7 +168,7 @@ describe("the board's toolbar", () => {
 
   it("every key carries a tip for the tip host", () => {
     renderStrip();
-    for (const id of ["nonrecipe", "undo", "redo", "arrange", "fit", "rate", "power", "annotate"]) {
+    for (const id of ["nonrecipe", "undo", "redo", "arrange", "fit", "rate", "power", "annotate", "plan-options"]) {
       expect(key(id).getAttribute("data-tip-id"), id).toBe(`bar|${id}`);
       expect(JSON.parse(key(id).getAttribute("data-tip")!).title.length).toBeGreaterThan(3);
     }

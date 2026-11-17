@@ -87,6 +87,8 @@ See the [board guide](flow/AGENTS.md), [legacy Pool worksheet guide](pool/AGENTS
   A click on a strip, or a resource browsed (`requestPanelOpen`, `src/lib/panel-force.ts`), opens a window-folded column
   anyway and the other gives way. The overview's machine lines fit their text to the rail's measured width. Re-measure
   `BOARD_MIN_WIDTH` when a key is added to the board toolbar.
+- The eye key opens Plan options. The theme, pattern and fixed wire width use the active plan's view.
+  Motion, Follow selection in Overview, and Keep boards on rearrange are device preferences.
 - The items column is NEI's list (`ResourceIndexPane`, `nei/nei.css`): page keys and n/m at the top, 32 px slots
   of art alone, a Minecraft tooltip at once (`nei/McTip`), R/U over a slot, filters and sort in one menu key. Its
   search field (`searchAt`) is a body portal at the bottom middle of the screen; on a phone, under Welcome or the

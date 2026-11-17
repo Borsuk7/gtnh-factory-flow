@@ -32,6 +32,10 @@ export interface DeviceSettings {
   scrollChangesValues: boolean;
   /** "Item browser": on plan boards the items list on the left and the overview on the right (the other way round). */
   itemsLeft: boolean;
+  /** Overview shows the selected cards' resources when enabled. */
+  overviewFollowsSelection: boolean;
+  /** An unset value uses the default of the toolbar that opens Arrange. */
+  keepBoardsOnArrange?: boolean;
   /** The overview column's width the player set by dragging its edge (shell px; the window may show it narrower). */
   overviewWidth: number;
   /** The items list's width, set the same way. */
@@ -52,12 +56,14 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   problemOutlines: true,
   scrollChangesValues: true,
   itemsLeft: false,
+  overviewFollowsSelection: true,
   overviewWidth: OVERVIEW_DEFAULT_WIDTH,
   itemsWidth: ITEMS_DEFAULT_WIDTH,
   settingsSection: "Board",
 };
 
 const STORAGE_KEY = "gtnh-factory-flow.device-settings.v1";
+const LEGACY_KEEP_BOARDS_KEY = "gtnh-factory-flow.arrange-keep-boards.v1";
 
 let state: DeviceSettings = DEFAULT_DEVICE_SETTINGS;
 let loaded = false;
@@ -91,6 +97,12 @@ export function parseDeviceSettings(raw: string | null): DeviceSettings {
         typeof parsed.itemsLeft === "boolean"
           ? parsed.itemsLeft
           : DEFAULT_DEVICE_SETTINGS.itemsLeft,
+      overviewFollowsSelection:
+        typeof parsed.overviewFollowsSelection === "boolean"
+          ? parsed.overviewFollowsSelection
+          : DEFAULT_DEVICE_SETTINGS.overviewFollowsSelection,
+      keepBoardsOnArrange:
+        typeof parsed.keepBoardsOnArrange === "boolean" ? parsed.keepBoardsOnArrange : undefined,
       overviewWidth:
         typeof parsed.overviewWidth === "number"
           ? clampOverviewWidth(parsed.overviewWidth)
@@ -113,7 +125,12 @@ function getSnapshot(): DeviceSettings {
   if (!loaded && typeof window !== "undefined") {
     loaded = true;
     try {
-      state = parseDeviceSettings(window.localStorage.getItem(STORAGE_KEY));
+      const storage = window.localStorage;
+      state = parseDeviceSettings(storage.getItem(STORAGE_KEY));
+      if (state.keepBoardsOnArrange === undefined) {
+        const legacy = storage.getItem(LEGACY_KEEP_BOARDS_KEY);
+        if (legacy === "1" || legacy === "0") state = { ...state, keepBoardsOnArrange: legacy === "1" };
+      }
     } catch {
       state = DEFAULT_DEVICE_SETTINGS;
     }

@@ -40,14 +40,14 @@ export function useRailData(): RailData {
   return useMemo(() => railData(project, result), [project, result]);
 }
 
-export function useRailSelection() {
+export function useRailSelection(enabled: boolean) {
   const liveProject = useFactoryStore((state) => state.project);
   const liveResult = useFactoryStore((state) => state.lastResult);
   const project = useDeferredValue(liveProject);
   const result = useDeferredValue(liveResult);
-  const ids = useFactoryStore((state) => state.selectedBoardIds);
+  const ids = useFactoryStore((state) => enabled ? state.selectedBoardIds : undefined);
   const selection = useMemo(() => {
-    if (!ids.length) return undefined;
+    if (!ids?.length) return undefined;
     const { itemIds } = expandPocketSelection(project, ids);
     const machines = project.nodes.filter(({ id }) => itemIds.has(id)).length;
     const drawers = (project.storages ?? []).filter(({ id }) => itemIds.has(id)).length;

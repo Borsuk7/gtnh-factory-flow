@@ -15,6 +15,7 @@ describe("device settings", () => {
       problemOutlines: true,
       scrollChangesValues: true,
       itemsLeft: false,
+      overviewFollowsSelection: true,
       overviewWidth: 336,
       itemsWidth: 256,
       settingsSection: "Board",
@@ -54,6 +55,16 @@ describe("device settings", () => {
     );
   });
 
+  it("follows the selection by default and keeps explicit Overview and Arrange choices", () => {
+    expect(parseDeviceSettings("{}").overviewFollowsSelection).toBe(true);
+    const saved = parseDeviceSettings(JSON.stringify({
+      overviewFollowsSelection: false,
+      keepBoardsOnArrange: false,
+    }));
+    expect(saved.overviewFollowsSelection).toBe(false);
+    expect(saved.keepBoardsOnArrange).toBe(false);
+  });
+
   it("wheelChangesValues follows the setting at the moment it is asked", () => {
     resetDeviceSettingsForTests();
     expect(wheelChangesValues()).toBe(true);
@@ -90,6 +101,7 @@ describe("device settings", () => {
       problemOutlines: true,
       scrollChangesValues: true,
       itemsLeft: false,
+      overviewFollowsSelection: true,
       overviewWidth: 336,
       itemsWidth: 256,
       settingsSection: "Board",

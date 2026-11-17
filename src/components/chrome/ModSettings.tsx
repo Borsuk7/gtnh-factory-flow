@@ -148,6 +148,14 @@ export function ModSettings({ onClose }: { onClose: () => void }) {
           to: (index) => writeDeviceSettings({ itemsLeft: index === 0 }),
         },
         {
+          label: "Follow selection in Overview",
+          about: "Show resources for the selected cards and drawers.",
+          kind: "switch",
+          names: ["Off", "On"],
+          at: settings.overviewFollowsSelection ? 1 : 0,
+          to: (index) => writeDeviceSettings({ overviewFollowsSelection: index === 1 }),
+        },
+        {
           label: "Font",
           about: "Sets the font of the planner.",
           kind: "button",

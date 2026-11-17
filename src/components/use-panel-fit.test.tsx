@@ -3,6 +3,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requestPanelOpen } from "@/lib/panel-force";
+import { BOARD_MIN_WIDTH } from "@/lib/workspace-columns";
 import { usePanelFit, type PanelFitState, type PanelWishes } from "./use-panel-fit";
 
 const WISHES: PanelWishes = {
@@ -94,7 +95,7 @@ describe("usePanelFit", () => {
     expect(latest.itemsAutoFolded).toBe(true);
     const [left, , right] = template().split(" ");
     expect(right).toBe("26px");
-    expect(842 - Number.parseInt(left) - 26).toBeGreaterThanOrEqual(520);
+    expect(842 - Number.parseInt(left) - 26).toBeGreaterThanOrEqual(BOARD_MIN_WIDTH);
   });
 
   it("a column folds back when the window widens, and the player's own fold is never written", () => {
@@ -169,7 +170,7 @@ describe("usePanelFit", () => {
     expect(latest.widthOf("overview")).toBe(336);
     expect(latest.limitsOf("items")).toEqual({ min: 108, max: 420 });
     resize(1000);
-    expect(latest.limitsOf("overview").max).toBe(1000 - 520 - latest.widthOf("items"));
+    expect(latest.limitsOf("overview").max).toBe(1000 - BOARD_MIN_WIDTH - latest.widthOf("items"));
   });
 
   it("under a covering page the overview is gone, not folded", () => {

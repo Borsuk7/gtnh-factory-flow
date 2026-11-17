@@ -43,29 +43,19 @@ import {
 import { FlowEdgeLabelPortal as EdgeLabelRenderer, FlowViewportPortal as ViewportPortal } from "./virtual/flow-portals";
 import { toBlob, toSvg } from "html-to-image";
 import {
-  Activity,
-  AlignJustify,
   AppWindow,
-  Ban,
   Box,
   Combine,
-  Grid2x2,
   Eye,
   Focus,
   Gauge,
-  Grid3x3,
-  Grip,
   Hammer,
   Hexagon,
   ImagePlus,
   LoaderCircle,
-  Magnet,
-  Minus,
   MoveUpRight,
-  Network,
   Paintbrush,
   Pencil,
-  Plus,
   Redo2,
   Square,
   Trash2,
@@ -233,16 +223,14 @@ import { FeedbackHost } from "./clean/feedback/FeedbackPanel";
 import { TourBridge, TourHost, TourOffer } from "./clean/tour";
 import { GT_NODE_COLORS, GT_NODE_COLOR_PALETTE, flowRampColor } from "./node-colors";
 import {
-  CANVAS_PATTERNS,
-  CANVAS_PATTERN_LABEL,
   readBoardViewSnapshot,
   useBoardView,
   writeBoardView,
   type BoardView,
-  type CanvasPattern,
   type GlanceMode,
 } from "./board-view";
-import { CANVAS_THEMES, getCanvasTheme, type CanvasTheme } from "./canvas-themes";
+import { getCanvasTheme } from "./canvas-themes";
+import { BoardViewOptions, TOOL_FACE_OFF, TOOL_FACE_ON } from "./BoardViewOptions";
 import { GrainBackground, RuledBackground, TiledBackground } from "./board-pattern";
 import {
   readBoardMotionSnapshot,
@@ -494,16 +482,6 @@ const DEFAULT_FLUID_EDGE_COLOR = "#2f89c5";
 const BOARD_GRID_SIZE = BOARD_GRID;
 /** Stable identity: a fresh array each render would re-init React Flow's snap. */
 const BOARD_GRID_SNAP: [number, number] = [BOARD_GRID_SIZE, BOARD_GRID_SIZE];
-
-/** One glyph per background pattern, for the view menu's pattern row. */
-const CANVAS_PATTERN_ICON: Record<CanvasPattern, LucideIcon> = {
-  dots: Grip,
-  lines: Grid3x3,
-  cross: Plus,
-  ruled: AlignJustify,
-  graph: Grid2x2,
-  none: Ban,
-};
 
 /** Module-level so the board never re-renders on a fresh object identity. */
 const PRO_OPTIONS = { hideAttribution: true };
@@ -5568,7 +5546,7 @@ export function FactoryFlow() {
   useEffect(
     () =>
       registerBoardCommands({
-        arrange: (options) => void handleAutoArrange({ keepBoards: false, ungroup: options?.ungroup }),
+        arrange: (options) => void handleAutoArrange({ keepBoards: !options?.ungroup, ungroup: options?.ungroup }),
         cancelArrange,
         fit: handleFitView,
         openBoardMenu: (at) => {
@@ -7222,15 +7200,6 @@ function useFoldoutDismiss(
 }
 
 /**
- * The two faces of every board toggle; ON is the pressed light key. The
- * palette's swatches keep a cyan ring instead: a selection mark there has to
- * stand against any hue, including this grey.
- */
-const TOOL_FACE_ON = "bg-[var(--mc-85)] text-[var(--mc-ink)] shadow-[inset_2px_2px_0_var(--mc-100)]";
-const TOOL_FACE_OFF =
-  "bg-[var(--mc-49)] text-white shadow-[inset_2px_2px_0_var(--mc-85),inset_-2px_-2px_0_var(--mc-25)] hover:brightness-110";
-
-/**
  * A toolbar folded into one button, for boards too narrow to carry it; the
  * open one unfolds over empty canvas. Folding is decided per toolbar by the
  * BOARD's width in toolbar-fold.ts, not the window's. Unfolded this renders
@@ -8201,22 +8170,6 @@ const ANNOTATION_TOOLS: Array<{
   { kind: "text", label: "Add text note", Icon: Type },
 ];
 
-/** A theme row's little preview: its paper, its texture, three of its dots. */
-function ThemeSwatch({ theme }: { theme: CanvasTheme }) {
-  return (
-    <span
-      aria-hidden
-      className="flex h-7 w-11 shrink-0 items-center justify-center gap-1 border border-[var(--mc-15)]"
-      style={{ backgroundColor: theme.base, backgroundImage: theme.texture }}
-    >
-      {[0, 1, 2].map((dot) => (
-        <span key={dot} className="h-[3px] w-[3px]" style={{ backgroundColor: theme.patternColor }} />
-      ))}
-    </span>
-  );
-}
-
-
 /**
  * Board VIEW options, one button and a sheet that names each option. Set
  * apart from the paint and annotation tools: those change the plan, these
@@ -8229,62 +8182,19 @@ const BoardViewMenu = memo(function BoardViewMenu({
   onChange,
   open,
   onOpenChange,
-  arrange,
+  onArrange,
 }: {
   view: BoardView;
   onChange: (patch: Partial<BoardView>) => void;
   /** Held by the paint toolbar, which lifts the row's z while the sheet is out. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Auto-arrange: its one setting, and the button that runs it. */
-  arrange: {
-    keepBoards: boolean;
-    onToggleKeepBoards: () => void;
-    onArrange: (options: { keepBoards: boolean }) => void;
-  };
+  onArrange: (options: { keepBoards: boolean }) => void;
 }) {
-  const { canvasPattern } = view;
-  // Motion is device taste, not plan state: read and written through its own
-  // store (board-motion.tsx), never through the plan-view snapshot.
-  const boardMotion = useBoardMotion();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const closeSheet = useCallback(() => onOpenChange(false), [onOpenChange]);
   useFoldoutDismiss(open, rootRef, closeSheet);
 
-  const toggles: Array<{
-    id: string;
-    on: boolean;
-    label: string;
-    line?: string;
-    Icon: LucideIcon;
-    flip: () => void;
-  }> = [
-    {
-      id: "fixed-edge-width",
-      on: view.fixedEdgeWidth,
-      label: "Fixed edge width",
-      Icon: Minus,
-      flip: () => onChange({ fixedEdgeWidth: !view.fixedEdgeWidth }),
-    },
-    // The two motion switches: device taste, so they write to their own store
-    // and never travel with a shared plan.
-    {
-      id: "smooth",
-      on: boardMotion.moveMotion,
-      label: "Smooth movement",
-      line: "Cards move smoothly instead of jumping.",
-      Icon: Magnet,
-      flip: () => writeBoardMotion({ moveMotion: !boardMotion.moveMotion }),
-    },
-    {
-      id: "numbers",
-      on: boardMotion.valueMotion,
-      label: "Live numbers",
-      line: "Numbers change smoothly.",
-      Icon: Activity,
-      flip: () => writeBoardMotion({ valueMotion: !boardMotion.valueMotion }),
-    },
-  ];
 
   return (
     <div ref={rootRef} className="pointer-events-auto relative flex">
@@ -8303,125 +8213,14 @@ const BoardViewMenu = memo(function BoardViewMenu({
       </button>
       {open ? (
         <div className="absolute right-0 top-[calc(100%+6px)] z-30 flex max-h-[calc(70*var(--ui-vh))] w-[300px] max-w-[calc(100*var(--ui-vw)-24px)] flex-col gap-1 overflow-y-auto border-2 border-[var(--mc-15)] bg-[var(--mc-78)] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
-          {/* The background's paper... */}
-          <div className="grid grid-cols-2 gap-1">
-            {CANVAS_THEMES.map((theme) => (
-              <button
-                key={theme.id}
-                type="button"
-                onClick={() => onChange({ canvasTheme: theme.id })}
-                className={[
-                  "flex items-center gap-2 border-2 p-1 text-left",
-                  view.canvasTheme === theme.id
-                    ? "border-white bg-[var(--mc-85)] ring-2 ring-cyan-300"
-                    : "border-[var(--mc-15)] bg-[var(--mc-49)] hover:bg-[var(--mc-61)]",
-                ].join(" ")}
-                aria-label={`Background style: ${theme.name}`}
-                aria-pressed={view.canvasTheme === theme.id}
-              >
-                <ThemeSwatch theme={theme} />
-                <span className="min-w-0 truncate text-[11px] font-semibold leading-tight text-[var(--mc-ink)]">
-                  {theme.name}
-                </span>
-              </button>
-            ))}
-          </div>
-          {/* ...and its pattern, one key per choice. */}
-          <div className="flex gap-1">
-            {CANVAS_PATTERNS.map((pattern) => {
-              const PatternIcon = CANVAS_PATTERN_ICON[pattern];
-              return (
-                <button
-                  key={pattern}
-                  type="button"
-                  onClick={() => onChange({ canvasPattern: pattern })}
-                  title={CANVAS_PATTERN_LABEL[pattern]}
-                  aria-label={`Background pattern: ${CANVAS_PATTERN_LABEL[pattern]}`}
-                  aria-pressed={canvasPattern === pattern}
-                  className={[
-                    "flex h-9 flex-1 items-center justify-center border-2 border-[var(--mc-15)]",
-                    canvasPattern === pattern ? TOOL_FACE_ON : TOOL_FACE_OFF,
-                  ].join(" ")}
-                >
-                  <PatternIcon className="h-4 w-4" />
-                </button>
-              );
-            })}
-          </div>
-          {/* No grid or line-colour rows: the grid is always on, and colour
-              by speed is the smart view's switch, bottom right. */}
-          {toggles.map(({ id, on, label, line, Icon, flip }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={flip}
-              aria-pressed={on}
-              className={[
-                "flex items-start gap-2 border-2 p-2 text-left",
-                on
-                  ? `border-[var(--mc-good)] ${TOOL_FACE_ON}`
-                  : `border-[var(--mc-15)] ${TOOL_FACE_OFF}`,
-              ].join(" ")}
-            >
-              <Icon className="mt-[1px] h-4 w-4 shrink-0" />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono text-[12px] font-black uppercase">{label}</span>
-                  <span
-                    className={[
-                      "font-mono text-[10px] font-black tracking-[1px]",
-                      on ? "text-[var(--mc-good)]" : "text-[var(--mc-ink-muted)]",
-                    ].join(" ")}
-                  >
-                    {on ? "ON" : "OFF"}
-                  </span>
-                </span>
-                {line ? <span className="font-mono text-[11px] leading-snug opacity-80">{line}</span> : null}
-              </span>
-            </button>
-          ))}
-          {/* ARRANGE, at the foot of the sheet: its one setting, then the
-              button. By default the arrange dissolves every board. */}
-          <div className="mt-1 border-t-2 border-[var(--mc-15)] pt-1">
-            <button
-              type="button"
-              onClick={arrange.onToggleKeepBoards}
-              aria-pressed={arrange.keepBoards}
-              className={[
-                "flex w-full items-start gap-2 border-2 p-2 text-left",
-                arrange.keepBoards
-                  ? `border-[var(--mc-good)] ${TOOL_FACE_ON}`
-                  : `border-[var(--mc-15)] ${TOOL_FACE_OFF}`,
-              ].join(" ")}
-            >
-              <Network className="mt-[1px] h-4 w-4 shrink-0" />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono text-[12px] font-black uppercase">Keep boards on rearrange</span>
-                  <span
-                    className={[
-                      "font-mono text-[10px] font-black tracking-[1px]",
-                      arrange.keepBoards ? "text-[var(--mc-good)]" : "text-[var(--mc-ink-muted)]",
-                    ].join(" ")}
-                  >
-                    {arrange.keepBoards ? "ON" : "OFF"}
-                  </span>
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenChange(false);
-                arrange.onArrange({ keepBoards: arrange.keepBoards });
-              }}
-              className="mt-1 flex w-full items-center justify-center gap-2 border-2 border-[var(--mc-15)] bg-[var(--mc-49)] p-2 font-mono text-[12px] font-black uppercase text-white shadow-[inset_2px_2px_0_var(--mc-85),inset_-2px_-2px_0_var(--mc-25)] hover:brightness-110"
-              aria-label="Arrange the board"
-            >
-              <Network className="h-4 w-4" />
-              Arrange
-            </button>
-          </div>
+          <BoardViewOptions
+            view={view}
+            onChange={onChange}
+            onArrange={(keepBoards) => {
+              onOpenChange(false);
+              onArrange({ keepBoards });
+            }}
+          />
         </div>
       ) : null}
     </div>
@@ -8531,8 +8330,6 @@ function ArrangeLoader({
 
 // A browser preference, not part of the plan: two people sharing a setup
 // each keep their own habit.
-const ARRANGE_KEEP_BOARDS_KEY = "gtnh-factory-flow.arrange-keep-boards.v1";
-
 const PaintToolbar = memo(function PaintToolbar({
   paintMode,
   onPaintModeChange,
@@ -8583,26 +8380,6 @@ const PaintToolbar = memo(function PaintToolbar({
   // The view sheet's open state lives here so the whole row can lift its z
   // while it is out, as it does for the draw menu.
   const [isViewMenuOpen, setViewMenuOpen] = useState(false);
-  // The arrange setting, remembered per browser; the default dissolves every
-  // board.
-  const [keepBoards, setKeepBoards] = useState(() => {
-    try {
-      return localStorage.getItem(ARRANGE_KEEP_BOARDS_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const onToggleKeepBoards = useCallback(() => {
-    setKeepBoards((was) => {
-      try {
-        localStorage.setItem(ARRANGE_KEEP_BOARDS_KEY, was ? "0" : "1");
-      } catch {
-        // Private windows without storage still get the toggle for the session.
-      }
-      return !was;
-    });
-  }, []);
-
   // The bin, last on the right and on a plate of its own: it takes things
   // OFF the board, so it stands past every tool that puts things on. Outside
   // the fold group until the board is too narrow even for the folded row.
@@ -8770,12 +8547,12 @@ const PaintToolbar = memo(function PaintToolbar({
               <Pencil className="h-4 w-4" />
             </button>
           </div>
-              <BoardViewMenu
+          <BoardViewMenu
             view={view}
             onChange={onViewChange}
             open={isViewMenuOpen}
             onOpenChange={setViewMenuOpen}
-            arrange={{ keepBoards, onToggleKeepBoards, onArrange: onAutoArrange }}
+            onArrange={onAutoArrange}
           />
         </ToolTray>
     </>
