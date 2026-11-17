@@ -1,5 +1,7 @@
 import { expandPocketSelection } from "../model/pocket-connections";
-import { withPinRule } from "../model/pin-rule";
+import { makeResourceKey } from "../model/resources";
+import { sectionOwnerId } from "../model/shared-machine";
+import { getStorageRoles } from "../model/storage-role";
 import type { FactoryProject, ResourceBalance, ResourceFlow, ResourceKey, ThroughputResult } from "../model/types";
 import { selectInternalBalances } from "./balances";
 import { closeBoundaries } from "./close-boundaries";
@@ -8,27 +10,59 @@ import { calculateThroughput } from "./throughput";
 export function measureSelectionFlow(
   project: FactoryProject,
   result: ThroughputResult,
-  selectedIds: readonly string[],
+  itemIds: ReadonlySet<string>,
 ) {
-  const { itemIds } = expandPocketSelection(project, selectedIds);
   const groups = {
     inputs: new Map<ResourceKey, ResourceFlow>(),
     outputs: new Map<ResourceKey, ResourceFlow>(),
     internal: new Map<ResourceKey, ResourceFlow>(),
+  };
+  const add = (side: keyof typeof groups, resource: Omit<ResourceFlow, "amountPerSecond">, perSecond: number) => {
+    if (!(perSecond > 0)) return;
+    const rows = groups[side];
+    const rate = (rows.get(resource.key)?.amountPerSecond ?? 0) + perSecond;
+    rows.set(resource.key, { ...resource, amountPerSecond: rate });
   };
   for (const edge of project.edges) {
     const source = itemIds.has(edge.source);
     const target = itemIds.has(edge.target);
     if (!source && !target) continue;
     const solved = result.edges[edge.id];
-    if (!solved || !(solved.transferredPerSecond > 0)) continue;
-    const rows = source && target ? groups.internal : target ? groups.inputs : groups.outputs;
-    const resource = solved.resource;
-    const rate = (rows.get(resource.key)?.amountPerSecond ?? 0) + solved.transferredPerSecond;
-    rows.set(resource.key, { ...resource, amountPerSecond: rate });
+    if (solved) {
+      const side = source && target ? "internal" : target ? "inputs" : "outputs";
+      add(side, solved.resource, solved.transferredPerSecond);
+    }
+  }
+  // The plan also exchanges material through open or forced ports and through
+  // drawers on its boundary. Those rates have no board wire of their own.
+  for (const port of [...(result.plan?.terminals ?? []), ...(result.plan?.forced ?? [])]) {
+    if (!itemIds.has(sectionOwnerId(port.nodeId))) continue;
+    const balance = result.resources[port.resourceKey as ResourceKey];
+    if (!balance) continue;
+    const { key, kind, resourceId, displayName } = balance;
+    add(port.side === "in" ? "inputs" : "outputs", { key, kind, resourceId, displayName }, port.perSecond);
+  }
+  const drawers = (project.storages ?? []).filter(({ id }) => itemIds.has(id));
+  const roles = drawers.length ? getStorageRoles(project) : undefined;
+  for (const drawer of drawers) {
+    const flow = result.storages[drawer.id];
+    if (!flow) continue;
+    const { kind, resourceId, displayName } = flow;
+    const resource = { key: makeResourceKey(kind, resourceId), kind, resourceId, displayName };
+    switch (roles?.get(drawer.id)) {
+      case "source":
+        add("inputs", resource, flow.consumedPerSecond);
+        break;
+      case "product":
+      case "byproduct":
+        add("outputs", resource, flow.producedPerSecond);
+        break;
+      case "buffer":
+        add("outputs", resource, flow.netPerSecond);
+        break;
+    }
   }
   return {
-    itemIds,
     inputs: [...groups.inputs.values()],
     outputs: [...groups.outputs.values()],
     internal: [...groups.internal.values()],
@@ -52,7 +86,6 @@ export interface SelectionFlow {
   storageCount: number;
   /** The selection's own power draw, for the panel's EU-per-unit reading. */
   totalEuT: number;
-  unsized?: boolean;
 }
 
 /**
@@ -75,17 +108,7 @@ export interface SelectionFlow {
 export function calculateSelectionFlow(
   project: FactoryProject,
   selectedIds: readonly string[],
-  previewMachine?: { id: string; count: number },
 ): SelectionFlow | undefined {
-  const scenario = prepareSelectionFlow(project, selectedIds, previewMachine);
-  return scenario?.summarize(calculateThroughput(scenario.project, { generatedAt: "selection" }));
-}
-
-export function prepareSelectionFlow(
-  project: FactoryProject,
-  selectedIds: readonly string[],
-  previewMachine?: { id: string; count: number },
-) {
   if (selectedIds.length === 0) {
     return undefined;
   }
@@ -105,9 +128,7 @@ export function prepareSelectionFlow(
 
   const scoped: FactoryProject = {
     ...project,
-    nodes: previewMachine && project.planMode
-      ? nodes.map((node) => node.id === previewMachine.id ? withPinRule(node, "exact", previewMachine.count) : node)
-      : nodes,
+    nodes,
     storages,
     annotations: [],
     // Wires survive only with both feet inside, exactly as a copy or a
@@ -125,17 +146,17 @@ export function prepareSelectionFlow(
   //
   // Not cloned: the solver only reads the project, and a selection re-solves
   // often enough that a deep copy of every selected card would show.
+  const result = calculateThroughput(closeBoundaries(scoped), {
+    generatedAt: "selection",
+  });
+
   return {
-    project: closeBoundaries(scoped),
-    summarize: (result: ThroughputResult): SelectionFlow => ({
-      resources: result.resources,
-      externalInputs: result.externalInputs,
-      unconsumedOutputs: result.unconsumedOutputs,
-      internal: selectInternalBalances(Object.values(result.resources)),
-      machineCount: nodes.length,
-      storageCount: storages.length,
-      totalEuT: result.totalEuT,
-      unsized: result.plan?.failure?.message === "NO_PIN" || result.plan?.unanchored.some((id) => itemIds.has(id)),
-    }),
+    resources: result.resources,
+    externalInputs: result.externalInputs,
+    unconsumedOutputs: result.unconsumedOutputs,
+    internal: selectInternalBalances(Object.values(result.resources)),
+    machineCount: nodes.length,
+    storageCount: storages.length,
+    totalEuT: result.totalEuT,
   };
 }

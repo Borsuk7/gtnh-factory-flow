@@ -71,7 +71,7 @@ import {
 } from "./rail-layout";
 import { steppedRate } from "./rail-math";
 import { measureClean, useFontEpoch } from "../text-measure";
-import { useRailData } from "./rail-data";
+import { useRailData, useRailSelection } from "./rail-data";
 import type { RailDrawer, RailLine, RailMachine, RailPin } from "./rail-model";
 import { hideTip, tipProps, type TipContent } from "./rail-tip";
 import { toggleRailSection, useRailView, writeRailView } from "./rail-view";
@@ -79,7 +79,6 @@ import { SpareBlock } from "./SpareBlock";
 import { openAddToTask } from "@/components/tasks/AddToTask";
 import { cardsForTask } from "@/lib/tasks/make-task";
 import { isLiveConfigured } from "@/lib/live/live-config";
-import { OVERVIEW_VIEWS, PlanAnalysis, type OverviewView } from "./PlanAnalysis";
 
 /** Task boards come with live plans: no Add to a task without them. */
 const TASKS_ENABLED = isLiveConfigured();
@@ -267,10 +266,11 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
   useRateDisplayUnits();
   const view = useRailView();
   const { rail, spares } = useRailData();
+  const selection = useRailSelection();
+  const selectedRail = selection?.rail;
   const workspace = useWorkspaceView();
   const peak = !workspace.averageMachineDraw;
   const [filter, setFilter] = useState("");
-  const [scopeView, setScopeView] = useState<OverviewView>("plan");
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ drawer: RailDrawer; x: number; y: number } | null>(null);
   const [wheeled, setWheeled] = useState<Record<string, number>>({});
@@ -298,9 +298,18 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
 
   const folded = useMemo(() => new Set(view.folded), [view.folded]);
   const layout = useMemo(
-    () => layoutRail({ rail, spares, filter, folded, peak }),
-    [rail, spares, filter, folded, peak],
+    () => layoutRail({
+      rail: selectedRail ?? rail,
+      spares: selectedRail ? [] : spares,
+      selection: Boolean(selectedRail),
+      filter, folded, peak,
+    }),
+    [selectedRail, rail, spares, filter, folded, peak],
   );
+  const inSelection = Boolean(selection);
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [inSelection]);
 
   useEffect(
     () => () => {
@@ -397,6 +406,9 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
 
   const visible = visibleSlice(layout.placed, scrollTop - 200, scrollTop + viewport + 200);
   const euText = `${formatCompact(powerDisplayFromEuT(peak ? rail.power.peak.used : rail.power.average.used))} ${powerDisplaySuffix()}`;
+  const selectionSummary = selection
+    ? [[selection.machines, "machine"], [selection.drawers, "drawer"]] as const
+    : [];
 
   return (
     <RailWidthContext.Provider value={width}>
@@ -404,6 +416,7 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
       ref={root}
       className="rail-root"
       data-side={side}
+      data-selection={inSelection ? "" : undefined}
       data-help-anchor="overview-rail"
       onPointerDownCapture={(event) => {
         // A press anywhere on the rail sets what was being typed.
@@ -413,19 +426,13 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
       }}
     >
       <div className="rail-head">
-        <span className="rail-head-title">OVERVIEW</span>
-        <select
-          className="rail-analysis-key rail-view-picker"
-          aria-label="Overview view"
-          value={scopeView}
-          onChange={(event) => {
-            hideTip();
-            setMenu(null);
-            setScopeView(event.target.value as OverviewView);
-          }}
-        >
-          {Object.entries(OVERVIEW_VIEWS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
+        <span className="rail-head-title">{inSelection ? "SELECTION" : "OVERVIEW"}</span>
+        {inSelection && (
+          <span className="rail-selection-count">
+            {selectionSummary.filter(([count]) => count > 0)
+              .map(([count, label]) => `${count} ${label}${count === 1 ? "" : "s"}`).join(", ")}
+          </span>
+        )}
         <RailKey
           label="Fold the overview"
           className="rail-key-fold"
@@ -437,7 +444,6 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
       </div>
       <input
         className="rail-filter"
-        hidden={scopeView !== "plan"}
         placeholder="Filter resources..."
         value={filter}
         spellCheck={false}
@@ -447,14 +453,14 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
       <div
         ref={scroller}
         className="rail-list"
-        hidden={scopeView !== "plan"}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
         onPointerLeave={() => {
           anchorKey.current = null;
         }}
       >
+        {selection?.pending && <div className="rail-empty" role="status">Calculating plan…</div>}
         <div className="rail-canvas" style={{ height: layout.height }}>
-          {visible.map((placed) => (
+          {!selection?.pending && visible.map((placed) => (
             <div
               key={placed.key}
               className="rail-item"
@@ -469,7 +475,6 @@ function OpenRail({ side, fitWidth }: { side: "left" | "right"; fitWidth: boolea
           ))}
         </div>
       </div>
-      {scopeView !== "plan" ? <PlanAnalysis view={scopeView} /> : null}
       {menu ? (
         <RuleMenu drawer={menu.drawer} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />
       ) : null}

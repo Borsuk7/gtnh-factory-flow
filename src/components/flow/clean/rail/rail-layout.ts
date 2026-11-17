@@ -56,6 +56,7 @@ export interface LayoutInput {
   filter: string;
   folded: ReadonlySet<string>;
   peak: boolean;
+  selection?: boolean;
 }
 
 const matches = (filter: string, label: string) => {
@@ -72,7 +73,7 @@ export function lineHeight(setterCount: number): number {
 }
 
 export function layoutRail(input: LayoutInput): { placed: Placed[]; height: number } {
-  const { rail, spares, filter, folded, peak } = input;
+  const { rail, spares, filter, folded, peak, selection } = input;
   const placed: Placed[] = [];
   let y = 0;
   const push = (item: RailItem, height: number, key: string) => {
@@ -136,9 +137,10 @@ export function layoutRail(input: LayoutInput): { placed: Placed[]; height: numb
     y += GAP;
   };
 
-  resources("INPUTS", "inputs", rail.inputs, "Nothing missing.");
-  resources("OUTPUTS", "outputs", rail.outputs, "Nothing coming out yet.");
+  resources("INPUTS", "inputs", rail.inputs, selection ? "No inputs." : "Nothing missing.");
+  resources("OUTPUTS", "outputs", rail.outputs, selection ? "No outputs." : "Nothing coming out yet.");
   resources("INTERNAL", "internal", rail.internal, "Nothing internal.");
+  if (selection) return { placed, height: y };
 
   // A folded section keeps its sliders reachable: they are not drawn, but a held bar is found by key.
   const groupsOf = new Map<string, RailMachine[]>();

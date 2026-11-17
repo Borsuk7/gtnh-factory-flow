@@ -85,7 +85,6 @@ import {
   TRASH_ANY_RESOURCE_ID,
 } from "@/lib/model/trash";
 import { optimizeMachineCountsForProject } from "@/lib/solver/machine-count-optimizer";
-import { planWithMachineSizes, type MachineSize } from "@/lib/solver/plan-sizing";
 import {
   BOARD_GRID,
   BOARD_WINDOW_DEFAULT_SIZE,
@@ -823,7 +822,6 @@ interface FactoryStore {
   autoConnectNode: (nodeId: string) => void;
   optimizeMachineCount: (nodeId: string) => void;
   optimizeMachineCounts: () => void;
-  applyPlanSizes: (base: FactoryProject, sizes: readonly MachineSize[]) => boolean;
   /** One wire, or a batch deleted together as a single undo entry. */
   deleteEdge: (edgeId: string | string[]) => void;
   setTargetRate: (targetRate?: TargetRate) => void;
@@ -4827,13 +4825,6 @@ export const useFactoryStore = create<FactoryStore>(withViewerGuard((set, get, w
         lastResult: solveBooks(project),
       });
     });
-  },
-  applyPlanSizes: (base, sizes) => {
-    const state = get();
-    if (state.isReadOnly || state.checklistMode || state.project !== base || sizes.length === 0) return false;
-    const project = touchProject(planWithMachineSizes(base, sizes));
-    set(withProjectHistory(state, { project, lastResult: solveBooks(project) }));
-    return true;
   },
   optimizeMachineCount: (nodeId) => {
     set((state) => {

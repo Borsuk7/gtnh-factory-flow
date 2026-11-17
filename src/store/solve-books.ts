@@ -87,32 +87,9 @@ let queued: SolveRequest | undefined;
 let currentKey: string | undefined;
 /** The last books handed out, big or small: what a stale placeholder wears. */
 let lastBooks: ThroughputResult | undefined;
-let previewSequence = 0;
-const previews = new Map<string, {
-  resolve: (result: ThroughputResult) => void;
-  reject: (error: Error) => void;
-}>();
-
 /** Where finished worker solves land; the factory store registers itself. */
 export function registerBooksSink(apply: (result: ThroughputResult) => void) {
   sink = apply;
-}
-
-/** Use the board's solver engine without replacing or invalidating its books. */
-export async function solvePreview(project: FactoryProject): Promise<ThroughputResult> {
-  if (typeof Worker === "undefined") return calculateThroughput(project);
-  if (!workerAvailable()) throw new Error("The preview solver is unavailable.");
-  return new Promise((resolve, reject) => {
-    const key = `preview:${++previewSequence}`;
-    const target = getWorker();
-    previews.set(key, { resolve, reject });
-    try {
-      target.postMessage({ key, project, preview: true });
-    } catch (error) {
-      previews.delete(key);
-      reject(error);
-    }
-  });
 }
 
 export function solveBooks(project: FactoryProject): ThroughputResult {
@@ -204,13 +181,6 @@ function getWorker(): Worker {
       }>,
     ) => {
       const { key, result, error } = event.data;
-      const preview = previews.get(key);
-      if (preview) {
-        previews.delete(key);
-        if (result) preview.resolve(result);
-        else preview.reject(new Error(error ?? "The preview could not be solved."));
-        return;
-      }
       inFlight = undefined;
       if (result) {
         // `solveMs` is deliberately not read: see lastSolveDurationMs.
@@ -239,8 +209,6 @@ function getWorker(): Worker {
       // fall back to the blocking path rather than showing stale books forever.
       console.error("solve worker broke; falling back to main-thread solves", event.message);
       workerBroken = true;
-      for (const preview of previews.values()) preview.reject(new Error("The preview solver stopped."));
-      previews.clear();
       const retry = queued ?? inFlight;
       inFlight = undefined;
       queued = undefined;

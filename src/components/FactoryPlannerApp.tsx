@@ -244,8 +244,8 @@ export function FactoryPlannerApp() {
       resetResourceTrends();
       trendDesign.current = activeDesignId;
     }
-    if (!lastResult.stale) recordResourceTrend(lastResult);
-  }, [activeDesignId, lastResult]);
+    if (!project.planMode && !lastResult.stale) recordResourceTrend(lastResult);
+  }, [activeDesignId, lastResult, project.planMode]);
 
   useEffect(() => {
     let cancelled = false;

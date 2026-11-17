@@ -1914,26 +1914,6 @@ describe("recipe search wiring and refactor", () => {
 });
 
 describe("factory machine count optimization", () => {
-  it("applies a checked set of machine caps as one undo and rejects a stale preview", () => {
-    const store = useFactoryStore.getState();
-    store.setProject({ ...createRatioOptimizationProject(), planMode: true, solveMode: true });
-    const base = useFactoryStore.getState().project;
-    const sizes = [
-      { id: "dust-source", name: "Source", used: 1.5, count: 2 },
-      { id: "plate-target", name: "Target", used: 1.5, count: 2 },
-    ];
-    const historySize = useFactoryStore.getState().undoHistory.length;
-    expect(store.applyPlanSizes(base, sizes)).toBe(true);
-    expect(useFactoryStore.getState().undoHistory).toHaveLength(historySize + 1);
-    expect(useFactoryStore.getState().project.nodes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "dust-source", solvePin: 2 }),
-      expect.objectContaining({ id: "plate-target", solvePin: 2 }),
-    ]));
-    expect(store.applyPlanSizes(base, sizes)).toBe(false);
-    store.undo();
-    expect(useFactoryStore.getState().project.nodes).toEqual(base.nodes);
-  });
-
   it("propagates suggested machine counts through connected recipe chains", () => {
     useFactoryStore.getState().setProject(createRatioOptimizationProject());
 

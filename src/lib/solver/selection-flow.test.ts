@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { gtnhFuelProfiles } from "@/lib/model/fuels";
+import { expandPocketSelection } from "@/lib/model/pocket-connections";
 import { PROJECT_SCHEMA_VERSION, type FactoryProject } from "@/lib/model/types";
 import { calculateThroughput } from "./throughput";
 import { calculateSelectionFlow, measureSelectionFlow } from "./selection-flow";
-import { planWithMachineSizes, suggestPlanSizes, verifyPlanSizes } from "./plan-sizing";
 import { closeBoundaries } from "./close-boundaries";
+import { mockForced } from "./plan/__fixtures__/mock-extras";
 
 /**
  * Two machines in a line: the smelter turns ore into ingots, the bender turns
@@ -116,7 +117,7 @@ describe("calculateSelectionFlow", () => {
     project.pockets = [{ id: "pocket", name: "Line", position: { x: 0, y: 0 } }];
     project.nodes = project.nodes.map((node) => ({ ...node, pocketId: "pocket" }));
     const solve = calculateThroughput(project, { generatedAt: "fixed" });
-    const measured = measureSelectionFlow(project, solve, ["pocket"]);
+    const measured = measureSelectionFlow(project, solve, expandPocketSelection(project, ["pocket"]).itemIds);
     expect(keys(measured.inputs)).toEqual(["ore"]);
     expect(keys(measured.internal)).toEqual(["ingot"]);
     expect(keys(measured.outputs)).toEqual(["plate"]);
@@ -125,18 +126,40 @@ describe("calculateSelectionFlow", () => {
     }
   });
 
-  it("falls back to the plan when nothing is selected", () => {
-    expect(calculateSelectionFlow(makeChainProject(), [])).toBeUndefined();
-  });
-
-  it("lets an unsized plan selection be previewed with one machine without editing it", () => {
+  it("counts open ports on a selected card alongside its existing wires", () => {
     const project = makeChainProject();
     project.planMode = project.solveMode = true;
-    expect(calculateSelectionFlow(project, ["bender"])?.unsized).toBe(true);
-    const preview = calculateSelectionFlow(project, ["bender"], { id: "bender", count: 1 });
-    expect(preview?.externalInputs[0]?.importedPerSecond).toBeCloseTo(1);
-    expect(preview?.unconsumedOutputs[0]?.productPerSecond).toBeCloseTo(1);
-    expect(project.nodes[1].solvePin).toBeUndefined();
+    project.nodes[1].solvePin = 1;
+    project.nodes[1].solvePinExact = true;
+    project.edges.pop();
+    const result = calculateThroughput(project, { generatedAt: "fixed" });
+    const measured = measureSelectionFlow(project, result, new Set(["bender"]));
+    expect(measured.inputs).toEqual([expect.objectContaining({ resourceId: "ingot", amountPerSecond: 1 })]);
+    expect(measured.outputs).toEqual([expect.objectContaining({ resourceId: "plate", amountPerSecond: 1 })]);
+    expect(measured.internal).toEqual([]);
+  });
+
+  it("adds forced rates to flow on the same port", () => {
+    const { project, result } = mockForced;
+    const macerator = measureSelectionFlow(project, result, new Set(["mac"]));
+    expect(macerator.outputs).toEqual([
+      expect.objectContaining({ resourceId: "Crushed Iron", amountPerSecond: 6 }),
+    ]);
+    const furnace = measureSelectionFlow(project, result, new Set(["furn"]));
+    expect(furnace.inputs).toContainEqual(expect.objectContaining({ resourceId: "Coal", amountPerSecond: 1 }));
+  });
+
+  it("shows the external import when its drawer and consumer are both selected", () => {
+    const project = makeChainProject();
+    const result = calculateThroughput(project, { generatedAt: "fixed" });
+    const measured = measureSelectionFlow(project, result, new Set(["ore-source", "smelter"]));
+    expect(measured.inputs).toEqual([expect.objectContaining({ resourceId: "ore", amountPerSecond: expect.closeTo(1) })]);
+    expect(measured.internal).toEqual([expect.objectContaining({ resourceId: "ore", amountPerSecond: expect.closeTo(1) })]);
+    expect(measured.outputs).toEqual([expect.objectContaining({ resourceId: "ingot", amountPerSecond: expect.closeTo(1) })]);
+  });
+
+  it("falls back to the plan when nothing is selected", () => {
+    expect(calculateSelectionFlow(makeChainProject(), [])).toBeUndefined();
   });
 
   it("reads an upstream feed as a need when only the consumer is selected", () => {
@@ -239,20 +262,4 @@ describe("calculateSelectionFlow", () => {
     expect(selection!.resources["item:ingot"].producedPerSecond).toBe(0);
     expect(selection!.resources["item:ingot"].consumedPerSecond).toBeCloseTo(1);
   });
-});
-
-it("rounds automatic plan counts up and verifies that caps preserve wire rates", () => {
-  const project = makeChainProject();
-  project.planMode = project.solveMode = true;
-  project.nodes[0].solvePin = 3;
-  project.storages![1] = { ...project.storages![1]!, targetPerSecond: 1.5, targetMode: "exact" };
-  const result = calculateThroughput(project, { generatedAt: "fixed" });
-  const sizes = suggestPlanSizes(project, result);
-  expect(sizes).toEqual([{ id: "bender", name: "Bend", used: 1.5, count: 2 }]);
-  const preview = planWithMachineSizes(project, sizes);
-  expect(preview.nodes[0]).toBe(project.nodes[0]);
-  expect(preview.nodes[1]).toMatchObject({ solvePin: 2 });
-  expect(verifyPlanSizes(preview, result, calculateThroughput(preview))).toBe(true);
-  const tooSmall = planWithMachineSizes(project, [{ ...sizes[0]!, count: 1 }]);
-  expect(verifyPlanSizes(tooSmall, result, calculateThroughput(tooSmall))).toBe(false);
 });
